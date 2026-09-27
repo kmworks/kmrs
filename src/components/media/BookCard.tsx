@@ -13,7 +13,8 @@ import { MenuItem } from '@/components/ui/Menu'
 import { SelectBadge } from '@/components/selection/SelectBadge'
 import type { CardSelection } from '@/components/selection/useSelection'
 import { plural, relativeTime } from '@/lib/utils/format'
-import { mediaStatusLabel } from '@/lib/utils/mediaStatus'
+import { cardStatusLabel } from '@/lib/utils/mediaStatus'
+import { useLibraryUnavailable } from '@/lib/utils/libraries'
 import { cn } from '@/lib/utils/cn'
 
 interface BookCardProps {
@@ -58,8 +59,9 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
   const overline = book.oneshot ? 'Oneshot' : showSeries ? book.seriesTitle : undefined
   const titleLines = showSeries || book.oneshot ? 1 : 2
 
-  // like komga's card body line: a broken media status replaces the normal meta
-  const statusLabel = mediaStatusLabel(book.media.status)
+  // like komga's card body line: unavailable or broken media replaces the normal meta
+  const libraryUnavailable = useLibraryUnavailable(book.libraryId)
+  const statusLabel = cardStatusLabel({ deleted: book.deleted || libraryUnavailable, mediaStatus: book.media.status })
   const secondaryText = statusLabel ? (
     <span className={statusLabel.className}>{statusLabel.text}</span>
   ) : (
@@ -76,7 +78,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
           <BookCardMenu
             book={book}
             navItem={
-              <MenuItem onSelect={() => navigate(readRoute(book) ?? `/book/${book.id}`)}>
+              <MenuItem onSelect={() => navigate(readRoute({ id: book.id, media: book.media, deleted: book.deleted || libraryUnavailable }) ?? `/book/${book.id}`)}>
                 <Play className="size-4" /> Read
               </MenuItem>
             }

@@ -51,8 +51,10 @@ export interface MediaIssue {
 }
 
 /** Why a book cannot be opened in the web reader, or null when it can. */
-export function mediaIssue(book: Pick<BookDto, 'media'>): MediaIssue | null {
+export function mediaIssue(book: Pick<BookDto, 'media' | 'deleted'>): MediaIssue | null {
   const { media } = book
+  // deleted wins over any media status: the file is gone, nothing else applies (komga parity)
+  if (book.deleted) return { severity: 'danger', title: 'Unavailable' }
   const detail = media.comment ? convertErrorCodes(media.comment) : undefined
   switch (media.status) {
     case 'ERROR':
@@ -71,9 +73,13 @@ export function mediaIssue(book: Pick<BookDto, 'media'>): MediaIssue | null {
   return null
 }
 
-/** Short status text for book cards, replacing the meta line; undefined keeps the normal meta. */
-export function mediaStatusLabel(status: MediaStatus): { text: string; className: string } | undefined {
-  switch (status) {
+/**
+ * Short status text for the card secondary line, replacing the normal meta; undefined keeps it.
+ * deleted beats media status and OUTDATED stays hidden on cards, like komga's card body line.
+ */
+export function cardStatusLabel(item: { deleted: boolean; mediaStatus?: MediaStatus }): { text: string; className: string } | undefined {
+  if (item.deleted) return { text: 'Unavailable', className: 'font-medium text-danger' }
+  switch (item.mediaStatus) {
     case 'ERROR':
       return { text: 'Error', className: 'font-medium text-danger' }
     case 'UNSUPPORTED':

@@ -155,6 +155,8 @@ export function SeriesDetailPage() {
 
   const md = series.metadata
   const library = librariesQuery.data?.find((l) => l.id === series.libraryId)
+  // an unavailable library makes the series act deleted (komga parity)
+  const unavailable = series.deleted || (library?.unavailable ?? false)
   const allRead = series.booksCount > 0 && series.booksUnreadCount === 0 && series.booksInProgressCount === 0
   const readTarget = readTargetQuery.data
   const readTargetRoute = readTarget ? readRoute(readTarget) : null
@@ -206,7 +208,7 @@ export function SeriesDetailPage() {
               {!allRead && <Checks className="size-4" />}
               {allRead ? 'Mark as unread' : 'Mark as read'}
             </Button>
-            {canDownload(user) && <DownloadLink href={urls.seriesFile(series.id)} />}
+            {canDownload(user) && <DownloadLink href={urls.seriesFile(series.id)} disabled={unavailable} />}
             {isAdmin(user) && (
               <Menu
                 trigger={
@@ -239,6 +241,7 @@ export function SeriesDetailPage() {
               </Menu>
             )}
           </div>
+          {unavailable && <p className="mt-2 text-xs font-medium text-danger">Unavailable</p>}
         </div>
       </DetailHero>
 

@@ -4,6 +4,8 @@ import { CheckCircle } from '@phosphor-icons/react'
 import { urls } from '@/lib/utils/urls'
 import { useBust } from '@/lib/store/thumbnails'
 import { useUiStore } from '@/lib/store/ui'
+import { cardStatusLabel } from '@/lib/utils/mediaStatus'
+import { useLibraryUnavailable } from '@/lib/utils/libraries'
 import { CoverImage } from './CoverImage'
 import { CardFrame, CardMenuButton, CardText, CardOverlayText } from './CardFrame'
 import { ProgressCapsule, UnreadBadge } from './badges'
@@ -46,6 +48,11 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
   const blurUnread = useUiStore((s) => s.blurUnreadCovers)
   const title = series.metadata.title || series.name
 
+  // like komga: an unavailable series replaces its status line
+  const libraryUnavailable = useLibraryUnavailable(series.libraryId)
+  const statusLabel = cardStatusLabel({ deleted: series.deleted || libraryUnavailable })
+  const secondary = statusLabel ? <span className={statusLabel.className}>{statusLabel.text}</span> : secondaryLine(series)
+
   const frame = (
     <CardFrame
       to={`/series/${series.id}`}
@@ -74,9 +81,9 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
         <ProgressCapsule
           value={series.booksCount > 0 && series.booksInProgressCount > 0 ? series.booksReadCount / series.booksCount : 0}
         />
-        <CardOverlayText title={title} secondary={secondaryLine(series)} />
+        <CardOverlayText title={title} secondary={secondary} />
       </div>
-      <CardText title={title} secondary={secondaryLine(series)} />
+      <CardText title={title} secondary={secondary} />
     </CardFrame>
   )
 

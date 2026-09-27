@@ -101,8 +101,10 @@ export function OneshotDetailPage() {
   const library = librariesQuery.data?.find((l) => l.id === series.libraryId)
   const progress = book.readProgress
   const completed = !!progress?.completed
-  const route = readRoute(book)
-  const issue = mediaIssue(book)
+  // an unavailable library makes the book act deleted (komga parity)
+  const unavailable = book.deleted || (library?.unavailable ?? false)
+  const route = readRoute({ id: book.id, media: book.media, deleted: unavailable })
+  const issue = mediaIssue({ media: book.media, deleted: unavailable })
   const readlists = readlistsQuery.data ?? []
   const cover = urls.bookThumbnail(book.id, bust || undefined)
   const authors = bookMd.authors.length > 0 ? bookMd.authors : series.booksMetadata.authors
@@ -148,7 +150,7 @@ export function OneshotDetailPage() {
               {!completed && <Checks className="size-4" />}
               {completed ? 'Mark as unread' : 'Mark as read'}
             </Button>
-            {canDownload(user) && <DownloadLink href={urls.bookFile(book.id)} />}
+            {canDownload(user) && <DownloadLink href={urls.bookFile(book.id)} disabled={unavailable} />}
           </div>
           {issue && (
             <p

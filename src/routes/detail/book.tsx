@@ -144,8 +144,10 @@ export function BookDetailPage() {
   const md = book.metadata
   const progress = book.readProgress
   const completed = !!progress?.completed
-  const route = readRoute(book)
-  const issue = mediaIssue(book)
+  // an unavailable library makes the book act deleted (komga parity)
+  const unavailable = book.deleted || (library?.unavailable ?? false)
+  const route = readRoute({ id: book.id, media: book.media, deleted: unavailable })
+  const issue = mediaIssue({ media: book.media, deleted: unavailable })
   const prev = previousQuery.data ?? null
   const next = nextQuery.data ?? null
   const readlists = readlistsQuery.data ?? []
@@ -182,7 +184,7 @@ export function BookDetailPage() {
               {!completed && <Checks className="size-4" />}
               {completed ? 'Mark as unread' : 'Mark as read'}
             </Button>
-            {canDownload(user) && <DownloadLink href={urls.bookFile(book.id)} />}
+            {canDownload(user) && <DownloadLink href={urls.bookFile(book.id)} disabled={unavailable} />}
             {(isAdmin(user) || prev || next) && (
               <Menu
                 trigger={

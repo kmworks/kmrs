@@ -5,7 +5,8 @@ import { urls } from '@/lib/utils/urls'
 import { readRoute } from '@/lib/utils/nav'
 import { useBust } from '@/lib/store/thumbnails'
 import { plural, relativeTime } from '@/lib/utils/format'
-import { mediaStatusLabel } from '@/lib/utils/mediaStatus'
+import { cardStatusLabel } from '@/lib/utils/mediaStatus'
+import { useLibraryUnavailable } from '@/lib/utils/libraries'
 import { useCoverTint } from '@/lib/utils/coverTint'
 import { cn } from '@/lib/utils/cn'
 import { MenuItem } from '@/components/ui/Menu'
@@ -21,7 +22,9 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
   const cover = urls.bookThumbnail(book.id, bust || undefined)
   const tint = useCoverTint(cover)
   const tinted = tint !== null
-  const to = readRoute(book) ?? `/book/${book.id}`
+  const libraryUnavailable = useLibraryUnavailable(book.libraryId)
+  const unavailable = book.deleted || libraryUnavailable
+  const to = readRoute({ id: book.id, media: book.media, deleted: unavailable }) ?? `/book/${book.id}`
   const title = book.metadata.title || book.name
   const completed = book.readProgress?.completed ?? false
   const pct = !completed && book.media.pagesCount > 0 && book.readProgress ? book.readProgress.page / book.media.pagesCount : 0
@@ -30,7 +33,7 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
   const seriesColor = tinted ? 'text-white/85' : 'text-ink'
   const metaColor = tinted ? 'text-white/70' : 'text-ink-2'
 
-  const statusLabel = mediaStatusLabel(book.media.status)
+  const statusLabel = cardStatusLabel({ deleted: unavailable, mediaStatus: book.media.status })
   const meta = statusLabel ? (
     <span className={statusLabel.className}>{statusLabel.text}</span>
   ) : completed ? (
