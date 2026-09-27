@@ -7,8 +7,10 @@ interface TabBarProps<T extends string> {
 }
 
 export function TabBar<T extends string>({ tabs, active, onChange }: TabBarProps<T>) {
+  // overflow-y computes to auto next to overflow-x-auto, and sub-pixel height rounding
+  // on scaled displays then shows a phantom vertical scrollbar
   return (
-    <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-line">
+    <div role="tablist" className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line">
       {tabs.map((tab) => {
         const selected = tab.id === active
         return (
@@ -27,7 +29,7 @@ export function TabBar<T extends string>({ tabs, active, onChange }: TabBarProps
             {tab.hasError && (
               <span className="ml-1.5 inline-block size-1.5 rounded-full bg-danger align-middle" aria-hidden />
             )}
-            {selected && <span className="absolute inset-x-3 -bottom-px h-0.5 bg-accent" />}
+            {selected && <span className="absolute inset-x-3 bottom-0 h-0.5 bg-accent" />}
           </button>
         )
       })}

@@ -602,12 +602,16 @@ export function validateDraft(d: KomfConfigDraft): KomfDraftErrors {
     libraryProcessingMessages: [],
   }
   for (const key of PROVIDER_KEYS) {
-    const error = validateProvider(key, d.defaultProviders[key])
+    const provider = d.defaultProviders[key]
+    // disabled providers are hidden in the UI; their inert settings must not block saving
+    if (!provider.enabled) continue
+    const error = validateProvider(key, provider)
     if (error) errors.defaultProviders[key] = error
   }
   for (const [libId, providers] of Object.entries(d.libraryProviders)) {
     const sub: Partial<Record<KomfProviderKey, string>> = {}
     for (const key of PROVIDER_KEYS) {
+      if (!providers[key].enabled) continue
       const error = validateProvider(key, providers[key])
       if (error) sub[key] = error
     }

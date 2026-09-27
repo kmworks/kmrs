@@ -32,7 +32,8 @@ export function Menu({ trigger, children, align = 'end', side = 'bottom', matchT
             }
           }}
           className={cn(
-            'z-30 min-w-44 overflow-hidden rounded-xl border border-line bg-raised p-1 shadow-pop',
+            // menus can open inside dialogs (z-40), so the popup must stack above them
+            'z-50 min-w-44 overflow-hidden rounded-xl border border-line bg-raised p-1 shadow-pop',
             matchTriggerWidth && 'w-[var(--radix-dropdown-menu-trigger-width)]',
             'data-[state=open]:animate-[fade-in_0.12s_ease-out]',
           )}

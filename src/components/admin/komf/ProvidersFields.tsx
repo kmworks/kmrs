@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CaretRight } from '@phosphor-icons/react'
+import { CaretRight, Plus } from '@phosphor-icons/react'
 import type { KomfLibraryType, KomfNameMatchingMode } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
 import type { BookMetadataDraft, KomfProviderKey, ProviderDraft, ProvidersDraft, SeriesMetadataDraft } from './draft'
@@ -11,6 +11,8 @@ import {
   PROVIDER_LABELS,
 } from './draft'
 import { FieldInput } from '@/components/admin/settings/FieldInput'
+import { Button } from '@/components/ui/Button'
+import { Menu, MenuItem } from '@/components/ui/Menu'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Switch } from '@/components/ui/Switch'
 import { Checklist, CollapsibleGroup } from './fields'
@@ -70,10 +72,12 @@ interface ProviderCardProps {
   value: ProviderDraft
   onChange: (v: ProviderDraft) => void
   error?: string
+  /** expand the options on mount — used for a freshly added provider */
+  defaultOpen?: boolean
 }
 
-function ProviderCard({ provider, value, onChange, error }: ProviderCardProps) {
-  const [open, setOpen] = useState(false)
+function ProviderCard({ provider, value, onChange, error, defaultOpen }: ProviderCardProps) {
+  const [open, setOpen] = useState(defaultOpen ?? false)
   const label = PROVIDER_LABELS[provider]
   const set = (patch: Partial<ProviderDraft>) => onChange({ ...value, ...patch })
   const setSeries = (patch: Partial<SeriesMetadataDraft>) =>
@@ -226,19 +230,47 @@ interface ProvidersFieldsProps {
   errors?: Partial<Record<KomfProviderKey, string>>
 }
 
-/** One expandable card per metadata provider: enable switch, priority, and per-provider options. */
+/** One expandable card per enabled provider; disabled providers are added back from the menu. */
 export function ProvidersFields({ value, onChange, errors }: ProvidersFieldsProps) {
+  const [addedKey, setAddedKey] = useState<KomfProviderKey | null>(null)
+  const enabled = PROVIDER_KEYS.filter((key) => value[key].enabled)
+  const available = PROVIDER_KEYS.filter((key) => !value[key].enabled)
+
   return (
     <div className="flex flex-col gap-2">
-      {PROVIDER_KEYS.map((key) => (
+      {enabled.length === 0 && <p className="text-sm text-ink-3">No providers enabled.</p>}
+      {enabled.map((key) => (
         <ProviderCard
           key={key}
           provider={key}
           value={value[key]}
           onChange={(v) => onChange({ ...value, [key]: v })}
           error={errors?.[key]}
+          defaultOpen={key === addedKey}
         />
       ))}
+      {available.length > 0 && (
+        <Menu
+          align="start"
+          trigger={
+            <Button size="sm" variant="secondary" className="self-start">
+              <Plus className="size-4" /> Add provider
+            </Button>
+          }
+        >
+          {available.map((key) => (
+            <MenuItem
+              key={key}
+              onSelect={() => {
+                setAddedKey(key)
+                onChange({ ...value, [key]: { ...value[key], enabled: true } })
+              }}
+            >
+              {PROVIDER_LABELS[key]}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
     </div>
   )
 }
