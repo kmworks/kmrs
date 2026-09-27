@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowCounterClockwise,
   ArrowSquareOut,
   ArrowsClockwise,
   BookmarkSimple,
@@ -55,6 +56,7 @@ import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
 import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
+import { KomfResetDialog } from '@/components/metadata/KomfResetDialog'
 import { showToast } from '@/lib/store/toast'
 import { trackKomfJob } from '@/lib/store/komfJobs'
 
@@ -79,6 +81,7 @@ export function OneshotDetailPage() {
   const [editBookOpen, setEditBookOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
   const [identifyOpen, setIdentifyOpen] = useState(false)
+  const [komfResetOpen, setKomfResetOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const komfReady = useKomfIntegration()
 
@@ -136,6 +139,16 @@ export function OneshotDetailPage() {
     mutationFn: (libraryId: string) => komfApi.matchSeries(libraryId, seriesId),
     onSuccess: ({ id }) => trackKomfJob(id, title),
     onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the match'),
+  })
+  const komfResetMutation = useMutation({
+    mutationFn: (libraryId: string) => komfApi.resetSeries(libraryId, seriesId),
+    onSuccess: () => {
+      setKomfResetOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['series'] })
+      queryClient.invalidateQueries({ queryKey: ['books'] })
+      showToast('Metadata reset')
+    },
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not reset the metadata'),
   })
   const deleteMutation = useMutation({
     mutationFn: () => booksApi.deleteFile(book!.id),
@@ -270,6 +283,9 @@ export function OneshotDetailPage() {
                     >
                       <PlugsConnected className="size-4" /> Match with komf
                     </MenuItem>
+                    <MenuItem onSelect={() => setKomfResetOpen(true)}>
+                      <ArrowCounterClockwise className="size-4" /> Reset metadata with komf
+                    </MenuItem>
                   </>
                 )}
                 <MenuSeparator />
@@ -402,12 +418,21 @@ export function OneshotDetailPage() {
       <EditSeriesDialog open={editOpen} onClose={() => setEditOpen(false)} seriesIds={[series.id]} />
       <EditBooksDialog open={editBookOpen} onClose={() => setEditBookOpen(false)} bookIds={[book.id]} />
       {komfReady && (
-        <KomfIdentifyDialog
-          open={identifyOpen}
-          onOpenChange={setIdentifyOpen}
-          series={series}
-          onIdentified={() => showToast('Identify queued')}
-        />
+        <>
+          <KomfIdentifyDialog
+            open={identifyOpen}
+            onOpenChange={setIdentifyOpen}
+            series={series}
+            onIdentified={() => showToast('Identify queued')}
+          />
+          <KomfResetDialog
+            open={komfResetOpen}
+            onOpenChange={setKomfResetOpen}
+            name={title}
+            loading={komfResetMutation.isPending}
+            onConfirm={() => komfResetMutation.mutate(series.libraryId)}
+          />
+        </>
       )}
       <PosterManager open={postersOpen} onClose={() => setPostersOpen(false)} kind="series" entityId={series.id} title={title} />
       <ConfirmDeleteDialog

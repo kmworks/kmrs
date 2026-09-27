@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
-import { BookOpen, CircleNotch, MagnifyingGlass } from '@phosphor-icons/react'
+import { BookOpen, CircleNotch, Link as LinkIcon, MagnifyingGlass, Stack } from '@phosphor-icons/react'
 import { komfApi } from '@/lib/api/komf'
-import type { KomfSeriesSearchResult, SeriesDto } from '@/lib/api/types'
+import { seriesApi } from '@/lib/api/series'
+import type { SeriesDto, WebLinkDto } from '@/lib/api/types'
 import { trackKomfJob } from '@/lib/store/komfJobs'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
@@ -25,6 +26,51 @@ export function KomfIdentifyDialog({ open, onOpenChange, series, onIdentified }:
       <IdentifyContent series={series} onIdentified={onIdentified} close={() => onOpenChange(false)} />
     </Dialog>
   )
+}
+
+interface ProviderLinkHit {
+  provider: string
+  providerSeriesId: string
+  url: string
+}
+
+const PROVIDER_LINK_LABELS: Record<string, string> = {
+  BANGUMI: 'Bangumi',
+  EHENTAI: 'E-Hentai',
+  ANILIST: 'AniList',
+  MAL: 'MAL',
+  MANGADEX: 'MangaDex',
+  MANGA_UPDATES: 'MangaUpdates',
+}
+
+/** Recognizes provider URLs in series/book links; ids follow komf's SCREAMING_SNAKE names. */
+function parseProviderLink(link: WebLinkDto): ProviderLinkHit | null {
+  const url = link.url.toLowerCase()
+  if ((url.includes('bgm.tv') || url.includes('bangumi.tv')) && url.includes('/subject/')) {
+    const m = url.match(/\/subject\/([^/?]+)/)
+    if (m) return { provider: 'BANGUMI', providerSeriesId: m[1], url: link.url }
+  }
+  if (url.includes('e-hentai.org') || url.includes('exhentai.org')) {
+    const m = url.match(/\/g\/([^/]+)\/([^/?]+)/)
+    if (m) return { provider: 'EHENTAI', providerSeriesId: `${m[1]};${m[2]}`, url: link.url }
+  }
+  if (url.includes('anilist.co')) {
+    const m = url.match(/\/(?:anime|manga)\/(\d+)/)
+    if (m) return { provider: 'ANILIST', providerSeriesId: m[1], url: link.url }
+  }
+  if (url.includes('myanimelist.net')) {
+    const m = url.match(/\/(?:anime|manga)\/(\d+)/)
+    if (m) return { provider: 'MAL', providerSeriesId: m[1], url: link.url }
+  }
+  if (url.includes('mangadex.org')) {
+    const m = url.match(/\/title\/([^/?]+)/)
+    if (m) return { provider: 'MANGADEX', providerSeriesId: m[1], url: link.url }
+  }
+  if (url.includes('mangaupdates.com')) {
+    const m = url.match(/\/series\/([^/?]+)/) || url.match(/series\.html\?id=(\d+)/)
+    if (m) return { provider: 'MANGA_UPDATES', providerSeriesId: m[1], url: link.url }
+  }
+  return null
 }
 
 function IdentifyContent({
@@ -51,13 +97,33 @@ function IdentifyContent({
     placeholderData: keepPreviousData,
   })
 
+  // oneshots carry their provider links on the single book when the series has none
+  const needBookLinks = series.oneshot && series.metadata.links.length === 0
+  const bookQuery = useQuery({
+    queryKey: ['series', series.id, 'oneshot-book'],
+    queryFn: async () => (await seriesApi.books(series.id, { size: 1 })).content[0] ?? null,
+    enabled: needBookLinks,
+  })
+  const bookLinks = bookQuery.data?.metadata.links
+  const linkHits = useMemo(() => {
+    const all = series.metadata.links.length > 0 ? series.metadata.links : (bookLinks ?? [])
+    const seen = new Set<string>()
+    return all
+      .map(parseProviderLink)
+      .filter((h): h is ProviderLinkHit => h !== null)
+      .filter((h) => {
+        const key = `${h.provider}:${h.providerSeriesId}`
+        return !seen.has(key) && (seen.add(key), true)
+      })
+  }, [series.metadata.links, bookLinks])
+
   const identify = useMutation({
-    mutationFn: (r: KomfSeriesSearchResult) =>
+    mutationFn: (r: { provider: string; providerSeriesId: string }) =>
       komfApi.identify({
         libraryId: series.libraryId,
         seriesId: series.id,
         provider: r.provider,
-        providerSeriesId: r.resultId,
+        providerSeriesId: r.providerSeriesId,
       }),
     onSuccess: (data) => {
       trackKomfJob(data.id, series.metadata.title || series.name)
@@ -68,7 +134,25 @@ function IdentifyContent({
 
   const results = q.data ?? []
   const pendingKey =
-    identify.isPending && identify.variables ? `${identify.variables.provider}:${identify.variables.resultId}` : null
+    identify.isPending && identify.variables ? `${identify.variables.provider}:${identify.variables.providerSeriesId}` : null
+
+  const linkRow = (pendingId: string, onClick: () => void, icon: ReactNode, title: string, caption: string, key?: string) => (
+    <li key={key ?? pendingId}>
+      <button
+        type="button"
+        disabled={identify.isPending}
+        onClick={onClick}
+        className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-raised disabled:cursor-default disabled:opacity-60"
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-raised text-ink-3">{icon}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-ink">{title}</span>
+          <span className="mt-0.5 block truncate font-mono text-xs text-ink-3">{caption}</span>
+        </span>
+        {pendingKey === pendingId && <CircleNotch className="size-4 shrink-0 animate-spin text-ink-3" />}
+      </button>
+    </li>
+  )
 
   return (
     <>
@@ -85,6 +169,33 @@ function IdentifyContent({
           />
         </div>
       </div>
+      {linkHits.length > 0 && (
+        <div className="px-5 pt-3">
+          <div className="rounded-lg border border-line">
+            <p className="border-b border-line px-3 py-2 text-xs font-medium text-ink-3">Provider links</p>
+            <ul className="flex flex-col p-1">
+              {linkHits.length > 1 &&
+                linkRow(
+                  `${linkHits[0].provider}:${linkHits[0].providerSeriesId}`,
+                  () => identify.mutate(linkHits[0]),
+                  <Stack className="size-4" />,
+                  'Aggregate all providers',
+                  `Merge metadata from all ${linkHits.length} provider links`,
+                  'aggregate',
+                )}
+              {linkHits.map((hit) =>
+                linkRow(
+                  `${hit.provider}:${hit.providerSeriesId}`,
+                  () => identify.mutate(hit),
+                  <LinkIcon className="size-4" />,
+                  PROVIDER_LINK_LABELS[hit.provider] ?? hit.provider,
+                  hit.providerSeriesId,
+                ),
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
       <div className="min-h-72 px-5 py-4">
         {!search ? (
           <EmptyState title="Type a title to search komf" />
@@ -122,7 +233,7 @@ function IdentifyContent({
                   <button
                     type="button"
                     disabled={identify.isPending}
-                    onClick={() => identify.mutate(r)}
+                    onClick={() => identify.mutate({ provider: r.provider, providerSeriesId: r.resultId })}
                     className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-raised disabled:cursor-default disabled:opacity-60"
                   >
                     {r.imageUrl ? (

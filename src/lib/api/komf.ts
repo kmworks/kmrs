@@ -21,5 +21,7 @@ export const komfApi = {
   identify: (body: KomfIdentifyRequest) => api.post<KomfMetadataJobResponse>('/api/v1/komf/identify', body),
   matchSeries: (libraryId: string, seriesId: string) =>
     api.post<KomfMetadataJobResponse>(`/api/v1/komf/match/library/${libraryId}/series/${seriesId}`),
+  resetSeries: (libraryId: string, seriesId: string) =>
+    api.post<void>(`/api/v1/komf/reset/library/${libraryId}/series/${seriesId}`),
   getJob: (jobId: string) => api.get<KomfJob>(`/api/v1/komf/jobs/${jobId}`),
 }
