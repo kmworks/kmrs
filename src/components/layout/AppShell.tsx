@@ -26,6 +26,7 @@ import {
   PaintBrush,
   Palette,
   Playlist,
+  PlugsConnected,
   PushPin,
   Queue,
   Rocket,
@@ -239,7 +240,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <NavGroup
               icon={<Database />}
               label="Server"
-              match={['/admin/libraries', '/admin/users', '/admin/settings', '/admin/server', '/admin/updates', '/admin/ui']}
+              match={['/admin/libraries', '/admin/users', '/admin/settings', '/admin/integrations', '/admin/server', '/admin/updates', '/admin/ui']}
             >
               <NavItem to="/admin/libraries" icon={<HardDrives />} onClick={onNavigate}>
                 Libraries
@@ -249,6 +250,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               </NavItem>
               <NavItem to="/admin/settings" icon={<GearSix />} onClick={onNavigate}>
                 Settings
+              </NavItem>
+              <NavItem to="/admin/integrations" icon={<PlugsConnected />} onClick={onNavigate}>
+                Integrations
               </NavItem>
               <NavItem to="/admin/server" icon={<Gauge />} onClick={onNavigate}>
                 Server

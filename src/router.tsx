@@ -24,6 +24,7 @@ import { AccountReaderPage } from '@/routes/account/reader'
 import { AdminLibrariesPage } from '@/routes/admin/libraries'
 import { AdminUsersPage } from '@/routes/admin/users'
 import { AdminSettingsPage } from '@/routes/admin/settings'
+import { AdminIntegrationsPage } from '@/routes/admin/integrations'
 import { AdminServerPage } from '@/routes/admin/server'
 import { AdminDuplicatesPage } from '@/routes/admin/duplicates'
 import { AdminDuplicatePagesPage } from '@/routes/admin/duplicate-pages'
@@ -87,6 +88,7 @@ export const router = createBrowserRouter([
               { path: '/admin/libraries', element: <AdminLibrariesPage /> },
               { path: '/admin/users', element: <AdminUsersPage /> },
               { path: '/admin/settings', element: <AdminSettingsPage /> },
+              { path: '/admin/integrations', element: <AdminIntegrationsPage /> },
               { path: '/admin/server', element: <AdminServerPage /> },
               { path: '/admin/duplicates', element: <AdminDuplicatesPage /> },
               { path: '/admin/duplicate-pages', element: <AdminDuplicatePagesPage /> },

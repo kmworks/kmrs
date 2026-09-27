@@ -772,3 +772,23 @@ export interface ReadListRequestBookMatchBookDto {
   number: string
   title: string
 }
+
+// ---- Komf integration ----
+
+export type KomfIntegrationState = 'pending' | 'connected' | 'error'
+
+export interface KomfIntegrationDto {
+  configured: boolean
+  /** unset when unconfigured and no preset exists in the kmrs config */
+  url?: string
+  baseUrl?: string
+  /** absent until the integration is configured */
+  state?: KomfIntegrationState
+  lastError?: string
+  komfReachable: boolean
+}
+
+export interface KomfIntegrationUpdateDto {
+  url?: string
+  baseUrl?: string
+}
