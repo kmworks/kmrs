@@ -7,6 +7,7 @@ pub mod convert;
 pub mod import;
 pub mod kepub;
 pub mod kobo_proxy;
+pub mod komf;
 pub mod library;
 pub mod library_content;
 pub mod metadata;
