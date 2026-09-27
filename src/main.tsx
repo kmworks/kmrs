@@ -11,6 +11,7 @@ import { MotionConfig } from 'motion/react'
 import { router } from './router'
 import { queryClient } from './lib/queryClient'
 import { Toaster } from './components/Toaster'
+import { KomfJobsPanel } from './components/KomfJobsPanel'
 import { applyTheme, useUiStore } from './lib/store/ui'
 
 applyTheme(useUiStore.getState().theme)
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
       <MotionConfig reducedMotion="user">
         <RouterProvider router={router} />
         <Toaster />
+        <KomfJobsPanel />
       </MotionConfig>
     </QueryClientProvider>
   </StrictMode>,

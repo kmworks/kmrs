@@ -56,6 +56,7 @@ import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
 import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
 import { showToast } from '@/lib/store/toast'
+import { trackKomfJob } from '@/lib/store/komfJobs'
 
 function Field({ term, mono, children }: { term: string; mono?: boolean; children: ReactNode }) {
   return (
@@ -83,6 +84,7 @@ export function OneshotDetailPage() {
 
   const seriesQuery = useQuery({ queryKey: ['series', seriesId], queryFn: () => seriesApi.get(seriesId) })
   const series = seriesQuery.data
+  const title = series ? series.metadata.title || series.name : ''
 
   // a oneshot series holds exactly one book; the page is built around it
   const bookQuery = useQuery({
@@ -132,7 +134,7 @@ export function OneshotDetailPage() {
   // invalidation picks the result up, so no query invalidation here
   const komfMatchMutation = useMutation({
     mutationFn: (libraryId: string) => komfApi.matchSeries(libraryId, seriesId),
-    onSuccess: () => showToast('Match queued'),
+    onSuccess: ({ id }) => trackKomfJob(id, title),
     onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the match'),
   })
   const deleteMutation = useMutation({
@@ -146,7 +148,6 @@ export function OneshotDetailPage() {
     onError: (e) => showToast(e instanceof Error ? e.message : 'Could not delete the file'),
   })
 
-  const title = series ? series.metadata.title || series.name : ''
   useEffect(() => {
     document.title = title ? `${title} · KMReader` : 'KMReader'
   }, [title])

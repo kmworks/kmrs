@@ -918,3 +918,29 @@ export interface KomfConfigPatch {
     libraryProviders?: Record<string, KomfProvidersPatch | null>
   }
 }
+
+export type KomfJobStatus = 'RUNNING' | 'FAILED' | 'COMPLETED'
+
+export interface KomfJob {
+  seriesId: string
+  id: string
+  status: KomfJobStatus
+  message?: string
+  startedAt: string
+  finishedAt?: string
+}
+
+export interface KomfJobPage {
+  content: KomfJob[]
+  totalPages: number
+  currentPage: number
+}
+
+export type KomfJobEvent =
+  | { type: 'ProviderSeriesEvent'; provider: string }
+  | { type: 'ProviderBookEvent'; provider: string; totalBooks: number; bookProgress: number }
+  | { type: 'ProviderCompletedEvent'; provider: string }
+  | { type: 'ProviderErrorEvent'; provider: string; message: string }
+  | { type: 'PostProcessingStartEvent' }
+  | { type: 'ProcessingErrorEvent'; message: string }
+  | { type: 'EventStreamNotFoundEvent' }

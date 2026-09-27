@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { BookOpen, CircleNotch, MagnifyingGlass } from '@phosphor-icons/react'
 import { komfApi } from '@/lib/api/komf'
 import type { KomfSeriesSearchResult, SeriesDto } from '@/lib/api/types'
+import { trackKomfJob } from '@/lib/store/komfJobs'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -58,7 +59,8 @@ function IdentifyContent({
         provider: r.provider,
         providerSeriesId: r.resultId,
       }),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      trackKomfJob(data.id, series.metadata.title || series.name)
       close()
       onIdentified()
     },
