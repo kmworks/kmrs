@@ -1,4 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { Trash } from '@phosphor-icons/react'
 import { pageHashesApi } from '@/lib/api/pageHashes'
 import type { PageHashMatchDto } from '@/lib/api/types'
@@ -27,14 +28,18 @@ function MatchCard({ hash, match }: { hash: string; match: PageHashMatchDto }) {
 
   return (
     <figure className="group relative overflow-hidden rounded-lg border border-line bg-raised">
-      <div
-        className="h-36 w-full bg-cover bg-center"
-        style={{ backgroundImage: `url(${urls.bookPage(match.bookId, match.pageNumber)})` }}
-      />
+      <Link to={`/book/${match.bookId}`} className="block">
+        <div
+          className="h-36 w-full bg-cover bg-center"
+          style={{ backgroundImage: `url(${urls.bookPage(match.bookId, match.pageNumber)})` }}
+        />
+      </Link>
       <figcaption className="flex items-center gap-2 px-2.5 py-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs text-ink-2" title={match.fileName}>
-            {match.fileName}
+            <Link to={`/book/${match.bookId}`} className="hover:text-accent-strong">
+              {match.fileName}
+            </Link>
           </p>
           <p className="text-[11px] text-ink-3">
             p.{match.pageNumber} · {formatBytes(match.fileSize)}

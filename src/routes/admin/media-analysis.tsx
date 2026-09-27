@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowClockwise, MagnifyingGlass, Sparkle, WarningCircle } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import { librariesApi } from '@/lib/api/libraries'
 import type { BookDto, BookSearch, MediaStatus, SearchCondition } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
+import { bookDetailRoute } from '@/lib/utils/nav'
 import { plural } from '@/lib/utils/format'
 import { convertErrorCodes } from '@/lib/utils/mediaStatus'
 import { cn } from '@/lib/utils/cn'
@@ -58,14 +60,18 @@ function Row({ book, libraryName }: { book: BookDto; libraryName: string }) {
 
   return (
     <li className="flex items-center gap-3 px-4 py-3">
-      <div
-        aria-hidden
-        className="h-14 w-10 shrink-0 rounded-md bg-raised bg-cover bg-center"
-        style={{ backgroundImage: `url(${urls.bookThumbnail(book.id)})` }}
-      />
+      <Link to={bookDetailRoute(book)} className="shrink-0">
+        <div
+          aria-hidden
+          className="h-14 w-10 rounded-md bg-raised bg-cover bg-center"
+          style={{ backgroundImage: `url(${urls.bookThumbnail(book.id)})` }}
+        />
+      </Link>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm text-ink">
-          {book.seriesTitle}
+          <Link to={bookDetailRoute(book)} className="hover:text-accent-strong">
+            {book.seriesTitle}
+          </Link>
           <span className="text-ink-3"> · {book.metadata.title || book.name}</span>
         </p>
         <p className="mt-0.5 truncate text-xs text-ink-3" title={book.media.comment || undefined}>
