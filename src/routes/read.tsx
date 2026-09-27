@@ -17,6 +17,7 @@ import {
   type ScaleType,
 } from '@/lib/store/readerSettings'
 import { needsConvert, supportedImageFormats } from '@/lib/utils/imageSupport'
+import { showToast } from '@/lib/store/toast'
 import { urls } from '@/lib/utils/urls'
 import type { PagedReaderLayout, SpreadPage } from '@/lib/utils/spreads'
 import { readingDirectionLabel } from '@/lib/utils/format'
@@ -26,7 +27,6 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { ContinuousReader } from '@/components/reader/ContinuousReader'
 import { PagedReader } from '@/components/reader/PagedReader'
 import { ReaderChrome, type PosterTarget } from '@/components/reader/ReaderChrome'
-import { ReaderToast, type Toast } from '@/components/reader/ReaderToast'
 import { SettingsPanel } from '@/components/reader/SettingsPanel'
 import { ShortcutsHelp } from '@/components/reader/ShortcutsHelp'
 import { ThumbnailExplorer } from '@/components/reader/ThumbnailExplorer'
@@ -129,19 +129,10 @@ function Reader({ bookId }: { bookId: string }) {
   const [helpOpen, setHelpOpen] = useState(false)
   // series metadata can override the direction for this session only
   const [sessionDirection, setSessionDirection] = useState<ReadingDirection | null>(null)
-  const [toast, setToast] = useState<Toast | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [posterBusy, setPosterBusy] = useState(false)
 
   const direction = sessionDirection ?? settingsDirection
-
-  const toastTimer = useRef<number | undefined>(undefined)
-  const toastId = useRef(0)
-  const showToast = useCallback((message: string, duration = 3000) => {
-    window.clearTimeout(toastTimer.current)
-    setToast({ id: ++toastId.current, message })
-    toastTimer.current = window.setTimeout(() => setToast(null), duration)
-  }, [])
 
   const progressTimer = useRef<number | undefined>(undefined)
   const pendingPage = useRef<number | null>(null)
@@ -203,7 +194,7 @@ function Reader({ bookId }: { bookId: string }) {
       setSessionDirection(meta)
       showToast('Reading direction from series metadata')
     }
-  }, [seriesQuery.data, settingsDirection, showToast])
+  }, [seriesQuery.data, settingsDirection])
 
   useEffect(() => {
     if (book) document.title = `${book.metadata.title || book.name} · KMReader`
@@ -211,7 +202,6 @@ function Reader({ bookId }: { bookId: string }) {
   useEffect(
     () => () => {
       document.title = 'KMReader'
-      window.clearTimeout(toastTimer.current)
       window.clearTimeout(jumpTimer.current)
     },
     [],
@@ -294,7 +284,7 @@ function Reader({ bookId }: { bookId: string }) {
       )
       jumpTimer.current = window.setTimeout(() => (jumpArmed.current = null), 3000)
     },
-    [siblingNext, siblingPrevious, goBook, showToast],
+    [siblingNext, siblingPrevious, goBook],
   )
 
   const goTo = useCallback(
@@ -310,7 +300,7 @@ function Reader({ bookId }: { bookId: string }) {
       setSessionDirection(null)
       showToast(`Reading direction: ${readingDirectionLabel(d)}`)
     },
-    [showToast],
+    [],
   )
 
   const cycleScale = useCallback(() => {
@@ -324,28 +314,28 @@ function Reader({ bookId }: { bookId: string }) {
       s.update({ scale: v })
       showToast(`Scale: ${SCALE_LABELS[v]}`)
     }
-  }, [direction, showToast])
+  }, [direction])
 
   const cycleLayout = useCallback(() => {
     const s = useReaderSettings.getState()
     const v = LAYOUT_CYCLE[(LAYOUT_CYCLE.indexOf(s.pageLayout) + 1) % LAYOUT_CYCLE.length]
     s.update({ pageLayout: v })
     showToast(`Page layout: ${LAYOUT_LABELS[v]}`)
-  }, [showToast])
+  }, [])
 
   const cyclePadding = useCallback(() => {
     const s = useReaderSettings.getState()
     const v = (s.continuousPadding + 5) % 45
     s.update({ continuousPadding: v })
     showToast(v === 0 ? 'Side padding: none' : `Side padding: ${v}%`)
-  }, [showToast])
+  }, [])
 
   const cycleMargin = useCallback(() => {
     const s = useReaderSettings.getState()
     const v = (s.continuousMargin + 5) % 20
     s.update({ continuousMargin: v })
     showToast(v === 0 ? 'Page gap: none' : `Page gap: ${v}px`)
-  }, [showToast])
+  }, [])
 
   useWindowKeys((e) => {
     if (e.key === 'Escape') {
@@ -605,8 +595,6 @@ function Reader({ bookId }: { bookId: string }) {
       />
 
       <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
-
-      <ReaderToast toast={toast} />
     </div>
   )
 }

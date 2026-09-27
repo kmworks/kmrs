@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -55,7 +55,7 @@ import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
 import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
-import { ReaderToast, type Toast } from '@/components/reader/ReaderToast'
+import { showToast } from '@/lib/store/toast'
 
 function Field({ term, mono, children }: { term: string; mono?: boolean; children: ReactNode }) {
   return (
@@ -80,15 +80,6 @@ export function OneshotDetailPage() {
   const [identifyOpen, setIdentifyOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const komfReady = useKomfIntegration()
-  const [toast, setToast] = useState<Toast | null>(null)
-  const toastTimer = useRef<number | undefined>(undefined)
-  const toastId = useRef(0)
-  const showToast = useCallback((message: string) => {
-    window.clearTimeout(toastTimer.current)
-    setToast({ id: ++toastId.current, message })
-    toastTimer.current = window.setTimeout(() => setToast(null), 3000)
-  }, [])
-  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   const seriesQuery = useQuery({ queryKey: ['series', seriesId], queryFn: () => seriesApi.get(seriesId) })
   const series = seriesQuery.data
@@ -426,7 +417,6 @@ export function OneshotDetailPage() {
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
       />
-      <ReaderToast toast={toast} />
     </div>
   )
 }

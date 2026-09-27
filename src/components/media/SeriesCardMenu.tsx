@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowCounterClockwise, Checks, CheckSquare, FolderPlus, PencilSimple, Sparkle, Trash } from '@phosphor-icons/react'
 import type { SeriesDto } from '@/lib/api/types'
@@ -10,7 +10,7 @@ import { AddToCollectionDialog } from '@/components/browse/AddToCollectionDialog
 import { ConfirmDeleteFilesDialog } from '@/components/browse/ConfirmDeleteFilesDialog'
 import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
-import { ReaderToast, type Toast } from '@/components/reader/ReaderToast'
+import { showToast } from '@/lib/store/toast'
 
 /** Series actions for grid cards, plus the dialogs they open. */
 export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDto; trigger: ReactNode; onSelect?: () => void }) {
@@ -22,15 +22,6 @@ export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDt
   const [identifyOpen, setIdentifyOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const komfReady = useKomfIntegration()
-  const [toast, setToast] = useState<Toast | null>(null)
-  const toastTimer = useRef<number | undefined>(undefined)
-  const toastId = useRef(0)
-  const showToast = useCallback((message: string) => {
-    window.clearTimeout(toastTimer.current)
-    setToast({ id: ++toastId.current, message })
-    toastTimer.current = window.setTimeout(() => setToast(null), 3000)
-  }, [])
-  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['series'] })
@@ -94,7 +85,6 @@ export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDt
           onIdentified={() => showToast('Identify queued')}
         />
       )}
-      <ReaderToast toast={toast} />
       <ConfirmDeleteFilesDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

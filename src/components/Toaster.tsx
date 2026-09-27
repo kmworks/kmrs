@@ -1,11 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
+import { useToastStore } from '@/lib/store/toast'
 
-export interface Toast {
-  id: number
-  message: string
-}
-
-export function ReaderToast({ toast }: { toast: Toast | null }) {
+export function Toaster() {
+  const toast = useToastStore((s) => s.toast)
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex justify-center px-4">
       <AnimatePresence>

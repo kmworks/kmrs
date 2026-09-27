@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -25,6 +25,7 @@ import { useKomfIntegration } from '@/lib/hooks/useKomfIntegration'
 import { useBust } from '@/lib/store/thumbnails'
 import { urls } from '@/lib/utils/urls'
 import { readRoute } from '@/lib/utils/nav'
+import { showToast } from '@/lib/store/toast'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { BackButton } from '@/components/ui/BackButton'
@@ -50,7 +51,6 @@ import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
 import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
 import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
-import { ReaderToast, type Toast } from '@/components/reader/ReaderToast'
 import { ReadStatusFilterControl, type ReadStatusFilter } from '@/components/detail/ReadStatusFilter'
 import { useSentinel } from '@/components/detail/useSentinel'
 
@@ -70,15 +70,6 @@ export function SeriesDetailPage() {
   const [identifyOpen, setIdentifyOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const komfReady = useKomfIntegration()
-  const [toast, setToast] = useState<Toast | null>(null)
-  const toastTimer = useRef<number | undefined>(undefined)
-  const toastId = useRef(0)
-  const showToast = useCallback((message: string) => {
-    window.clearTimeout(toastTimer.current)
-    setToast({ id: ++toastId.current, message })
-    toastTimer.current = window.setTimeout(() => setToast(null), 3000)
-  }, [])
-  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   const seriesQuery = useQuery({ queryKey: ['series', seriesId], queryFn: () => seriesApi.get(seriesId) })
   const series = seriesQuery.data
@@ -387,7 +378,6 @@ export function SeriesDetailPage() {
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
       />
-      <ReaderToast toast={toast} />
     </div>
   )
 }
