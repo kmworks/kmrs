@@ -4,11 +4,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowSquareOut,
   ArrowsClockwise,
   BookmarkSimple,
   BookOpen,
   Checks,
+  Circle,
   DotsThreeVertical,
+  EyeSlash,
   FileMagnifyingGlass,
   ImageSquare,
   PencilSimple,
@@ -24,8 +27,8 @@ import { mediaIssue } from '@/lib/utils/mediaStatus'
 import { formatBytes, formatDate, relativeTime } from '@/lib/utils/format'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
-import { Chip } from '@/components/ui/Chip'
 import { IconButton } from '@/components/ui/IconButton'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { BackButton } from '@/components/ui/BackButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
 import { CoverImage } from '@/components/media/CoverImage'
@@ -35,6 +38,8 @@ import { useDensityCardWidth } from '@/lib/store/ui'
 import { DetailHero } from '@/components/detail/DetailHero'
 import { DetailSkeleton } from '@/components/detail/DetailSkeleton'
 import { DetailError } from '@/components/detail/DetailError'
+import { DetailChipFlow } from '@/components/detail/DetailChipFlow'
+import { creatorChipItems, tagChipItems } from '@/components/detail/metadataChips'
 import { Summary } from '@/components/detail/Summary'
 import { DownloadLink } from '@/components/detail/DownloadLink'
 import { AddToReadListDialog } from '@/components/detail/AddToReadListDialog'
@@ -153,7 +158,8 @@ export function BookDetailPage() {
   const next = nextQuery.data ?? null
   const readlists = readlistsQuery.data ?? []
   const cover = urls.bookThumbnail(book.id, bust || undefined)
-  const authorsLine = md.authors.map((a) => `${a.name} (${a.role})`).join(', ')
+  const authorItems = creatorChipItems('', md.authors, '/books')
+  const tagItems = tagChipItems(md.tags, '/books')
   const progressPct = completed ? 100 : book.media.pagesCount > 0 && progress ? (progress.page / book.media.pagesCount) * 100 : 0
 
   return (
@@ -176,15 +182,30 @@ export function BookDetailPage() {
             {' · '}
             <span className="font-mono">#{md.number}</span>
           </p>
+          <DetailChipFlow items={authorItems} className="mt-2.5" />
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button variant="primary" disabled={!route} onClick={() => route && navigate(route)}>
               <BookOpen className="size-4" />
               {progress && !progress.completed ? `Continue · page ${progress.page}` : 'Read'}
             </Button>
-            <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(!completed)}>
-              {!completed && <Checks className="size-4" />}
-              {completed ? 'Mark as unread' : 'Mark as read'}
-            </Button>
+            <Tooltip content="Read without saving progress">
+              <Button variant="secondary" disabled={!route} onClick={() => route && navigate(`${route}?incognito=true`)}>
+                <EyeSlash className="size-4" />
+                Peek
+              </Button>
+            </Tooltip>
+            {!completed && (
+              <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(true)}>
+                <Checks className="size-4" />
+                Mark as read
+              </Button>
+            )}
+            {progress && (
+              <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(false)}>
+                <Circle className="size-4" />
+                Mark as unread
+              </Button>
+            )}
             {canDownload(user) && <DownloadLink href={urls.bookFile(book.id)} disabled={unavailable} />}
             {(isAdmin(user) || prev || next) && (
               <Menu
@@ -253,6 +274,25 @@ export function BookDetailPage() {
 
       {md.summary && <Summary text={md.summary} className="mt-6" />}
 
+      <DetailChipFlow items={tagItems} className="mt-4" />
+
+      {md.links.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+          {md.links.map((l) => (
+            <a
+              key={l.url}
+              href={l.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-ink-3 transition-colors hover:text-accent-strong"
+            >
+              {l.label}
+              <ArrowSquareOut className="size-3" />
+            </a>
+          ))}
+        </div>
+      )}
+
       <section className="mt-8 rounded-xl border border-line bg-surface p-5">
         <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
           <Field term="Pages" mono>
@@ -269,19 +309,8 @@ export function BookDetailPage() {
               {md.isbn}
             </Field>
           )}
-          {authorsLine && <Field term="Authors">{authorsLine}</Field>}
           <Field term="Added">{formatDate(book.created)}</Field>
         </dl>
-
-        {md.tags.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {md.tags.map((t) => (
-              <Chip key={t} to={`/books?tags=${encodeURIComponent(t)}`}>
-                {t}
-              </Chip>
-            ))}
-          </div>
-        )}
 
         {progress && (
           <div className="mt-5 border-t border-line pt-4">

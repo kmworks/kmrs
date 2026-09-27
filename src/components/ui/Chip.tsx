@@ -19,7 +19,7 @@ export function Chip({ children, to, onClick, icon, className }: ChipProps) {
   )
   const inner = (
     <>
-      {icon}
+      {icon && <span className="inline-flex text-ink-3">{icon}</span>}
       {children}
     </>
   )

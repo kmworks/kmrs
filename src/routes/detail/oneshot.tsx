@@ -7,7 +7,9 @@ import {
   BookmarkSimple,
   BookOpen,
   Checks,
+  Circle,
   DotsThreeVertical,
+  EyeSlash,
   FileMagnifyingGlass,
   ImageSquare,
   PencilSimple,
@@ -22,11 +24,11 @@ import { useBust } from '@/lib/store/thumbnails'
 import { urls } from '@/lib/utils/urls'
 import { readRoute } from '@/lib/utils/nav'
 import { mediaIssue } from '@/lib/utils/mediaStatus'
-import { formatBytes, formatDate, readingDirectionLabel, relativeTime, seriesStatusLabel } from '@/lib/utils/format'
+import { formatBytes, formatDate, relativeTime } from '@/lib/utils/format'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
-import { Chip } from '@/components/ui/Chip'
 import { IconButton } from '@/components/ui/IconButton'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { BackButton } from '@/components/ui/BackButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -37,6 +39,9 @@ import { useDensityCardWidth } from '@/lib/store/ui'
 import { DetailHero } from '@/components/detail/DetailHero'
 import { DetailSkeleton } from '@/components/detail/DetailSkeleton'
 import { DetailError } from '@/components/detail/DetailError'
+import { DetailChipFlow } from '@/components/detail/DetailChipFlow'
+import { SeriesMetaLine } from '@/components/detail/SeriesMetaLine'
+import { creatorChipItems, genreChipItems, sharingLabelChipItems, tagChipItems } from '@/components/detail/metadataChips'
 import { Summary } from '@/components/detail/Summary'
 import { DownloadLink } from '@/components/detail/DownloadLink'
 import { AddToReadListDialog } from '@/components/detail/AddToReadListDialog'
@@ -174,24 +179,16 @@ export function OneshotDetailPage() {
   const collections = collectionsQuery.data ?? []
   const cover = urls.seriesThumbnail(series.id, bust || undefined)
   const authors = bookMd.authors.length > 0 ? bookMd.authors : series.booksMetadata.authors
-  const authorsLine = authors.map((a) => `${a.name} (${a.role})`).join(', ')
   const summary = md.summary || bookMd.summary
   const progressPct = completed ? 100 : book.media.pagesCount > 0 && progress ? (progress.page / book.media.pagesCount) * 100 : 0
 
-  const chips: Array<{ key: string; label: string; to?: string }> = []
-  const statusLabel = seriesStatusLabel(md.status)
-  if (statusLabel) chips.push({ key: 'status', label: statusLabel, to: `/series?seriesStatus=${md.status}` })
-  if (md.publisher)
-    chips.push({ key: 'publisher', label: md.publisher, to: `/series?publishers=${encodeURIComponent(md.publisher)}` })
-  if (md.language)
-    chips.push({ key: 'language', label: md.language, to: `/series?languages=${encodeURIComponent(md.language)}` })
-  if (md.ageRating != null)
-    chips.push({ key: 'age', label: `${md.ageRating}+`, to: `/series?ageRatings=${md.ageRating}` })
-  const directionLabel = readingDirectionLabel(md.readingDirection)
-  if (directionLabel) chips.push({ key: 'direction', label: directionLabel })
-  for (const g of md.genres) chips.push({ key: `genre-${g}`, label: g, to: `/series?genres=${encodeURIComponent(g)}` })
-  for (const t of md.tags) chips.push({ key: `tag-${t}`, label: t, to: `/series?tags=${encodeURIComponent(t)}` })
-  for (const s of md.sharingLabels) chips.push({ key: `sharing-${s}`, label: s })
+  const creatorItems = creatorChipItems(md.publisher, authors, '/series')
+  const genreItems = genreChipItems(md.genres)
+  const tagItems = tagChipItems(md.tags, '/series')
+  const sharingItems = sharingLabelChipItems(md.sharingLabels)
+  const links = [...md.links, ...bookMd.links.filter((bl) => !md.links.some((sl) => sl.url === bl.url))]
+  const bookTagItems = tagChipItems(bookMd.tags, '/books')
+  const hasMetadataFlows = genreItems.length + tagItems.length + sharingItems.length > 0
 
   return (
     <div>
@@ -206,16 +203,30 @@ export function OneshotDetailPage() {
             </p>
           )}
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink md:text-4xl">{title}</h1>
-          {authorsLine && <p className="mt-1.5 text-ink-2">{authorsLine}</p>}
+          <DetailChipFlow items={creatorItems} className="mt-2.5" />
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button variant="primary" disabled={!route} onClick={() => route && navigate(route)}>
               <BookOpen className="size-4" />
               {progress && !progress.completed ? `Continue · page ${progress.page}` : 'Read'}
             </Button>
-            <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(!completed)}>
-              {!completed && <Checks className="size-4" />}
-              {completed ? 'Mark as unread' : 'Mark as read'}
-            </Button>
+            <Tooltip content="Read without saving progress">
+              <Button variant="secondary" disabled={!route} onClick={() => route && navigate(`${route}?incognito=true`)}>
+                <EyeSlash className="size-4" />
+                Peek
+              </Button>
+            </Tooltip>
+            {!completed && (
+              <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(true)}>
+                <Checks className="size-4" />
+                Mark as read
+              </Button>
+            )}
+            {progress && (
+              <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(false)}>
+                <Circle className="size-4" />
+                Mark as unread
+              </Button>
+            )}
             {canDownload(user) && <DownloadLink href={urls.bookFile(book.id)} disabled={unavailable} />}
             {isAdmin(user) && (
               <Menu
@@ -273,15 +284,7 @@ export function OneshotDetailPage() {
         </div>
       </DetailHero>
 
-      {chips.length > 0 && (
-        <div className="mt-5 flex flex-wrap gap-1.5">
-          {chips.map((c) => (
-            <Chip key={c.key} to={c.to}>
-              {c.label}
-            </Chip>
-          ))}
-        </div>
-      )}
+      <SeriesMetaLine md={md} className="mt-4" />
 
       {md.alternateTitles.length > 0 && (
         <div className="mt-3 space-y-0.5">
@@ -293,9 +296,19 @@ export function OneshotDetailPage() {
         </div>
       )}
 
-      {md.links.length > 0 && (
+      {summary && <Summary text={summary} className="mt-4" />}
+
+      {hasMetadataFlows && (
+        <div className="mt-4 space-y-2">
+          <DetailChipFlow items={genreItems} />
+          <DetailChipFlow items={tagItems} />
+          <DetailChipFlow items={sharingItems} />
+        </div>
+      )}
+
+      {links.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-          {md.links.map((l) => (
+          {links.map((l) => (
             <a
               key={l.url}
               href={l.url}
@@ -309,8 +322,6 @@ export function OneshotDetailPage() {
           ))}
         </div>
       )}
-
-      {summary && <Summary text={summary} className="mt-4" />}
 
       <section className="mt-8 rounded-xl border border-line bg-surface p-5">
         <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
@@ -331,15 +342,7 @@ export function OneshotDetailPage() {
           <Field term="Added">{formatDate(book.created)}</Field>
         </dl>
 
-        {bookMd.tags.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {bookMd.tags.map((t) => (
-              <Chip key={t} to={`/books?tags=${encodeURIComponent(t)}`}>
-                {t}
-              </Chip>
-            ))}
-          </div>
-        )}
+        <DetailChipFlow items={bookTagItems} className="mt-4" />
 
         {progress && (
           <div className="mt-5 border-t border-line pt-4">

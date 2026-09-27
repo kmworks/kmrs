@@ -6,6 +6,7 @@ import {
   ArrowsClockwise,
   BookOpen,
   Checks,
+  Circle,
   CircleNotch,
   DotsThreeVertical,
   FileMagnifyingGlass,
@@ -20,9 +21,7 @@ import { canDownload, isAdmin, useAuthStore } from '@/lib/store/auth'
 import { useBust } from '@/lib/store/thumbnails'
 import { urls } from '@/lib/utils/urls'
 import { readRoute } from '@/lib/utils/nav'
-import { readingDirectionLabel, seriesStatusLabel } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
-import { Chip } from '@/components/ui/Chip'
 import { IconButton } from '@/components/ui/IconButton'
 import { BackButton } from '@/components/ui/BackButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
@@ -37,6 +36,9 @@ import { HorizontalRow } from '@/components/media/HorizontalRow'
 import { DetailHero } from '@/components/detail/DetailHero'
 import { DetailSkeleton } from '@/components/detail/DetailSkeleton'
 import { DetailError } from '@/components/detail/DetailError'
+import { DetailChipFlow } from '@/components/detail/DetailChipFlow'
+import { SeriesMetaLine } from '@/components/detail/SeriesMetaLine'
+import { creatorChipItems, genreChipItems, sharingLabelChipItems, tagChipItems } from '@/components/detail/metadataChips'
 import { Summary } from '@/components/detail/Summary'
 import { DownloadLink } from '@/components/detail/DownloadLink'
 import { NewCollectionDialog } from '@/components/detail/NewCollectionDialog'
@@ -157,28 +159,19 @@ export function SeriesDetailPage() {
   const library = librariesQuery.data?.find((l) => l.id === series.libraryId)
   // an unavailable library makes the series act deleted (komga parity)
   const unavailable = series.deleted || (library?.unavailable ?? false)
-  const allRead = series.booksCount > 0 && series.booksUnreadCount === 0 && series.booksInProgressCount === 0
+  const canMarkRead = series.booksUnreadCount > 0
+  const canMarkUnread = series.booksReadCount + series.booksInProgressCount > 0
   const readTarget = readTargetQuery.data
   const readTargetRoute = readTarget ? readRoute(readTarget) : null
-  const authorsLine = series.booksMetadata.authors.map((a) => `${a.name} (${a.role})`).join(', ')
   const books = booksQuery.data?.pages.flatMap((p) => p.content) ?? []
   const collections = collectionsQuery.data ?? []
   const cover = urls.seriesThumbnail(series.id, bust || undefined)
 
-  const chips: Array<{ key: string; label: string; to?: string }> = []
-  const statusLabel = seriesStatusLabel(md.status)
-  if (statusLabel) chips.push({ key: 'status', label: statusLabel, to: `/series?seriesStatus=${md.status}` })
-  if (md.publisher)
-    chips.push({ key: 'publisher', label: md.publisher, to: `/series?publishers=${encodeURIComponent(md.publisher)}` })
-  if (md.language)
-    chips.push({ key: 'language', label: md.language, to: `/series?languages=${encodeURIComponent(md.language)}` })
-  if (md.ageRating != null)
-    chips.push({ key: 'age', label: `${md.ageRating}+`, to: `/series?ageRatings=${md.ageRating}` })
-  const directionLabel = readingDirectionLabel(md.readingDirection)
-  if (directionLabel) chips.push({ key: 'direction', label: directionLabel })
-  for (const g of md.genres) chips.push({ key: `genre-${g}`, label: g, to: `/series?genres=${encodeURIComponent(g)}` })
-  for (const t of md.tags) chips.push({ key: `tag-${t}`, label: t, to: `/series?tags=${encodeURIComponent(t)}` })
-  for (const s of md.sharingLabels) chips.push({ key: `sharing-${s}`, label: s })
+  const creatorItems = creatorChipItems(md.publisher, series.booksMetadata.authors, '/series')
+  const genreItems = genreChipItems(md.genres)
+  const tagItems = tagChipItems(md.tags, '/series')
+  const sharingItems = sharingLabelChipItems(md.sharingLabels)
+  const hasMetadataFlows = genreItems.length + tagItems.length + sharingItems.length > 0
 
   return (
     <div>
@@ -193,7 +186,7 @@ export function SeriesDetailPage() {
             </p>
           )}
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink md:text-4xl">{title}</h1>
-          {authorsLine && <p className="mt-1.5 text-ink-2">{authorsLine}</p>}
+          <DetailChipFlow items={creatorItems} className="mt-2.5" />
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button
               variant="primary"
@@ -204,10 +197,18 @@ export function SeriesDetailPage() {
               <BookOpen className="size-4" />
               Read
             </Button>
-            <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(!allRead)}>
-              {!allRead && <Checks className="size-4" />}
-              {allRead ? 'Mark as unread' : 'Mark as read'}
-            </Button>
+            {canMarkRead && (
+              <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(true)}>
+                <Checks className="size-4" />
+                Mark as read
+              </Button>
+            )}
+            {canMarkUnread && (
+              <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(false)}>
+                <Circle className="size-4" />
+                Mark as unread
+              </Button>
+            )}
             {canDownload(user) && <DownloadLink href={urls.seriesFile(series.id)} disabled={unavailable} />}
             {isAdmin(user) && (
               <Menu
@@ -245,15 +246,7 @@ export function SeriesDetailPage() {
         </div>
       </DetailHero>
 
-      {chips.length > 0 && (
-        <div className="mt-5 flex flex-wrap gap-1.5">
-          {chips.map((c) => (
-            <Chip key={c.key} to={c.to}>
-              {c.label}
-            </Chip>
-          ))}
-        </div>
-      )}
+      <SeriesMetaLine md={md} className="mt-4" />
 
       {md.alternateTitles.length > 0 && (
         <div className="mt-3 space-y-0.5">
@@ -262,6 +255,16 @@ export function SeriesDetailPage() {
               {t.title} ({t.label})
             </p>
           ))}
+        </div>
+      )}
+
+      {md.summary && <Summary text={md.summary} className="mt-4" />}
+
+      {hasMetadataFlows && (
+        <div className="mt-4 space-y-2">
+          <DetailChipFlow items={genreItems} />
+          <DetailChipFlow items={tagItems} />
+          <DetailChipFlow items={sharingItems} />
         </div>
       )}
 
@@ -281,8 +284,6 @@ export function SeriesDetailPage() {
           ))}
         </div>
       )}
-
-      {md.summary && <Summary text={md.summary} className="mt-4" />}
 
       <p className="mt-4 text-sm text-ink-3">
         <span className="font-mono text-ink-2">{series.booksCount}</span> books
