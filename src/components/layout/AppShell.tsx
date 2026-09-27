@@ -610,14 +610,14 @@ export function AppShell() {
         {drawerOpen && (
           <>
             <motion.div
-              className="fixed inset-0 z-20 bg-black/60 lg:hidden"
+              className="fixed inset-0 z-30 bg-black/60 lg:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setDrawerOpen(false)}
             />
             <motion.aside
-              className="fixed inset-y-0 left-0 z-20 w-64 border-r border-line bg-surface lg:hidden"
+              className="fixed inset-y-0 left-0 z-30 w-64 border-r border-line bg-surface lg:hidden"
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
@@ -630,7 +630,7 @@ export function AppShell() {
       </AnimatePresence>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex h-15 shrink-0 items-center gap-3 border-b border-line bg-bg/80 px-4 backdrop-blur-md md:px-8">
+        <header className="sticky top-0 z-20 flex h-15 shrink-0 items-center gap-3 border-b border-line bg-bg/80 px-4 backdrop-blur-md md:px-8">
           <IconButton label="Menu" className="lg:hidden" onClick={() => setDrawerOpen(true)}>
             <List className="size-5" />
           </IconButton>

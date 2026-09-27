@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Plus, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
 
@@ -7,9 +7,11 @@ interface LabelListEditorProps {
   values: string[]
   onChange: (values: string[]) => void
   placeholder?: string
+  /** rendered at the right of the label row (e.g. a LockToggle) */
+  trailing?: ReactNode
 }
 
-export function LabelListEditor({ label, values, onChange, placeholder }: LabelListEditorProps) {
+export function LabelListEditor({ label, values, onChange, placeholder, trailing }: LabelListEditorProps) {
   const inputId = useId()
   const [draft, setDraft] = useState('')
 
@@ -22,9 +24,12 @@ export function LabelListEditor({ label, values, onChange, placeholder }: LabelL
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={inputId} className="text-[13px] font-medium text-ink-2">
-        {label}
-      </label>
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={inputId} className="text-[13px] font-medium text-ink-2">
+          {label}
+        </label>
+        {trailing}
+      </div>
       <div className="flex gap-2">
         <input
           id={inputId}

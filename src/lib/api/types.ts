@@ -128,7 +128,9 @@ export interface AuthorDto {
 
 export interface SeriesMetadataDto {
   title: string
+  titleLock: boolean
   titleSort: string
+  titleSortLock: boolean
   status: SeriesStatus
   statusLock: boolean
   summary: string
@@ -197,14 +199,23 @@ export interface MediaDto {
 
 export interface BookMetadataDto {
   title: string
+  titleLock: boolean
   summary: string
+  summaryLock: boolean
   number: string
+  numberLock: boolean
   numberSort: number
+  numberSortLock: boolean
   releaseDate?: string
-  isbn: string
-  tags: string[]
+  releaseDateLock: boolean
   authors: AuthorDto[]
+  authorsLock: boolean
+  tags: string[]
+  tagsLock: boolean
+  isbn: string
+  isbnLock: boolean
   links: WebLinkDto[]
+  linksLock: boolean
   created: string
   lastModified: string
 }

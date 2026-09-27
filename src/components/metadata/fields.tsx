@@ -1,9 +1,39 @@
 import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Plus, X } from '@phosphor-icons/react'
+import { LockSimple, LockSimpleOpen, Plus, X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Switch } from '@/components/ui/Switch'
+
+/** Metadata field lock toggle: locked fields are protected from metadata refresh. */
+export function LockToggle({
+  locked,
+  onChange,
+  label,
+  className,
+}: {
+  locked: boolean
+  onChange: (v: boolean) => void
+  label: string
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!locked)}
+      aria-pressed={locked}
+      aria-label={locked ? `Unlock ${label}` : `Lock ${label}`}
+      title={locked ? `Unlock ${label}` : `Lock ${label}`}
+      className={cn(
+        'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1 transition-colors hover:bg-overlay',
+        locked ? 'text-accent' : 'text-ink-3',
+        className,
+      )}
+    >
+      {locked ? <LockSimple className="size-4" weight="bold" /> : <LockSimpleOpen className="size-4" />}
+    </button>
+  )
+}
 
 export function FormErrorBanner({ messages }: { messages: string[] }) {
   if (messages.length === 0) return null
@@ -46,16 +76,21 @@ interface TextAreaFieldProps {
   rows?: number
   disabled?: boolean
   ariaLabel?: string
+  /** rendered at the right of the label row (e.g. a LockToggle) */
+  trailing?: ReactNode
 }
 
-export function TextAreaField({ label, value, onChange, error, helper, placeholder, rows = 4, disabled, ariaLabel }: TextAreaFieldProps) {
+export function TextAreaField({ label, value, onChange, error, helper, placeholder, rows = 4, disabled, ariaLabel, trailing }: TextAreaFieldProps) {
   const id = useId()
   return (
     <div className="flex flex-col gap-2">
       {label && (
-        <label htmlFor={id} className="text-[13px] font-medium text-ink-2">
-          {label}
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={id} className="text-[13px] font-medium text-ink-2">
+            {label}
+          </label>
+          {trailing}
+        </div>
       )}
       <textarea
         id={id}
@@ -83,19 +118,27 @@ export function BatchField({
   enabled,
   onEnabledChange,
   hint,
+  locked,
+  onLockedChange,
   children,
 }: {
   label: string
   enabled: boolean
   onEnabledChange: (v: boolean) => void
   hint?: string
+  /** when both are given, a lock toggle is shown next to the switch while the field is on */
+  locked?: boolean
+  onLockedChange?: (v: boolean) => void
   children: ReactNode
 }) {
   return (
     <div className={cn('rounded-lg border border-line p-3.5 transition-colors', enabled && 'border-accent/40')}>
       <div className="flex items-center justify-between gap-4">
         <span className="text-[13px] font-medium text-ink-2">{label}</span>
-        <Switch checked={enabled} onCheckedChange={onEnabledChange} label={`Change ${label}`} />
+        <div className="flex items-center gap-1">
+          {enabled && locked !== undefined && onLockedChange && <LockToggle locked={locked} onChange={onLockedChange} label={label} />}
+          <Switch checked={enabled} onCheckedChange={onEnabledChange} label={`Change ${label}`} />
+        </div>
       </div>
       {enabled && (
         <div className="mt-3">
@@ -124,14 +167,21 @@ interface PairListEditorProps {
   bPlaceholder?: string
   addLabel: string
   errors?: PairErrors
+  /** rendered at the right of the label row (e.g. a LockToggle) */
+  trailing?: ReactNode
 }
 
 /** Two-column list editor (label/title, label/url, name/role) with per-row errors. */
-export function PairListEditor({ label, pairs, onChange, aLabel, bLabel, aPlaceholder, bPlaceholder, addLabel, errors }: PairListEditorProps) {
+export function PairListEditor({ label, pairs, onChange, aLabel, bLabel, aPlaceholder, bPlaceholder, addLabel, errors, trailing }: PairListEditorProps) {
   const update = (i: number, key: 'a' | 'b', v: string) => onChange(pairs.map((p, j) => (j === i ? { ...p, [key]: v } : p)))
   return (
     <div className="flex flex-col gap-2">
-      {label && <span className="text-[13px] font-medium text-ink-2">{label}</span>}
+      {label && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[13px] font-medium text-ink-2">{label}</span>
+          {trailing}
+        </div>
+      )}
       {pairs.length > 0 && (
         <div className="flex flex-col gap-3">
           {pairs.map((p, i) => (
