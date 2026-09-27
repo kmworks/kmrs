@@ -49,10 +49,12 @@ function finalize(state: FilterState, conditions: SearchCondition[]): { conditio
   }
 }
 
-export function buildSeriesSearch(state: FilterState, libraryId?: string): SeriesSearch {
+export function buildSeriesSearch(state: FilterState, libraryId?: string, extra?: SearchCondition): SeriesSearch {
   const mode = (g: GroupKey): GroupMode => (state.matchAll.includes(g) ? 'all' : 'any')
   const readOp: SearchOperator = state.exclude.includes('readStatus') ? 'isNot' : 'is'
   const conditions: SearchCondition[] = []
+  // pins the result set, e.g. series/collection membership on detail pages
+  if (extra) conditions.push(extra)
   if (libraryId) conditions.push(leaf('libraryId', 'is', libraryId))
   push(conditions, combine(state.readStatus.map((v) => leaf('readStatus', readOp, v)), mode('readStatus')))
   push(conditions, combine(state.seriesStatus.map((v) => leaf('seriesStatus', 'is', v)), mode('seriesStatus')))
@@ -71,10 +73,12 @@ export function buildSeriesSearch(state: FilterState, libraryId?: string): Serie
   return finalize(state, conditions)
 }
 
-export function buildBookSearch(state: FilterState, libraryId?: string): BookSearch {
+export function buildBookSearch(state: FilterState, libraryId?: string, extra?: SearchCondition): BookSearch {
   const mode = (g: GroupKey): GroupMode => (state.matchAll.includes(g) ? 'all' : 'any')
   const readOp: SearchOperator = state.exclude.includes('readStatus') ? 'isNot' : 'is'
   const conditions: SearchCondition[] = []
+  // pins the result set, e.g. series/read-list membership on detail pages
+  if (extra) conditions.push(extra)
   if (libraryId) conditions.push(leaf('libraryId', 'is', libraryId))
   push(conditions, combine(state.readStatus.map((v) => leaf('readStatus', readOp, v)), mode('readStatus')))
   push(conditions, combine(state.tags.map((v) => leaf('tag', 'is', v)), mode('tags')))

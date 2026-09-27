@@ -185,5 +185,24 @@ export const BOOK_SORT_OPTIONS: SortOption[] = [
   { label: 'Pages', property: 'media.pagesCount' },
 ]
 
+/** sorting by series is meaningless inside a single series' book list */
+export const SERIES_BOOK_SORT_OPTIONS = BOOK_SORT_OPTIONS.filter((o) => o.property !== 'series')
+
+// the list-order properties only exist when the search condition joins the list (readListId/collectionId leaf)
+export const READLIST_BOOK_SORT_OPTIONS: SortOption[] = [
+  { label: 'List order', property: 'readList.number' },
+  ...SERIES_BOOK_SORT_OPTIONS,
+]
+
+export const COLLECTION_SERIES_SORT_OPTIONS: SortOption[] = [
+  { label: 'List order', property: 'collection.number' },
+  ...SERIES_SORT_OPTIONS,
+]
+
 export const SERIES_DEFAULT_SORT: SortState = { property: 'metadata.titleSort', direction: 'asc' }
 export const BOOK_DEFAULT_SORT: SortState = { property: 'name', direction: 'asc' }
+export const SERIES_BOOK_DEFAULT_SORT: SortState = { property: 'metadata.numberSort', direction: 'asc' }
+export const READLIST_ORDER_SORT: SortState = { property: 'readList.number', direction: 'asc' }
+/** kmrs orders unordered read lists by release date */
+export const READLIST_DATE_SORT: SortState = { property: 'metadata.releaseDate', direction: 'asc' }
+export const COLLECTION_ORDER_SORT: SortState = { property: 'collection.number', direction: 'asc' }

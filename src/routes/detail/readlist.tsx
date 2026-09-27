@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BookOpen, CircleNotch, DotsThreeVertical, EyeSlash, Image, ListChecks, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
+import { booksApi } from '@/lib/api/books'
 import type { ReadListDto } from '@/lib/api/types'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
 import { readRoute } from '@/lib/utils/nav'
@@ -22,8 +23,13 @@ import { BookCard } from '@/components/media/BookCard'
 import { DetailError } from '@/components/detail/DetailError'
 import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
 import { OrderBadge } from '@/components/detail/OrderBadge'
-import { ReadStatusFilterControl, type ReadStatusFilter } from '@/components/detail/ReadStatusFilter'
-import { useSentinel } from '@/components/detail/useSentinel'
+import { FilterBar } from '@/components/filters/FilterBar'
+import { FilterDrawer } from '@/components/filters/FilterDrawer'
+import { Sentinel } from '@/components/filters/Sentinel'
+import { activeFilterCount, serializeFilters, useBrowseFilters } from '@/components/filters/filterUrl'
+import { serializeSort, useSortState } from '@/components/filters/sort'
+import { buildBookSearch } from '@/components/filters/builders'
+import { BOOK_FILTER_GROUPS, READLIST_BOOK_SORT_OPTIONS, READLIST_DATE_SORT, READLIST_ORDER_SORT } from '@/components/filters/types'
 import { EditReadListBooks } from '@/components/readlists/EditReadListBooks'
 import { BookPickerDialog } from '@/components/readlists/BookPickerDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
@@ -98,12 +104,15 @@ export function ReadListDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const admin = isAdmin(useAuthStore((s) => s.user))
-  const [readStatus, setReadStatus] = useState<ReadStatusFilter>('ALL')
   const [editing, setEditing] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [addBooksOpen, setAddBooksOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
+
+  const filters = useBrowseFilters()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const hasFilters = activeFilterCount(filters.state) > 0 || !!filters.state.q.trim()
 
   const readlistQuery = useQuery({
     queryKey: ['readlists', readListId],
@@ -122,16 +131,21 @@ export function ReadListDetailPage() {
     },
     enabled: !!readlist,
   })
+  // ordered lists default to their manual order, unordered ones to release date (kmrs behavior)
+  const sort = useSortState('books:readlist', readlist?.ordered ? READLIST_ORDER_SORT : READLIST_DATE_SORT)
+  const search = useMemo(
+    () => buildBookSearch(filters.state, undefined, { readListId: { operator: 'is', value: readListId } }),
+    [filters.state, readListId],
+  )
+  const sortParam = serializeSort(sort.current)
+  const filterKey = serializeFilters(filters.state)
+
   const booksQuery = useInfiniteQuery({
-    queryKey: ['readlists', readListId, 'books', readStatus],
-    queryFn: ({ pageParam }) =>
-      readlistsApi.books(readListId, {
-        page: pageParam,
-        size: PAGE_SIZE,
-        readStatus: readStatus === 'ALL' ? undefined : [readStatus],
-      }),
+    queryKey: ['readlists', readListId, 'books', filterKey, sortParam],
+    queryFn: ({ pageParam }) => booksApi.list({ search, page: pageParam, size: PAGE_SIZE, sort: [sortParam] }),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.last ? undefined : last.number + 1),
+    placeholderData: keepPreviousData,
     enabled: !!readlist && !editing,
   })
 
@@ -155,12 +169,11 @@ export function ReadListDetailPage() {
     document.title = readlist ? `${readlist.name} · KMReader` : 'KMReader'
   }, [readlist])
 
-  const sentinelRef = useSentinel(
-    () => {
-      if (booksQuery.hasNextPage && !booksQuery.isFetchingNextPage) booksQuery.fetchNextPage()
-    },
-    !!booksQuery.hasNextPage,
-  )
+  const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = booksQuery
+  const loadMore = useCallback(() => {
+    // isPlaceholderData means a stale query is shown while filters changed; don't page the old one
+    if (hasNextPage && !isFetchingNextPage && !isPlaceholderData) void fetchNextPage()
+  }, [hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage])
 
   if (readlistQuery.isPending)
     return (
@@ -177,8 +190,11 @@ export function ReadListDetailPage() {
   if (!readlist) return null
 
   const books = booksQuery.data?.pages.flatMap((p) => p.content) ?? []
+  const booksTotal = booksQuery.data?.pages[0]?.totalElements
   const continueTarget = continueQuery.data
   const continueRoute = continueTarget ? readRoute(continueTarget) : null
+  // positions only match the badges when viewing the manual order top to bottom
+  const showOrder = readlist.ordered && sort.current.property === 'readList.number' && sort.current.direction === 'asc'
 
   return (
     <div>
@@ -253,9 +269,20 @@ export function ReadListDetailPage() {
         <EditReadListBooks readlist={readlist} onExit={() => setEditing(false)} />
       ) : (
         <>
-          <div className="mb-4">
-            <ReadStatusFilterControl value={readStatus} onChange={setReadStatus} />
-          </div>
+          <FilterBar
+            count={booksTotal}
+            noun="books"
+            groups={BOOK_FILTER_GROUPS}
+            state={filters.state}
+            activeCount={activeFilterCount(filters.state)}
+            onToggleValue={filters.toggleValue}
+            onToggleAuthor={filters.toggleAuthor}
+            onClearQ={() => filters.setQ('')}
+            onOpenFilters={() => setDrawerOpen(true)}
+            sortOptions={READLIST_BOOK_SORT_OPTIONS}
+            sort={sort.current}
+            onSortChange={sort.set}
+          />
 
           {booksQuery.isPending ? (
             <GridSkeleton />
@@ -270,28 +297,41 @@ export function ReadListDetailPage() {
               }
             />
           ) : books.length === 0 ? (
-            <EmptyState
-              title="No books"
-              body={readStatus === 'ALL' ? 'This read list is empty.' : 'No books match this filter.'}
-            />
+            <EmptyState title="No books" body={hasFilters ? 'No books match the filters.' : 'This read list is empty.'} />
           ) : (
-            <MediaGrid>
-              {books.map((b, i) => (
-                <div key={b.id} className="relative">
-                  <BookCard book={b} showSeries />
-                  {readlist.ordered && <OrderBadge index={i + 1} />}
+            <>
+              <MediaGrid>
+                {books.map((b, i) => (
+                  <div key={b.id} className="relative">
+                    <BookCard book={b} showSeries />
+                    {showOrder && <OrderBadge index={i + 1} />}
+                  </div>
+                ))}
+              </MediaGrid>
+              <Sentinel active={!!hasNextPage && !isPlaceholderData} onIntersect={loadMore} />
+              {isFetchingNextPage && (
+                <div className="mt-6 flex justify-center">
+                  <CircleNotch className="size-5 animate-spin text-ink-3" />
                 </div>
-              ))}
-            </MediaGrid>
-          )}
-          <div ref={sentinelRef} />
-          {booksQuery.isFetchingNextPage && (
-            <div className="mt-6 flex justify-center">
-              <CircleNotch className="size-5 animate-spin text-ink-3" />
-            </div>
+              )}
+            </>
           )}
         </>
       )}
+
+      <FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        groups={BOOK_FILTER_GROUPS}
+        state={filters.state}
+        activeCount={activeFilterCount(filters.state)}
+        onToggleValue={filters.toggleValue}
+        onToggleAuthor={filters.toggleAuthor}
+        onSetMode={filters.setMode}
+        onSetNegated={filters.setNegated}
+        onSetExclusive={filters.setExclusive}
+        onClearAll={filters.clearAll}
+      />
 
       <EditReadListDialog open={editOpen} onOpenChange={setEditOpen} readlist={readlist} />
       <ConfirmDeleteDialog

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowSquareOut,
   ArrowsClockwise,
@@ -19,6 +19,7 @@ import {
   Trash,
 } from '@phosphor-icons/react'
 import { seriesApi } from '@/lib/api/series'
+import { booksApi } from '@/lib/api/books'
 import { librariesApi } from '@/lib/api/libraries'
 import { komfApi } from '@/lib/api/komf'
 import { canDownload, isAdmin, useAuthStore } from '@/lib/store/auth'
@@ -54,8 +55,13 @@ import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
 import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
 import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
-import { ReadStatusFilterControl, type ReadStatusFilter } from '@/components/detail/ReadStatusFilter'
-import { useSentinel } from '@/components/detail/useSentinel'
+import { FilterBar } from '@/components/filters/FilterBar'
+import { FilterDrawer } from '@/components/filters/FilterDrawer'
+import { Sentinel } from '@/components/filters/Sentinel'
+import { activeFilterCount, serializeFilters, useBrowseFilters } from '@/components/filters/filterUrl'
+import { serializeSort, useSortState } from '@/components/filters/sort'
+import { buildBookSearch } from '@/components/filters/builders'
+import { BOOK_FILTER_GROUPS, SERIES_BOOK_DEFAULT_SORT, SERIES_BOOK_SORT_OPTIONS } from '@/components/filters/types'
 
 const PAGE_SIZE = 48
 
@@ -66,13 +72,17 @@ export function SeriesDetailPage() {
   const user = useAuthStore((s) => s.user)
   const bust = useBust(seriesId)
   const rowCardWidth = useDensityCardWidth()
-  const [readStatus, setReadStatus] = useState<ReadStatusFilter>('ALL')
   const [newCollectionOpen, setNewCollectionOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
   const [identifyOpen, setIdentifyOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const komfReady = useKomfIntegration()
+
+  const filters = useBrowseFilters()
+  const sort = useSortState('books:series', SERIES_BOOK_DEFAULT_SORT)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const hasFilters = activeFilterCount(filters.state) > 0 || !!filters.state.q.trim()
 
   const seriesQuery = useQuery({ queryKey: ['series', seriesId], queryFn: () => seriesApi.get(seriesId) })
   const series = seriesQuery.data
@@ -95,16 +105,19 @@ export function SeriesDetailPage() {
     },
     enabled: !!series && !series.oneshot,
   })
+  const search = useMemo(
+    () => buildBookSearch(filters.state, undefined, { seriesId: { operator: 'is', value: seriesId } }),
+    [filters.state, seriesId],
+  )
+  const sortParam = serializeSort(sort.current)
+  const filterKey = serializeFilters(filters.state)
+
   const booksQuery = useInfiniteQuery({
-    queryKey: ['series', seriesId, 'books', readStatus],
-    queryFn: ({ pageParam }) =>
-      seriesApi.books(seriesId, {
-        page: pageParam,
-        size: PAGE_SIZE,
-        readStatus: readStatus === 'ALL' ? undefined : [readStatus],
-      }),
+    queryKey: ['series', seriesId, 'books', filterKey, sortParam],
+    queryFn: ({ pageParam }) => booksApi.list({ search, page: pageParam, size: PAGE_SIZE, sort: [sortParam] }),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.last ? undefined : last.number + 1),
+    placeholderData: keepPreviousData,
     enabled: !!series && !series.oneshot,
   })
 
@@ -150,12 +163,11 @@ export function SeriesDetailPage() {
     document.title = title ? `${title} · KMReader` : 'KMReader'
   }, [title])
 
-  const sentinelRef = useSentinel(
-    () => {
-      if (booksQuery.hasNextPage && !booksQuery.isFetchingNextPage) booksQuery.fetchNextPage()
-    },
-    !!booksQuery.hasNextPage,
-  )
+  const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = booksQuery
+  const loadMore = useCallback(() => {
+    // isPlaceholderData means a stale query is shown while filters changed; don't page the old one
+    if (hasNextPage && !isFetchingNextPage && !isPlaceholderData) void fetchNextPage()
+  }, [hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage])
 
   if (seriesQuery.isPending) return <DetailSkeleton />
   if (seriesQuery.error)
@@ -172,6 +184,7 @@ export function SeriesDetailPage() {
   const readTarget = readTargetQuery.data
   const readTargetRoute = readTarget ? readRoute(readTarget) : null
   const books = booksQuery.data?.pages.flatMap((p) => p.content) ?? []
+  const booksTotal = booksQuery.data?.pages[0]?.totalElements
   const collections = collectionsQuery.data ?? []
   const cover = urls.seriesThumbnail(series.id, bust || undefined)
 
@@ -326,10 +339,21 @@ export function SeriesDetailPage() {
       </p>
 
       <section className="mt-10">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-xl font-semibold text-ink">Books</h2>
-          <ReadStatusFilterControl value={readStatus} onChange={setReadStatus} />
-        </div>
+        <h2 className="mb-4 font-display text-xl font-semibold text-ink">Books</h2>
+        <FilterBar
+          count={booksTotal}
+          noun="books"
+          groups={BOOK_FILTER_GROUPS}
+          state={filters.state}
+          activeCount={activeFilterCount(filters.state)}
+          onToggleValue={filters.toggleValue}
+          onToggleAuthor={filters.toggleAuthor}
+          onClearQ={() => filters.setQ('')}
+          onOpenFilters={() => setDrawerOpen(true)}
+          sortOptions={SERIES_BOOK_SORT_OPTIONS}
+          sort={sort.current}
+          onSortChange={sort.set}
+        />
         {booksQuery.isPending ? (
           <GridSkeleton count={6} />
         ) : booksQuery.error ? (
@@ -343,22 +367,21 @@ export function SeriesDetailPage() {
             }
           />
         ) : books.length === 0 ? (
-          <EmptyState
-            title="No books"
-            body={readStatus === 'ALL' ? 'This series has no books.' : 'No books match this filter.'}
-          />
+          <EmptyState title="No books" body={hasFilters ? 'No books match the filters.' : 'This series has no books.'} />
         ) : (
-          <MediaGrid>
-            {books.map((b) => (
-              <BookCard key={b.id} book={b} />
-            ))}
-          </MediaGrid>
-        )}
-        <div ref={sentinelRef} />
-        {booksQuery.isFetchingNextPage && (
-          <div className="mt-6 flex justify-center">
-            <CircleNotch className="size-5 animate-spin text-ink-3" />
-          </div>
+          <>
+            <MediaGrid>
+              {books.map((b) => (
+                <BookCard key={b.id} book={b} />
+              ))}
+            </MediaGrid>
+            <Sentinel active={!!hasNextPage && !isPlaceholderData} onIntersect={loadMore} />
+            {isFetchingNextPage && (
+              <div className="mt-6 flex justify-center">
+                <CircleNotch className="size-5 animate-spin text-ink-3" />
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -373,6 +396,20 @@ export function SeriesDetailPage() {
       )}
 
       <NewCollectionDialog open={newCollectionOpen} onOpenChange={setNewCollectionOpen} seriesId={series.id} />
+      <FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        groups={BOOK_FILTER_GROUPS}
+        state={filters.state}
+        libraryId={series.libraryId}
+        activeCount={activeFilterCount(filters.state)}
+        onToggleValue={filters.toggleValue}
+        onToggleAuthor={filters.toggleAuthor}
+        onSetMode={filters.setMode}
+        onSetNegated={filters.setNegated}
+        onSetExclusive={filters.setExclusive}
+        onClearAll={filters.clearAll}
+      />
       <EditSeriesDialog open={editOpen} onClose={() => setEditOpen(false)} seriesIds={[series.id]} />
       {komfReady && (
         <KomfIdentifyDialog

@@ -20,11 +20,13 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     if (open) {
       setFilter('')
       setNewName('')
+      setCreating(false)
     }
   }, [open])
 
@@ -69,6 +71,8 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
     return f ? collections.filter((c) => c.name.toLowerCase().includes(f)) : collections
   }, [collections, filter])
   const pending = addMutation.isPending || createMutation.isPending
+  // with no existing collections, creating is the only possible action
+  const creatingOpen = creating || (listQuery.isSuccess && collections.length === 0)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={`Add ${plural(seriesIds.length, 'series', 'series')} to collection`} size="sm">
@@ -118,24 +122,41 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
         )}
       </div>
       <div className="border-t border-line px-5 py-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (newName.trim()) createMutation.mutate()
-          }}
-          className="flex items-end gap-2"
-        >
-          <TextField
-            label="New collection"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Name"
-            className="flex-1"
-          />
-          <Button type="submit" variant="primary" loading={createMutation.isPending} disabled={!newName.trim() || pending}>
-            Create
-          </Button>
-        </form>
+        {creatingOpen ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (newName.trim()) createMutation.mutate()
+            }}
+            className="flex items-end gap-2"
+          >
+            <TextField
+              label="New collection"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Name"
+              className="flex-1"
+              autoFocus
+            />
+            <Button type="submit" variant="primary" loading={createMutation.isPending} disabled={!newName.trim() || pending}>
+              Create
+            </Button>
+            {collections.length > 0 && (
+              <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
+                Cancel
+              </Button>
+            )}
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-2 transition-colors hover:bg-raised hover:text-ink"
+          >
+            <Plus className="size-4" />
+            New collection
+          </button>
+        )}
       </div>
     </Dialog>
   )

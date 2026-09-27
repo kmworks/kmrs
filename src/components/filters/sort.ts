@@ -22,9 +22,15 @@ export function sortLabel(options: SortOption[], property: string): string {
   return property === 'name' ? 'File name' : property
 }
 
-/** name-like fields read naturally A to Z; everything else (dates, counts) newest/largest first */
+/** name/number-like fields read naturally ascending; everything else (dates, counts) newest/largest first */
 export function defaultDirection(property: string): 'asc' | 'desc' {
-  return property === 'metadata.titleSort' || property === 'name' || property === 'series' || property === 'url'
+  return property === 'metadata.titleSort' ||
+    property === 'name' ||
+    property === 'series' ||
+    property === 'url' ||
+    property === 'metadata.numberSort' ||
+    property === 'readList.number' ||
+    property === 'collection.number'
     ? 'asc'
     : 'desc'
 }

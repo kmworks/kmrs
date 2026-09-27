@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
 import { booksApi } from '@/lib/api/books'
 import type { ReadListDto } from '@/lib/api/types'
@@ -19,6 +20,14 @@ interface AddToReadListDialogProps {
 export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadListDialogProps) {
   const queryClient = useQueryClient()
   const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setNewName('')
+      setCreating(false)
+    }
+  }, [open])
 
   const listsQuery = useQuery({
     queryKey: ['readlists', 'all'],
@@ -44,11 +53,14 @@ export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadLis
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['readlists'] })
       setNewName('')
+      setCreating(false)
     },
   })
 
   const lists = listsQuery.data?.content ?? []
   const memberIds = new Set((membershipQuery.data ?? []).map((l) => l.id))
+  // with no existing lists, creating is the only possible action
+  const creatingOpen = creating || (listsQuery.isSuccess && lists.length === 0)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Add to read list" size="sm">
@@ -79,24 +91,41 @@ export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadLis
         )}
       </div>
       <div className="border-t border-line px-5 py-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (newName.trim()) createMutation.mutate()
-          }}
-          className="flex items-end gap-2"
-        >
-          <TextField
-            label="New read list"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Name"
-            className="flex-1"
-          />
-          <Button type="submit" variant="primary" loading={createMutation.isPending} disabled={!newName.trim()}>
-            Create
-          </Button>
-        </form>
+        {creatingOpen ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (newName.trim()) createMutation.mutate()
+            }}
+            className="flex items-end gap-2"
+          >
+            <TextField
+              label="New read list"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Name"
+              className="flex-1"
+              autoFocus
+            />
+            <Button type="submit" variant="primary" loading={createMutation.isPending} disabled={!newName.trim()}>
+              Create
+            </Button>
+            {lists.length > 0 && (
+              <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
+                Cancel
+              </Button>
+            )}
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-2 transition-colors hover:bg-raised hover:text-ink"
+          >
+            <Plus className="size-4" />
+            New read list
+          </button>
+        )}
       </div>
     </Dialog>
   )
