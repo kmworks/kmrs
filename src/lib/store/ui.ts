@@ -11,11 +11,14 @@ interface UiState {
   gridDensity: GridDensity
   blurUnreadCovers: boolean
   sidebarLibrariesCollapsed: boolean
+  /** search scope outside /search: 'all' | 'pinned' | a library id */
+  searchScope: string
   setTheme: (t: Theme) => void
   setCardStyle: (s: CardStyle) => void
   setGridDensity: (d: GridDensity) => void
   setBlurUnreadCovers: (v: boolean) => void
   setSidebarLibrariesCollapsed: (v: boolean) => void
+  setSearchScope: (v: string) => void
 }
 
 export const useUiStore = create<UiState>()(
@@ -26,11 +29,13 @@ export const useUiStore = create<UiState>()(
       gridDensity: 'standard',
       blurUnreadCovers: false,
       sidebarLibrariesCollapsed: false,
+      searchScope: 'pinned',
       setTheme: (theme) => set({ theme }),
       setCardStyle: (cardStyle) => set({ cardStyle }),
       setGridDensity: (gridDensity) => set({ gridDensity }),
       setBlurUnreadCovers: (blurUnreadCovers) => set({ blurUnreadCovers }),
       setSidebarLibrariesCollapsed: (sidebarLibrariesCollapsed) => set({ sidebarLibrariesCollapsed }),
+      setSearchScope: (searchScope) => set({ searchScope }),
     }),
     { name: 'kmweb.ui' },
   ),

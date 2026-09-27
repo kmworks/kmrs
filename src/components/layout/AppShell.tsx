@@ -61,6 +61,8 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Switch } from '@/components/ui/Switch'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { PinLibrariesDialog } from '@/components/layout/PinLibrariesDialog'
+import { SearchScopeMenu } from '@/components/search/SearchScopeMenu'
+import { useSearchScopeDefault } from '@/components/search/scope'
 
 function NavItem({
   to,
@@ -374,21 +376,20 @@ function useSlashFocus(ref: React.RefObject<HTMLInputElement | null>) {
 
 function TopSearchBox() {
   const navigate = useNavigate()
-  const libraryMatch = useMatch('/libraries/:libraryId/*')
+  const { value: scope } = useSearchScopeDefault()
   const [q, setQ] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   useSlashFocus(inputRef)
 
   return (
     <form
-      className="relative w-full max-w-md"
+      className="relative w-full max-w-md min-w-0"
       onSubmit={(e) => {
         e.preventDefault()
         const trimmed = q.trim()
         if (!trimmed) return
         const params = new URLSearchParams({ q: trimmed })
-        // searching from inside a library defaults to that library's scope
-        if (libraryMatch?.params.libraryId) params.set('scope', libraryMatch.params.libraryId)
+        if (scope !== 'all') params.set('scope', scope)
         navigate(`/search?${params}`)
       }}
     >
@@ -446,7 +447,7 @@ function SyncedSearchBox() {
   }, [input, setSearchParams])
 
   return (
-    <div className="relative w-full max-w-lg">
+    <div className="relative w-full max-w-lg min-w-0">
       <MagnifyingGlass className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
       <input
         ref={inputRef}
@@ -586,6 +587,13 @@ export function AppShell() {
   const navigate = useNavigate()
   const onSearchPage = useLocation().pathname.startsWith('/search')
 
+  // browsing a library steers the default search scope to that library
+  const libraryId = useMatch('/libraries/:libraryId/*')?.params.libraryId
+  const setSearchScope = useUiStore((s) => s.setSearchScope)
+  useEffect(() => {
+    if (libraryId) setSearchScope(libraryId)
+  }, [libraryId, setSearchScope])
+
   return (
     <div className="flex min-h-dvh bg-bg">
       {/* desktop sidebar */}
@@ -623,13 +631,15 @@ export function AppShell() {
             <List className="size-5" />
           </IconButton>
           {onSearchPage ? (
-            <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <SyncedSearchBox />
+              <SearchScopeMenu />
             </div>
           ) : (
             <>
-              <div className="hidden flex-1 md:block">
+              <div className="hidden min-w-0 flex-1 items-center gap-2 md:flex">
                 <TopSearchBox />
+                <SearchScopeMenu />
               </div>
               <div className="flex-1 md:hidden" />
               <IconButton label="Search" className="md:hidden" onClick={() => navigate('/search')}>

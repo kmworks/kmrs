@@ -8,7 +8,6 @@ import { collectionsApi, readlistsApi } from '@/lib/api/collections'
 import { seriesApi } from '@/lib/api/series'
 import type { Page } from '@/lib/api/types'
 import { useDensityCardWidth } from '@/lib/store/ui'
-import { usePinnedLibraries } from '@/lib/store/clientSettings'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HistoryBackButton } from '@/components/ui/BackButton'
@@ -22,7 +21,7 @@ import { cardSelection, useSelection } from '@/components/selection/useSelection
 import { SeriesSelectionBar } from '@/components/browse/SeriesSelectionBar'
 import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
 import { libraryScopeCondition } from '@/components/filters/builders'
-import { SearchScopeMenu } from '@/components/search/SearchScopeMenu'
+import { scopeKey, scopeLibraryIds, useSearchScope, type SearchScope } from '@/components/search/scope'
 
 const TABS = [
   { value: 'all', label: 'All' },
@@ -38,25 +37,6 @@ function parseTab(raw: string | null): SearchTab {
   return TABS.some((t) => t.value === raw) ? (raw as SearchTab) : 'all'
 }
 
-type SearchScope = { kind: 'all' } | { kind: 'pinned'; ids: string[] } | { kind: 'library'; id: string }
-
-// 'pinned' resolves only when pins exist; anything unrecognized falls back to a global search
-function parseScope(raw: string | null, pinned: string[] | undefined): SearchScope {
-  if (raw === 'pinned' && pinned && pinned.length > 0) return { kind: 'pinned', ids: pinned }
-  if (raw && raw !== 'all' && raw !== 'pinned') return { kind: 'library', id: raw }
-  return { kind: 'all' }
-}
-
-function scopeLibraryIds(scope: SearchScope): string[] | undefined {
-  if (scope.kind === 'all') return undefined
-  return scope.kind === 'pinned' ? scope.ids : [scope.id]
-}
-
-function scopeKey(scope: SearchScope): string {
-  if (scope.kind === 'all') return 'all'
-  return scope.kind === 'pinned' ? `pinned:${scope.ids.join(',')}` : scope.id
-}
-
 function scopedSearch(q: string, libraryIds: string[] | undefined) {
   const condition = libraryScopeCondition(libraryIds ?? [])
   return { fullTextSearch: q, ...(condition && { condition }) }
@@ -67,11 +47,9 @@ export function SearchPage() {
   const qRaw = searchParams.get('q') ?? ''
   const q = qRaw.trim()
   const tab = parseTab(searchParams.get('tab'))
-  const { pinned } = usePinnedLibraries()
-  const scope = parseScope(searchParams.get('scope'), pinned)
+  const { scope } = useSearchScope()
   const libraryIds = scopeLibraryIds(scope)
   const sk = scopeKey(scope)
-  const scopeValue = scope.kind === 'all' ? 'all' : scope.kind === 'pinned' ? 'pinned' : scope.id
 
   useEffect(() => {
     document.title = q ? `Search: ${q} · KMReader` : 'Search · KMReader'
@@ -98,24 +76,11 @@ export function SearchPage() {
     )
   }
 
-  const onScopeChange = (value: string) => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev)
-        if (value === 'all') next.delete('scope')
-        else next.set('scope', value)
-        return next
-      },
-      { replace: true },
-    )
-  }
-
   return (
     <div>
       <HistoryBackButton to="/dashboard" className="mb-2 -ml-2" />
-      <div className="mb-7 flex items-center justify-between gap-3 overflow-x-auto pb-1">
-        <SegmentedControl<SearchTab> options={[...TABS]} value={tab} onChange={onTabChange} className="shrink-0" />
-        <SearchScopeMenu value={scopeValue} onChange={onScopeChange} />
+      <div className="mb-7 overflow-x-auto pb-1">
+        <SegmentedControl<SearchTab> options={[...TABS]} value={tab} onChange={onTabChange} />
       </div>
 
       {!q ? (
