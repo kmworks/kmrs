@@ -813,3 +813,108 @@ export interface KomfIdentifyRequest {
 export interface KomfMetadataJobResponse {
   id: string
 }
+
+// ---- Komf configuration ----
+
+export type KomfLibraryType = 'MANGA' | 'NOVEL' | 'COMIC' | 'WEBTOON'
+export type KomfUpdateMode = 'API' | 'COMIC_INFO' | 'MYLAR_SERIES_JSON'
+export type KomfReadingDirection = 'LEFT_TO_RIGHT' | 'RIGHT_TO_LEFT' | 'VERTICAL' | 'WEBTOON'
+export type KomfNameMatchingMode = 'EXACT' | 'CLOSEST_MATCH'
+
+export interface KomfEventListenerConfig {
+  enabled: boolean
+  /** library ids; empty means all libraries */
+  metadataLibraryFilter: string[]
+}
+
+export interface KomfPostProcessingConfig {
+  seriesTitle: boolean
+  seriesTitleLanguage: string | null
+  alternativeSeriesTitles: boolean
+  alternativeSeriesTitleLanguages: string[]
+  orderBooks: boolean
+  readingDirectionValue: KomfReadingDirection | null
+  languageValue: string | null
+}
+
+export interface KomfMetadataProcessingConfig {
+  libraryType: KomfLibraryType
+  aggregate: boolean
+  mergeTags: boolean
+  mergeGenres: boolean
+  bookCovers: boolean
+  seriesCovers: boolean
+  overrideExistingCovers: boolean
+  lockCovers: boolean
+  updateModes: KomfUpdateMode[]
+  overrideComicInfo: boolean
+  postProcessing: KomfPostProcessingConfig
+}
+
+export interface KomfProviderConfig {
+  enabled: boolean
+  priority: number
+}
+
+export interface KomfProvidersMap {
+  mangaUpdates: KomfProviderConfig
+  mangaBaka: KomfProviderConfig
+  bookWalker: KomfProviderConfig
+  mangaDex: KomfProviderConfig
+  aniList: KomfProviderConfig
+  mal: KomfProviderConfig
+  comicVine: KomfProviderConfig
+  yenPress: KomfProviderConfig
+  viz: KomfProviderConfig
+  bangumi: KomfProviderConfig
+  webtoons: KomfProviderConfig
+  eHentai: KomfProviderConfig
+}
+
+export interface KomfMetadataProvidersConfig {
+  malClientId: string | null
+  comicVineClientId: string | null
+  bangumiToken: string | null
+  nameMatchingMode: KomfNameMatchingMode
+  defaultProviders: KomfProvidersMap
+  /** null means the library has no override */
+  libraryProviders: Record<string, KomfProvidersMap | null>
+}
+
+export interface KomfConfig {
+  komga: {
+    eventListener: KomfEventListenerConfig
+    metadataUpdate: {
+      default: KomfMetadataProcessingConfig
+      library: Record<string, KomfMetadataProcessingConfig>
+    }
+  }
+  metadataProviders: KomfMetadataProvidersConfig
+}
+
+type KomfProcessingPatch = Partial<Omit<KomfMetadataProcessingConfig, 'postProcessing'>> & {
+  postProcessing?: Partial<KomfPostProcessingConfig>
+}
+
+type KomfProvidersPatch = { [K in keyof KomfProvidersMap]?: Partial<KomfProviderConfig> }
+
+/** Merge-patch body: absent field = keep, explicit null = clear, value = set. */
+export interface KomfConfigPatch {
+  komga?: {
+    eventListener?: Partial<KomfEventListenerConfig>
+    metadataUpdate?: {
+      default?: KomfProcessingPatch
+      /** null deletes the library's override */
+      library?: Record<string, KomfProcessingPatch | null>
+    }
+  }
+  metadataProviders?: {
+    malClientId?: string | null
+    comicVineClientId?: string | null
+    bangumiToken?: string | null
+    nameMatchingMode?: KomfNameMatchingMode
+    defaultProviders?: KomfProvidersPatch
+    /** null deletes the library's override */
+    libraryProviders?: Record<string, KomfProvidersPatch | null>
+  }
+}

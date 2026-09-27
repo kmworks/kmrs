@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/lib/api/client'
 import { komfApi } from '@/lib/api/komf'
@@ -41,6 +42,7 @@ function violationMessages(err: unknown): ViolationMessage[] {
 
 function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [url, setUrl] = useState(integration.url ?? '')
   const [baseUrl, setBaseUrl] = useState(integration.baseUrl ?? window.location.origin)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -117,6 +119,11 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
             <Button variant="primary" loading={connect.isPending} onClick={() => connect.mutate()}>
               {integration.configured ? 'Reconnect' : 'Connect'}
             </Button>
+            {integration.state === 'connected' && (
+              <Button variant="secondary" onClick={() => navigate('/admin/integrations/komf')}>
+                Configure
+              </Button>
+            )}
             {integration.configured && (
               <Button variant="danger" onClick={() => setConfirmOpen(true)}>
                 Disconnect

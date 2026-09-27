@@ -1,5 +1,7 @@
 import { api } from './client'
 import type {
+  KomfConfig,
+  KomfConfigPatch,
   KomfIdentifyRequest,
   KomfIntegrationDto,
   KomfIntegrationUpdateDto,
@@ -11,6 +13,8 @@ export const komfApi = {
   getIntegration: () => api.get<KomfIntegrationDto>('/api/v1/komf/integration'),
   updateIntegration: (body: KomfIntegrationUpdateDto) => api.put<KomfIntegrationDto>('/api/v1/komf/integration', body),
   disconnect: () => api.delete<void>('/api/v1/komf/integration'),
+  getConfig: () => api.get<KomfConfig>('/api/v1/komf/config'),
+  patchConfig: (body: KomfConfigPatch) => api.patch<void>('/api/v1/komf/config', body),
   search: (params: { name: string; libraryId?: string; seriesId?: string }) =>
     api.get<KomfSeriesSearchResult[]>('/api/v1/komf/search', params),
   identify: (body: KomfIdentifyRequest) => api.post<KomfMetadataJobResponse>('/api/v1/komf/identify', body),
