@@ -38,13 +38,13 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
   const isEdit = !!library
   const [form, setForm] = useState<LibraryFormState>(DEFAULTS)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [browseTarget, setBrowseTarget] = useState<'root' | 'oneshots' | null>(null)
+  const [browsingRoot, setBrowsingRoot] = useState(false)
 
   useEffect(() => {
     if (open) {
       setForm(library ? formFromLibrary(library) : { ...DEFAULTS, scanDirectoryExclusions: [] })
       setAdvancedOpen(false)
-      setBrowseTarget(null)
+      setBrowsingRoot(false)
     }
   }, [open, library])
 
@@ -84,9 +84,6 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
     if (canSubmit) save.mutate()
   }
 
-  const browseInitial =
-    browseTarget === 'root' ? form.root.trim() || undefined : form.oneshotsDirectory.trim() || form.root.trim() || undefined
-
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange} title={isEdit ? 'Edit library' : 'Add library'} size="lg">
@@ -107,18 +104,18 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
                   label="Root folder"
                   value={form.root}
                   onChange={(v) => set('root', v)}
-                  onBrowse={() => setBrowseTarget('root')}
+                  onBrowse={() => setBrowsingRoot(true)}
                   error={violationFor('root')}
                   helper="Absolute path on the machine running kmrs."
                 />
-                <PathField
+                <TextField
                   label="Oneshots directory"
-                  optional
                   value={form.oneshotsDirectory}
-                  onChange={(v) => set('oneshotsDirectory', v)}
-                  onBrowse={() => setBrowseTarget('oneshots')}
+                  onChange={(e) => set('oneshotsDirectory', e.target.value)}
                   error={violationFor('oneshotsDirectory')}
-                  helper="Loose single-issue books live here. Leave empty to disable."
+                  helper="Books in folders whose path contains this value become oneshots. Leave empty to disable."
+                  placeholder="e.g. @oneshot"
+                  spellCheck={false}
                 />
                 {!isEdit && <p className="text-[13px] text-ink-3">The library is scanned automatically right after creation.</p>}
               </div>
@@ -218,14 +215,12 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
       </Dialog>
 
       <FilesystemDialog
-        open={browseTarget !== null}
-        onOpenChange={(o) => {
-          if (!o) setBrowseTarget(null)
-        }}
-        initialPath={browseInitial}
+        open={browsingRoot}
+        onOpenChange={setBrowsingRoot}
+        initialPath={form.root.trim() || undefined}
         onSelect={(p) => {
-          set(browseTarget === 'root' ? 'root' : 'oneshotsDirectory', p)
-          setBrowseTarget(null)
+          set('root', p)
+          setBrowsingRoot(false)
         }}
       />
     </>
@@ -244,7 +239,6 @@ function FormSection({ title, hint, children }: { title: string; hint?: string; 
 
 function PathField({
   label,
-  optional,
   value,
   onChange,
   onBrowse,
@@ -252,7 +246,6 @@ function PathField({
   error,
 }: {
   label: string
-  optional?: boolean
   value: string
   onChange: (v: string) => void
   onBrowse: () => void
@@ -264,7 +257,6 @@ function PathField({
     <div className="flex flex-col gap-2">
       <label htmlFor={id} className="text-[13px] font-medium text-ink-2">
         {label}
-        {optional && <span className="text-ink-3"> · optional</span>}
       </label>
       <div className="flex gap-2">
         <input
