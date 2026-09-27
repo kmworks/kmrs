@@ -565,6 +565,9 @@ export interface KomfDraftErrors {
   libraryProviders: Record<string, Partial<Record<KomfProviderKey, string>>>
   comicVineSearchLimit?: string
   messages: string[]
+  /** per-scope attribution of the processing messages, so each tab can badge its own errors */
+  defaultProcessingMessages: string[]
+  libraryProcessingMessages: string[]
 }
 
 function positiveInt(v: string): boolean {
@@ -591,7 +594,13 @@ function validateProvider(key: KomfProviderKey, d: ProviderDraft): string | unde
 }
 
 export function validateDraft(d: KomfConfigDraft): KomfDraftErrors {
-  const errors: KomfDraftErrors = { defaultProviders: {}, libraryProviders: {}, messages: [] }
+  const errors: KomfDraftErrors = {
+    defaultProviders: {},
+    libraryProviders: {},
+    messages: [],
+    defaultProcessingMessages: [],
+    libraryProcessingMessages: [],
+  }
   for (const key of PROVIDER_KEYS) {
     const error = validateProvider(key, d.defaultProviders[key])
     if (error) errors.defaultProviders[key] = error
@@ -607,18 +616,22 @@ export function validateDraft(d: KomfConfigDraft): KomfDraftErrors {
   const cvs = d.comicVineSearchLimit.trim()
   if (cvs !== '' && !positiveInt(cvs)) errors.comicVineSearchLimit = PRIORITY_ERROR
 
-  const checkProcessing = (p: ProcessingDraft) => {
+  const checkProcessing = (p: ProcessingDraft): string[] => {
+    const msgs: string[] = []
+    const add = (msg: string) => {
+      if (!msgs.includes(msg)) msgs.push(msg)
+    }
     for (const t of p.publisherTagNames) {
-      const msg = 'Publisher tag names need both a tag name and a language.'
-      if (!t.tagName.trim() !== !t.language.trim() && !errors.messages.includes(msg)) errors.messages.push(msg)
+      if (!t.tagName.trim() !== !t.language.trim()) add('Publisher tag names need both a tag name and a language.')
     }
     for (const m of p.searchTitleExtraction.charMappings) {
-      const msg = 'Character mappings need both a source and a replacement.'
-      if (!m.from.trim() !== !m.to.trim() && !errors.messages.includes(msg)) errors.messages.push(msg)
+      if (!m.from.trim() !== !m.to.trim()) add('Character mappings need both a source and a replacement.')
     }
+    return msgs
   }
-  checkProcessing(d.defaultProcessing)
-  for (const p of Object.values(d.libraryProcessing)) checkProcessing(p)
+  errors.defaultProcessingMessages = checkProcessing(d.defaultProcessing)
+  errors.libraryProcessingMessages = Object.values(d.libraryProcessing).flatMap(checkProcessing)
+  errors.messages = [...new Set([...errors.defaultProcessingMessages, ...errors.libraryProcessingMessages])]
 
   return errors
 }

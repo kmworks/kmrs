@@ -49,36 +49,23 @@ const CHINESE_FIELD_OPTIONS: Array<{ value: KomfChineseField; label: string }> =
   { value: 'summary', label: 'Summary' },
 ]
 
-interface ProcessingFieldsProps {
+interface ProcessingGroupProps {
   value: ProcessingDraft
   onChange: (v: ProcessingDraft) => void
 }
 
-/** Shared editor for a metadata-processing block, used by the global default and per-library overrides. */
-export function ProcessingFields({ value, onChange }: ProcessingFieldsProps) {
+// Each group renders a fragment so the composed ProcessingFields below keeps the
+// same first:/last: FormRow spacing as a flat list; the tab view wraps each group
+// in a plain div to restore that spacing inside its own card.
+
+export function ProcessingGeneralFields({ value, onChange }: ProcessingGroupProps) {
   const set = (patch: Partial<ProcessingDraft>) => onChange({ ...value, ...patch })
-  const setExtraction = (patch: Partial<ProcessingDraft['searchTitleExtraction']>) =>
-    set({ searchTitleExtraction: { ...value.searchTitleExtraction, ...patch } })
-  const setConversion = (patch: Partial<ProcessingDraft['chineseConversion']>) =>
-    set({ chineseConversion: { ...value.chineseConversion, ...patch } })
-  const setLabels = (patch: Partial<ProcessingDraft['alternateTitleLabels']>) =>
-    set({ alternateTitleLabels: { ...value.alternateTitleLabels, ...patch } })
 
   const toggleMode = (mode: KomfUpdateMode, on: boolean) =>
     set({ updateModes: on ? [...value.updateModes, mode] : value.updateModes.filter((m) => m !== mode) })
 
-  const setPublisherTagName = (index: number, patch: Partial<KomfPublisherTagName>) =>
-    set({
-      publisherTagNames: value.publisherTagNames.map((t, i) => (i === index ? { ...t, ...patch } : t)),
-    })
-
-  const setCharMapping = (index: number, patch: Partial<{ from: string; to: string }>) =>
-    setExtraction({
-      charMappings: value.searchTitleExtraction.charMappings.map((m, i) => (i === index ? { ...m, ...patch } : m)),
-    })
-
   return (
-    <div>
+    <>
       <FormRow label="Library type">
         <SegmentedControl
           options={LIBRARY_TYPE_OPTIONS}
@@ -141,8 +128,22 @@ export function ProcessingFields({ value, onChange }: ProcessingFieldsProps) {
           onChange={(e) => set({ failedMatchCollectionName: e.target.value })}
         />
       </FormRow>
+    </>
+  )
+}
 
-      <Subheading>Post-processing</Subheading>
+export function PostProcessingFields({ value, onChange }: ProcessingGroupProps) {
+  const set = (patch: Partial<ProcessingDraft>) => onChange({ ...value, ...patch })
+  const setLabels = (patch: Partial<ProcessingDraft['alternateTitleLabels']>) =>
+    set({ alternateTitleLabels: { ...value.alternateTitleLabels, ...patch } })
+
+  const setPublisherTagName = (index: number, patch: Partial<KomfPublisherTagName>) =>
+    set({
+      publisherTagNames: value.publisherTagNames.map((t, i) => (i === index ? { ...t, ...patch } : t)),
+    })
+
+  return (
+    <>
       <FormRow label="Series title">
         <Switch checked={value.seriesTitle} onCheckedChange={(v) => set({ seriesTitle: v })} label="Series title" />
       </FormRow>
@@ -296,8 +297,22 @@ export function ProcessingFields({ value, onChange }: ProcessingFieldsProps) {
           label="Match by links"
         />
       </FormRow>
+    </>
+  )
+}
 
-      <Subheading>Search title extraction</Subheading>
+export function SearchTitleExtractionFields({ value, onChange }: ProcessingGroupProps) {
+  const set = (patch: Partial<ProcessingDraft>) => onChange({ ...value, ...patch })
+  const setExtraction = (patch: Partial<ProcessingDraft['searchTitleExtraction']>) =>
+    set({ searchTitleExtraction: { ...value.searchTitleExtraction, ...patch } })
+
+  const setCharMapping = (index: number, patch: Partial<{ from: string; to: string }>) =>
+    setExtraction({
+      charMappings: value.searchTitleExtraction.charMappings.map((m, i) => (i === index ? { ...m, ...patch } : m)),
+    })
+
+  return (
+    <>
       <FormRow label="Enabled" helper="Clean up series titles before searching providers.">
         <Switch
           checked={value.searchTitleExtraction.enabled}
@@ -400,8 +415,17 @@ export function ProcessingFields({ value, onChange }: ProcessingFieldsProps) {
           </div>
         </>
       )}
+    </>
+  )
+}
 
-      <Subheading>Chinese conversion</Subheading>
+export function ChineseConversionFields({ value, onChange }: ProcessingGroupProps) {
+  const set = (patch: Partial<ProcessingDraft>) => onChange({ ...value, ...patch })
+  const setConversion = (patch: Partial<ProcessingDraft['chineseConversion']>) =>
+    set({ chineseConversion: { ...value.chineseConversion, ...patch } })
+
+  return (
+    <>
       <FormRow label="Enabled" helper="Convert between Simplified and Traditional Chinese.">
         <Switch
           checked={value.chineseConversion.enabled}
@@ -454,8 +478,15 @@ export function ProcessingFields({ value, onChange }: ProcessingFieldsProps) {
           )}
         </>
       )}
+    </>
+  )
+}
 
-      <Subheading>Mylar</Subheading>
+export function MylarFields({ value, onChange }: ProcessingGroupProps) {
+  const set = (patch: Partial<ProcessingDraft>) => onChange({ ...value, ...patch })
+
+  return (
+    <>
       <FormRow label="Download covers" helper="Also download series covers when exporting series.json.">
         <Switch checked={value.mylarCovers} onCheckedChange={(v) => set({ mylarCovers: v })} label="Mylar covers" />
       </FormRow>
@@ -467,6 +498,23 @@ export function ProcessingFields({ value, onChange }: ProcessingFieldsProps) {
           onChange={(e) => set({ mylarOutputDir: e.target.value })}
         />
       </FormRow>
+    </>
+  )
+}
+
+/** Full processing editor with group dividers, for override rows where all groups share one card. */
+export function ProcessingFields({ value, onChange }: ProcessingGroupProps) {
+  return (
+    <div>
+      <ProcessingGeneralFields value={value} onChange={onChange} />
+      <Subheading>Post-processing</Subheading>
+      <PostProcessingFields value={value} onChange={onChange} />
+      <Subheading>Search title extraction</Subheading>
+      <SearchTitleExtractionFields value={value} onChange={onChange} />
+      <Subheading>Chinese conversion</Subheading>
+      <ChineseConversionFields value={value} onChange={onChange} />
+      <Subheading>Mylar</Subheading>
+      <MylarFields value={value} onChange={onChange} />
     </div>
   )
 }

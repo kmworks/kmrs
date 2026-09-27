@@ -1,3 +1,5 @@
+import { useState, type ReactNode } from 'react'
+import { CaretRight } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils/cn'
 
 interface ChecklistProps<T extends string> {
@@ -85,5 +87,33 @@ export function SelectInput<T extends string>({
         </option>
       ))}
     </select>
+  )
+}
+
+interface CollapsibleGroupProps {
+  label: string
+  summary?: string
+  children: ReactNode
+}
+
+/** Collapsible counterpart to Subheading, for bulky field groups that are rarely edited. */
+export function CollapsibleGroup({ label, summary, children }: CollapsibleGroupProps) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mt-4 border-t border-line">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center gap-2 py-3 text-left"
+      >
+        <CaretRight
+          className={cn('size-3.5 shrink-0 text-ink-3 transition-transform duration-150', open && 'rotate-90')}
+        />
+        <span className="flex-1 text-sm text-ink-2">{label}</span>
+        {summary && <span className="text-xs text-ink-3">{summary}</span>}
+      </button>
+      {open && <div className="pb-3">{children}</div>}
+    </div>
   )
 }

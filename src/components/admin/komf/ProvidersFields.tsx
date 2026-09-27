@@ -13,7 +13,7 @@ import {
 import { FieldInput } from '@/components/admin/settings/FieldInput'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Switch } from '@/components/ui/Switch'
-import { Checklist, Subheading } from './fields'
+import { Checklist, CollapsibleGroup } from './fields'
 import { FormRow } from './FormRow'
 import { ProviderExtras } from './ProviderExtras'
 
@@ -79,6 +79,8 @@ function ProviderCard({ provider, value, onChange, error }: ProviderCardProps) {
   const setSeries = (patch: Partial<SeriesMetadataDraft>) =>
     set({ seriesMetadata: { ...value.seriesMetadata, ...patch } })
   const setBook = (patch: Partial<BookMetadataDraft>) => set({ bookMetadata: { ...value.bookMetadata, ...patch } })
+  const seriesFieldCount = SERIES_METADATA_OPTIONS.filter((o) => value.seriesMetadata[o.value]).length
+  const bookFieldCount = BOOK_METADATA_OPTIONS.filter((o) => value.bookMetadata[o.value]).length
 
   return (
     <div className="rounded-lg border border-line">
@@ -144,8 +146,7 @@ function ProviderCard({ provider, value, onChange, error }: ProviderCardProps) {
             </div>
           </div>
 
-          <Subheading>Series metadata</Subheading>
-          <div className="pt-3">
+          <CollapsibleGroup label="Series metadata" summary={`${seriesFieldCount}/${SERIES_METADATA_OPTIONS.length}`}>
             <Checklist
               options={SERIES_METADATA_OPTIONS}
               values={SERIES_METADATA_OPTIONS.filter((o) => value.seriesMetadata[o.value]).map((o) => o.value)}
@@ -156,35 +157,37 @@ function ProviderCard({ provider, value, onChange, error }: ProviderCardProps) {
               }}
               className="sm:grid-cols-3"
             />
-          </div>
-          <FormRow label="Original publisher tag name">
-            <FieldInput
-              aria-label="Original publisher tag name"
-              className="w-36"
-              value={value.seriesMetadata.originalPublisherTagName}
-              onChange={(e) => setSeries({ originalPublisherTagName: e.target.value })}
-            />
-          </FormRow>
-          <FormRow label="English publisher tag name">
-            <FieldInput
-              aria-label="English publisher tag name"
-              className="w-36"
-              value={value.seriesMetadata.englishPublisherTagName}
-              onChange={(e) => setSeries({ englishPublisherTagName: e.target.value })}
-            />
-          </FormRow>
-          <FormRow label="French publisher tag name">
-            <FieldInput
-              aria-label="French publisher tag name"
-              className="w-36"
-              value={value.seriesMetadata.frenchPublisherTagName}
-              onChange={(e) => setSeries({ frenchPublisherTagName: e.target.value })}
-            />
-          </FormRow>
+            <FormRow label="Original publisher tag name">
+              <FieldInput
+                aria-label="Original publisher tag name"
+                className="w-36"
+                value={value.seriesMetadata.originalPublisherTagName}
+                onChange={(e) => setSeries({ originalPublisherTagName: e.target.value })}
+              />
+            </FormRow>
+            <FormRow label="English publisher tag name">
+              <FieldInput
+                aria-label="English publisher tag name"
+                className="w-36"
+                value={value.seriesMetadata.englishPublisherTagName}
+                onChange={(e) => setSeries({ englishPublisherTagName: e.target.value })}
+              />
+            </FormRow>
+            <FormRow label="French publisher tag name">
+              <FieldInput
+                aria-label="French publisher tag name"
+                className="w-36"
+                value={value.seriesMetadata.frenchPublisherTagName}
+                onChange={(e) => setSeries({ frenchPublisherTagName: e.target.value })}
+              />
+            </FormRow>
+          </CollapsibleGroup>
 
           {PROVIDERS_WITH_BOOKS.has(provider) && (
-            <>
-              <Subheading>Book metadata</Subheading>
+            <CollapsibleGroup
+              label="Book metadata"
+              summary={value.seriesMetadata.books ? `${bookFieldCount}/${BOOK_METADATA_OPTIONS.length}` : 'Off'}
+            >
               <FormRow label="Update book metadata">
                 <Switch
                   checked={value.seriesMetadata.books}
@@ -206,7 +209,7 @@ function ProviderCard({ provider, value, onChange, error }: ProviderCardProps) {
                   />
                 </div>
               )}
-            </>
+            </CollapsibleGroup>
           )}
 
           <ProviderExtras provider={provider} value={value} onChange={onChange} />
