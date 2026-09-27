@@ -12,10 +12,10 @@ import {
   DotsThreeVertical,
   EyeSlash,
   FileMagnifyingGlass,
+  FolderPlus,
   ImageSquare,
   PencilSimple,
   PlugsConnected,
-  Plus,
   Sparkle,
   Trash,
 } from '@phosphor-icons/react'
@@ -51,7 +51,7 @@ import { SeriesMetaLine } from '@/components/detail/SeriesMetaLine'
 import { creatorChipItems, genreChipItems, sharingLabelChipItems, tagChipItems } from '@/components/detail/metadataChips'
 import { Summary } from '@/components/detail/Summary'
 import { DownloadLink } from '@/components/detail/DownloadLink'
-import { NewCollectionDialog } from '@/components/detail/NewCollectionDialog'
+import { AddToCollectionDialog } from '@/components/browse/AddToCollectionDialog'
 import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
 import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
@@ -74,7 +74,7 @@ export function SeriesDetailPage() {
   const user = useAuthStore((s) => s.user)
   const bust = useBust(seriesId)
   const rowCardWidth = useDensityCardWidth()
-  const [newCollectionOpen, setNewCollectionOpen] = useState(false)
+  const [addToCollectionOpen, setAddToCollectionOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
   const [identifyOpen, setIdentifyOpen] = useState(false)
@@ -293,8 +293,8 @@ export function SeriesDetailPage() {
                   </>
                 )}
                 <MenuSeparator />
-                <MenuItem onSelect={() => setNewCollectionOpen(true)}>
-                  <Plus className="size-4" /> New collection with this series
+                <MenuItem onSelect={() => setAddToCollectionOpen(true)}>
+                  <FolderPlus className="size-4" /> Add to collection
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem danger onSelect={() => setDeleteOpen(true)}>
@@ -411,7 +411,12 @@ export function SeriesDetailPage() {
         </HorizontalRow>
       )}
 
-      <NewCollectionDialog open={newCollectionOpen} onOpenChange={setNewCollectionOpen} seriesId={series.id} />
+      <AddToCollectionDialog
+        open={addToCollectionOpen}
+        onOpenChange={setAddToCollectionOpen}
+        seriesIds={[series.id]}
+        onDone={(_ok, message) => showToast(message)}
+      />
       <FilterDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

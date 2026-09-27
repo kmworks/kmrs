@@ -12,10 +12,10 @@ import {
   DotsThreeVertical,
   EyeSlash,
   FileMagnifyingGlass,
+  FolderPlus,
   ImageSquare,
   PencilSimple,
   PlugsConnected,
-  Plus,
   Sparkle,
   Trash,
 } from '@phosphor-icons/react'
@@ -50,7 +50,7 @@ import { creatorChipItems, genreChipItems, sharingLabelChipItems, tagChipItems }
 import { Summary } from '@/components/detail/Summary'
 import { DownloadLink } from '@/components/detail/DownloadLink'
 import { AddToReadListDialog } from '@/components/detail/AddToReadListDialog'
-import { NewCollectionDialog } from '@/components/detail/NewCollectionDialog'
+import { AddToCollectionDialog } from '@/components/browse/AddToCollectionDialog'
 import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
 import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
@@ -76,7 +76,7 @@ export function OneshotDetailPage() {
   const user = useAuthStore((s) => s.user)
   const rowCardWidth = useDensityCardWidth()
   const [addToListOpen, setAddToListOpen] = useState(false)
-  const [newCollectionOpen, setNewCollectionOpen] = useState(false)
+  const [addToCollectionOpen, setAddToCollectionOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [editBookOpen, setEditBookOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
@@ -292,8 +292,8 @@ export function OneshotDetailPage() {
                 <MenuItem onSelect={() => setAddToListOpen(true)}>
                   <BookmarkSimple className="size-4" /> Add to read list
                 </MenuItem>
-                <MenuItem onSelect={() => setNewCollectionOpen(true)}>
-                  <Plus className="size-4" /> New collection with this series
+                <MenuItem onSelect={() => setAddToCollectionOpen(true)}>
+                  <FolderPlus className="size-4" /> Add to collection
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem danger onSelect={() => setDeleteOpen(true)}>
@@ -414,7 +414,12 @@ export function OneshotDetailPage() {
       )}
 
       <AddToReadListDialog bookId={book.id} open={addToListOpen} onOpenChange={setAddToListOpen} />
-      <NewCollectionDialog open={newCollectionOpen} onOpenChange={setNewCollectionOpen} seriesId={series.id} />
+      <AddToCollectionDialog
+        open={addToCollectionOpen}
+        onOpenChange={setAddToCollectionOpen}
+        seriesIds={[series.id]}
+        onDone={(_ok, message) => showToast(message)}
+      />
       <EditSeriesDialog open={editOpen} onClose={() => setEditOpen(false)} seriesIds={[series.id]} />
       <EditBooksDialog open={editBookOpen} onClose={() => setEditBookOpen(false)} bookIds={[book.id]} />
       {komfReady && (
