@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   BookBookmark,
@@ -374,6 +374,7 @@ function useSlashFocus(ref: React.RefObject<HTMLInputElement | null>) {
 
 function TopSearchBox() {
   const navigate = useNavigate()
+  const libraryMatch = useMatch('/libraries/:libraryId/*')
   const [q, setQ] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   useSlashFocus(inputRef)
@@ -383,7 +384,12 @@ function TopSearchBox() {
       className="relative w-full max-w-md"
       onSubmit={(e) => {
         e.preventDefault()
-        if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`)
+        const trimmed = q.trim()
+        if (!trimmed) return
+        const params = new URLSearchParams({ q: trimmed })
+        // searching from inside a library defaults to that library's scope
+        if (libraryMatch?.params.libraryId) params.set('scope', libraryMatch.params.libraryId)
+        navigate(`/search?${params}`)
       }}
     >
       <MagnifyingGlass className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />

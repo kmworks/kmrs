@@ -8,6 +8,7 @@ import { collectionsApi, readlistsApi } from '@/lib/api/collections'
 import { seriesApi } from '@/lib/api/series'
 import type { Page } from '@/lib/api/types'
 import { useDensityCardWidth } from '@/lib/store/ui'
+import { usePinnedLibraries } from '@/lib/store/clientSettings'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HistoryBackButton } from '@/components/ui/BackButton'
@@ -20,6 +21,8 @@ import { CollectionCard, ReadListCard, SeriesCard } from '@/components/media/Ser
 import { cardSelection, useSelection } from '@/components/selection/useSelection'
 import { SeriesSelectionBar } from '@/components/browse/SeriesSelectionBar'
 import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
+import { libraryScopeCondition } from '@/components/filters/builders'
+import { SearchScopeMenu } from '@/components/search/SearchScopeMenu'
 
 const TABS = [
   { value: 'all', label: 'All' },
@@ -35,11 +38,40 @@ function parseTab(raw: string | null): SearchTab {
   return TABS.some((t) => t.value === raw) ? (raw as SearchTab) : 'all'
 }
 
+type SearchScope = { kind: 'all' } | { kind: 'pinned'; ids: string[] } | { kind: 'library'; id: string }
+
+// 'pinned' resolves only when pins exist; anything unrecognized falls back to a global search
+function parseScope(raw: string | null, pinned: string[] | undefined): SearchScope {
+  if (raw === 'pinned' && pinned && pinned.length > 0) return { kind: 'pinned', ids: pinned }
+  if (raw && raw !== 'all' && raw !== 'pinned') return { kind: 'library', id: raw }
+  return { kind: 'all' }
+}
+
+function scopeLibraryIds(scope: SearchScope): string[] | undefined {
+  if (scope.kind === 'all') return undefined
+  return scope.kind === 'pinned' ? scope.ids : [scope.id]
+}
+
+function scopeKey(scope: SearchScope): string {
+  if (scope.kind === 'all') return 'all'
+  return scope.kind === 'pinned' ? `pinned:${scope.ids.join(',')}` : scope.id
+}
+
+function scopedSearch(q: string, libraryIds: string[] | undefined) {
+  const condition = libraryScopeCondition(libraryIds ?? [])
+  return { fullTextSearch: q, ...(condition && { condition }) }
+}
+
 export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const qRaw = searchParams.get('q') ?? ''
   const q = qRaw.trim()
   const tab = parseTab(searchParams.get('tab'))
+  const { pinned } = usePinnedLibraries()
+  const scope = parseScope(searchParams.get('scope'), pinned)
+  const libraryIds = scopeLibraryIds(scope)
+  const sk = scopeKey(scope)
+  const scopeValue = scope.kind === 'all' ? 'all' : scope.kind === 'pinned' ? 'pinned' : scope.id
 
   useEffect(() => {
     document.title = q ? `Search: ${q} · KMReader` : 'Search · KMReader'
@@ -49,11 +81,11 @@ export function SearchPage() {
   const booksSel = useSelection()
   const clearSeriesSel = seriesSel.clear
   const clearBooksSel = booksSel.clear
-  // results are replaced wholesale when the query or tab changes; stale selections would point at hidden items
+  // results are replaced wholesale when the query, tab or scope changes; stale selections would point at hidden items
   useEffect(() => {
     clearSeriesSel()
     clearBooksSel()
-  }, [q, tab, clearSeriesSel, clearBooksSel])
+  }, [q, tab, sk, clearSeriesSel, clearBooksSel])
 
   const onTabChange = (value: SearchTab) => {
     setSearchParams(
@@ -66,11 +98,24 @@ export function SearchPage() {
     )
   }
 
+  const onScopeChange = (value: string) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value === 'all') next.delete('scope')
+        else next.set('scope', value)
+        return next
+      },
+      { replace: true },
+    )
+  }
+
   return (
     <div>
       <HistoryBackButton to="/dashboard" className="mb-2 -ml-2" />
-      <div className="mb-7 overflow-x-auto pb-1">
-        <SegmentedControl<SearchTab> options={[...TABS]} value={tab} onChange={onTabChange} />
+      <div className="mb-7 flex items-center justify-between gap-3 overflow-x-auto pb-1">
+        <SegmentedControl<SearchTab> options={[...TABS]} value={tab} onChange={onTabChange} className="shrink-0" />
+        <SearchScopeMenu value={scopeValue} onChange={onScopeChange} />
       </div>
 
       {!q ? (
@@ -80,35 +125,35 @@ export function SearchPage() {
           body="Find series, books, collections and read lists. Field queries like title:berserk AND tag:seinen work too."
         />
       ) : tab === 'all' ? (
-        <AllResults q={q} />
+        <AllResults q={q} scope={scope} />
       ) : tab === 'series' ? (
         <CategoryGrid
           q={q}
-          queryKey={['series', 'search', q]}
-          fetchPage={(page) => seriesApi.list({ search: { fullTextSearch: q }, page, size: 24 })}
+          queryKey={['series', 'search', q, sk]}
+          fetchPage={(page) => seriesApi.list({ search: scopedSearch(q, libraryIds), page, size: 24 })}
           renderCard={(s) => <SeriesCard series={s} selection={cardSelection(seriesSel, s.id)} />}
           selectionBar={(items) => <SeriesSelectionBar selection={seriesSel} loadedIds={items.map((s) => s.id)} />}
         />
       ) : tab === 'books' ? (
         <CategoryGrid
           q={q}
-          queryKey={['books', 'search', q]}
-          fetchPage={(page) => booksApi.list({ search: { fullTextSearch: q }, page, size: 24 })}
+          queryKey={['books', 'search', q, sk]}
+          fetchPage={(page) => booksApi.list({ search: scopedSearch(q, libraryIds), page, size: 24 })}
           renderCard={(b) => <BookCard book={b} showSeries selection={cardSelection(booksSel, b.id)} />}
           selectionBar={(items) => <BooksSelectionBar selection={booksSel} loadedIds={items.map((b) => b.id)} />}
         />
       ) : tab === 'collections' ? (
         <CategoryGrid
           q={q}
-          queryKey={['collections', 'search', q]}
-          fetchPage={(page) => collectionsApi.list({ search: q, page, size: 24 })}
+          queryKey={['collections', 'search', q, sk]}
+          fetchPage={(page) => collectionsApi.list({ search: q, libraryId: libraryIds, page, size: 24 })}
           renderCard={(c) => <CollectionCard id={c.id} name={c.name} count={c.seriesIds.length} />}
         />
       ) : (
         <CategoryGrid
           q={q}
-          queryKey={['readlists', 'search', q]}
-          fetchPage={(page) => readlistsApi.list({ search: q, page, size: 24 })}
+          queryKey={['readlists', 'search', q, sk]}
+          fetchPage={(page) => readlistsApi.list({ search: q, libraryId: libraryIds, page, size: 24 })}
           renderCard={(r) => <ReadListCard id={r.id} name={r.name} count={r.bookIds.length} />}
         />
       )}
@@ -116,22 +161,25 @@ export function SearchPage() {
   )
 }
 
-function AllResults({ q }: { q: string }) {
+function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
+  const libraryIds = scopeLibraryIds(scope)
+  const sk = scopeKey(scope)
+  const scopeParam = scope.kind === 'all' ? '' : `&scope=${scope.kind === 'pinned' ? 'pinned' : scope.id}`
   const series = useQuery({
-    queryKey: ['series', 'search', q, 'preview'],
-    queryFn: () => seriesApi.list({ search: { fullTextSearch: q }, size: 8 }),
+    queryKey: ['series', 'search', q, sk, 'preview'],
+    queryFn: () => seriesApi.list({ search: scopedSearch(q, libraryIds), size: 8 }),
   })
   const books = useQuery({
-    queryKey: ['books', 'search', q, 'preview'],
-    queryFn: () => booksApi.list({ search: { fullTextSearch: q }, size: 8 }),
+    queryKey: ['books', 'search', q, sk, 'preview'],
+    queryFn: () => booksApi.list({ search: scopedSearch(q, libraryIds), size: 8 }),
   })
   const collections = useQuery({
-    queryKey: ['collections', 'search', q, 'preview'],
-    queryFn: () => collectionsApi.list({ search: q, size: 8 }),
+    queryKey: ['collections', 'search', q, sk, 'preview'],
+    queryFn: () => collectionsApi.list({ search: q, libraryId: libraryIds, size: 8 }),
   })
   const readlists = useQuery({
-    queryKey: ['readlists', 'search', q, 'preview'],
-    queryFn: () => readlistsApi.list({ search: q, size: 8 }),
+    queryKey: ['readlists', 'search', q, sk, 'preview'],
+    queryFn: () => readlistsApi.list({ search: q, libraryId: libraryIds, size: 8 }),
   })
   const queries = [series, books, collections, readlists]
   const reduce = useReducedMotion()
@@ -153,12 +201,27 @@ function AllResults({ q }: { q: string }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
     >
-      <PreviewRow title="Series" tab="series" q={q} page={series.data} renderCard={(s) => <SeriesCard series={s} />} />
-      <PreviewRow title="Books" tab="books" q={q} page={books.data} renderCard={(b) => <BookCard book={b} showSeries />} />
+      <PreviewRow
+        title="Series"
+        tab="series"
+        q={q}
+        scopeParam={scopeParam}
+        page={series.data}
+        renderCard={(s) => <SeriesCard series={s} />}
+      />
+      <PreviewRow
+        title="Books"
+        tab="books"
+        q={q}
+        scopeParam={scopeParam}
+        page={books.data}
+        renderCard={(b) => <BookCard book={b} showSeries />}
+      />
       <PreviewRow
         title="Collections"
         tab="collections"
         q={q}
+        scopeParam={scopeParam}
         page={collections.data}
         renderCard={(c) => <CollectionCard id={c.id} name={c.name} count={c.seriesIds.length} />}
       />
@@ -166,6 +229,7 @@ function AllResults({ q }: { q: string }) {
         title="Read lists"
         tab="readlists"
         q={q}
+        scopeParam={scopeParam}
         page={readlists.data}
         renderCard={(r) => <ReadListCard id={r.id} name={r.name} count={r.bookIds.length} />}
       />
@@ -177,12 +241,14 @@ function PreviewRow<T extends { id: string }>({
   title,
   tab,
   q,
+  scopeParam,
   page,
   renderCard,
 }: {
   title: string
   tab: SearchTab
   q: string
+  scopeParam: string
   page?: Page<T>
   renderCard: (item: T) => ReactNode
 }) {
@@ -196,7 +262,7 @@ function PreviewRow<T extends { id: string }>({
         </div>
       ))}
       <Link
-        to={`/search?q=${encodeURIComponent(q)}&tab=${tab}`}
+        to={`/search?q=${encodeURIComponent(q)}&tab=${tab}${scopeParam}`}
         style={{ width }}
         className="flex shrink-0 snap-start flex-col items-center justify-center gap-1.5 self-stretch rounded-lg border border-line text-[13px] font-medium text-ink-3 transition-colors hover:border-accent/50 hover:text-accent-strong"
       >

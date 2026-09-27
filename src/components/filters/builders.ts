@@ -42,6 +42,13 @@ function ageRatingValue(v: string): string | number {
   return /^\d+$/.test(v) ? Number(v) : v
 }
 
+/** a single id stays a plain leaf so the body matches the browse-page shape; multiple ids OR together */
+export function libraryScopeCondition(libraryIds: string[]): SearchCondition | undefined {
+  if (libraryIds.length === 0) return undefined
+  if (libraryIds.length === 1) return leaf('libraryId', 'is', libraryIds[0])
+  return { anyOf: libraryIds.map((id) => leaf('libraryId', 'is', id)) }
+}
+
 function finalize(state: FilterState, conditions: SearchCondition[]): { condition?: SearchCondition; fullTextSearch?: string } {
   return {
     ...(conditions.length > 0 && { condition: conditions.length === 1 ? conditions[0] : { allOf: conditions } }),
