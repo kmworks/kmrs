@@ -40,7 +40,7 @@ Every key below is commented out at its default value; uncomment to change it. A
 # file = "<config-dir>/tasks.sqlite" # env: KOMGA_TASKSDB_FILE; same keys as [database], env prefix KOMGA_TASKSDB
 
 [kmrs-db]
-# file = "<config-dir>/kmrs.sqlite" # per-book series metadata contributions for DB-only series refresh; env: KOMGA_KMRSDB_FILE; same keys as [database], env prefix KOMGA_KMRSDB
+# file = "<config-dir>/kmrs.sqlite" # kmrs-private state (per-book series metadata contributions, komf integration); env: KOMGA_KMRSDB_FILE; same keys as [database], env prefix KOMGA_KMRSDB
 
 [search]
 # data-directory = "<config-dir>/lucene" # tantivy index; env: KOMGA_LUCENE_DATA_DIRECTORY
