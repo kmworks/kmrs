@@ -21,7 +21,7 @@ import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
 interface BookCardMenuProps {
   book: BookDto
   trigger: ReactNode
-  /** leading navigation item; each card links one destination and offers the other here */
+  /** leading navigation items; each card links one destination and offers the other here */
   navItem?: ReactNode
   /** when set, offers entering selection mode with this book */
   onSelect?: () => void

@@ -28,7 +28,7 @@ pnpm lint     # eslint
 
 ## Cards
 
-- Grid cards (books, series) navigate to the detail page; only horizontal cards (Keep Reading) open the reader directly. The card menu complements the tap and never duplicates it: grid cards get a Read action, horizontal cards get Book details — Read and Details are mutually exclusive.
+- Grid cards (books, series) navigate to the detail page; only horizontal cards (Keep Reading) open the reader directly. The card menu complements the tap and never duplicates it: grid cards get a Read action, horizontal cards get Book details — Read and Details are mutually exclusive. Every Read entry point is paired with a Peek action (reader with `?incognito=true`, no progress saved) — grid card menus, the series/readlist/book/oneshot detail pages; the horizontal Keep Reading cards are the exception.
 - Oneshots always land on the oneshot detail page (`/oneshot/:seriesId`): cards link there directly, and the book/series detail pages redirect as a safety net for URLs built elsewhere.
 - Card menus share `BookCardMenu` / `SeriesCardMenu` (they also host the dialogs their items open). The trigger is the hover/focus-revealed `CardMenuButton` at the cover's top-left, always visible at reduced opacity on touch (`pointer-coarse`); menus hide in selection mode.
 - Entering selection mode is a menu item, so the corner checkbox (`SelectBadge`) appears only once selection is active.

@@ -1,6 +1,6 @@
 import type { BookDto } from '@/lib/api/types'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, Play } from '@phosphor-icons/react'
+import { CheckCircle, EyeSlash, Play } from '@phosphor-icons/react'
 import { urls } from '@/lib/utils/urls'
 import { bookDetailRoute, readRoute } from '@/lib/utils/nav'
 import { useBust } from '@/lib/store/thumbnails'
@@ -61,6 +61,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
 
   // like komga's card body line: unavailable or broken media replaces the normal meta
   const libraryUnavailable = useLibraryUnavailable(book.libraryId)
+  const readTo = readRoute({ id: book.id, media: book.media, deleted: book.deleted || libraryUnavailable })
   const statusLabel = cardStatusLabel({ deleted: book.deleted || libraryUnavailable, mediaStatus: book.media.status })
   const secondaryText = statusLabel ? (
     <span className={statusLabel.className}>{statusLabel.text}</span>
@@ -78,9 +79,16 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
           <BookCardMenu
             book={book}
             navItem={
-              <MenuItem onSelect={() => navigate(readRoute({ id: book.id, media: book.media, deleted: book.deleted || libraryUnavailable }) ?? bookDetailRoute(book))}>
-                <Play className="size-4" /> Read
-              </MenuItem>
+              <>
+                <MenuItem onSelect={() => navigate(readTo ?? bookDetailRoute(book))}>
+                  <Play className="size-4" /> Read
+                </MenuItem>
+                {readTo && (
+                  <MenuItem onSelect={() => navigate(`${readTo}?incognito=true`)}>
+                    <EyeSlash className="size-4" /> Peek
+                  </MenuItem>
+                )}
+              </>
             }
             onSelect={selection?.onToggle}
             trigger={<CardMenuButton aria-label={`Actions for ${title}`} />}

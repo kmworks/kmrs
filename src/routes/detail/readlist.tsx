@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, CircleNotch, DotsThreeVertical, Image, ListChecks, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
+import { BookOpen, CircleNotch, DotsThreeVertical, EyeSlash, Image, ListChecks, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
 import type { ReadListDto } from '@/lib/api/types'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
@@ -9,6 +9,7 @@ import { readRoute } from '@/lib/utils/nav'
 import { plural } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { BackButton } from '@/components/ui/BackButton'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { Dialog } from '@/components/ui/Dialog'
 import { IconButton } from '@/components/ui/IconButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
@@ -188,17 +189,31 @@ export function ReadListDetailPage() {
         actions={
           <>
             {!editing && (
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={!continueRoute}
-                loading={continueQuery.isPending}
-                onClick={() =>
-                  continueRoute && navigate(`${continueRoute}?context=READLIST&contextId=${readlist.id}`)
-                }
-              >
-                <BookOpen className="size-4" /> Continue
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!continueRoute}
+                  loading={continueQuery.isPending}
+                  onClick={() =>
+                    continueRoute && navigate(`${continueRoute}?context=READLIST&contextId=${readlist.id}`)
+                  }
+                >
+                  <BookOpen className="size-4" /> Continue
+                </Button>
+                <Tooltip content="Read without saving progress">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!continueRoute}
+                    onClick={() =>
+                      continueRoute && navigate(`${continueRoute}?context=READLIST&contextId=${readlist.id}&incognito=true`)
+                    }
+                  >
+                    <EyeSlash className="size-4" /> Peek
+                  </Button>
+                </Tooltip>
+              </>
             )}
             {admin && !editing && (
               <>

@@ -9,6 +9,7 @@ import {
   Circle,
   CircleNotch,
   DotsThreeVertical,
+  EyeSlash,
   FileMagnifyingGlass,
   ImageSquare,
   PencilSimple,
@@ -29,6 +30,7 @@ import { showToast } from '@/lib/store/toast'
 import { trackKomfJob } from '@/lib/store/komfJobs'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { BackButton } from '@/components/ui/BackButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -203,6 +205,16 @@ export function SeriesDetailPage() {
               <BookOpen className="size-4" />
               Read
             </Button>
+            <Tooltip content="Read without saving progress">
+              <Button
+                variant="secondary"
+                disabled={!readTargetRoute}
+                onClick={() => readTargetRoute && navigate(`${readTargetRoute}?incognito=true`)}
+              >
+                <EyeSlash className="size-4" />
+                Peek
+              </Button>
+            </Tooltip>
             {canMarkRead && (
               <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(true)}>
                 <Checks className="size-4" />
