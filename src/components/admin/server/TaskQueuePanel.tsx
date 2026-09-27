@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Broom, WarningCircle } from '@phosphor-icons/react'
-import { sse } from '@/lib/api/sse'
 import { tasksApi } from '@/lib/api/settings'
-import type { TaskQueueStatus } from '@/lib/api/types'
+import { useTaskQueue } from '@/lib/store/taskQueue'
 import { plural } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -11,12 +10,9 @@ import { Section } from '@/components/account/Section'
 import { taskTypeLabel } from './format'
 
 export function TaskQueuePanel() {
-  const [status, setStatus] = useState<TaskQueueStatus | null>(null)
+  const status = useTaskQueue((s) => s.status)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cleared, setCleared] = useState<number | null>(null)
-
-  // admin stream pushes TaskQueueStatus every 10s; sse.on returns the unbind
-  useEffect(() => sse.on('TaskQueueStatus', (data) => setStatus(data as TaskQueueStatus)), [])
 
   const clear = useMutation({
     mutationFn: tasksApi.clear,

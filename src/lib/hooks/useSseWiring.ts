@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { sse, type SseEventName } from '@/lib/api/sse'
+import type { TaskQueueStatus } from '@/lib/api/types'
 import { useAuthStore } from '@/lib/store/auth'
+import { useTaskQueue } from '@/lib/store/taskQueue'
 import { useThumbnailBust } from '@/lib/store/thumbnails'
 
 const INVALIDATE: Partial<Record<SseEventName, string[][]>> = {
@@ -43,6 +45,7 @@ export function useSseWiring() {
   const queryClient = useQueryClient()
   const clear = useAuthStore((s) => s.clear)
   const bump = useThumbnailBust((s) => s.bump)
+  const setTaskStatus = useTaskQueue((s) => s.setStatus)
 
   useEffect(() => {
     if (status !== 'authenticated') {
@@ -73,6 +76,11 @@ export function useSseWiring() {
         queryClient.clear()
       }),
     )
+    offs.push(
+      sse.on('TaskQueueStatus', (data) => {
+        setTaskStatus(data as TaskQueueStatus)
+      }),
+    )
     return () => offs.forEach((off) => off())
-  }, [status, queryClient, clear, bump])
+  }, [status, queryClient, clear, bump, setTaskStatus])
 }
