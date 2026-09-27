@@ -587,11 +587,15 @@ export function AppShell() {
   const navigate = useNavigate()
   const onSearchPage = useLocation().pathname.startsWith('/search')
 
-  // browsing a library steers the default search scope to that library
+  // browsing a library steers the default search scope to that library; leaving
+  // snaps back to the default, unless the user picked a different scope while there
   const libraryId = useMatch('/libraries/:libraryId/*')?.params.libraryId
   const setSearchScope = useUiStore((s) => s.setSearchScope)
+  const steeredFrom = useRef(libraryId)
   useEffect(() => {
     if (libraryId) setSearchScope(libraryId)
+    else if (steeredFrom.current && useUiStore.getState().searchScope === steeredFrom.current) setSearchScope('pinned')
+    steeredFrom.current = libraryId
   }, [libraryId, setSearchScope])
 
   return (
