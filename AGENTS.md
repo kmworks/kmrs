@@ -18,16 +18,18 @@ pnpm lint     # eslint
 
 1. **Comments**: minimal, English only; explain why, not what; no issue/PR numbers (link issues in the PR description instead).
 2. **Git-facing text**: commit messages, PR titles/bodies, and review comments are always in English.
-3. Light/dark color differences belong in the CSS custom properties of `src/index.css` (`--ink`, `--raised`, `--line`, …), not in JS theme branching.
+3. Light/dark color differences belong in the CSS custom properties of the global stylesheet (`--ink`, `--raised`, `--line`, …), not in JS theme branching.
 4. Icon weight (phosphor `weight="fill"` and friends) is a render-site decision: components expose the base icon and the site that knows its context picks the weight. Exception: an icon that renders filled in every context is part of the status's identity (e.g. the completed checkmark).
 5. Never render empty wrapper elements; put the condition around the wrapper itself.
 6. API endpoints live in `src/lib/api/*`; request building stays out of components.
 7. Components passed as `trigger` to `Menu` (Radix `asChild`) must forward props and ref (`forwardRef` + `{...rest}`) — the injected handlers and state attributes never reach the DOM otherwise, and the menu silently never opens.
 8. When a change alters one of these conventions or a subsystem boundary, update this file in the same change.
+9. This file documents conventions, not code layout: never name specific source files — they move and the reference rots. Name subsystems, directories, or components instead.
 
 ## Cards
 
 - Grid cards (books, series) navigate to the detail page; only horizontal cards (Keep Reading) open the reader directly. The card menu complements the tap and never duplicates it: grid cards get a Read action, horizontal cards get Book details — Read and Details are mutually exclusive.
+- Oneshots always land on the oneshot detail page (`/oneshot/:seriesId`): cards link there directly, and the book/series detail pages redirect as a safety net for URLs built elsewhere.
 - Card menus share `BookCardMenu` / `SeriesCardMenu` (they also host the dialogs their items open). The trigger is the hover/focus-revealed `CardMenuButton` at the cover's top-left, always visible at reduced opacity on touch (`pointer-coarse`); menus hide in selection mode.
 - Entering selection mode is a menu item, so the corner checkbox (`SelectBadge`) appears only once selection is active.
 - Corner badges: series cards show the unread count, book cards show a completed checkmark.

@@ -7,6 +7,7 @@ export function readRoute(book: Pick<BookDto, 'id' | 'media' | 'deleted'>): stri
   return `/book/${book.id}/read`
 }
 
-export function bookDetailRoute(book: Pick<BookDto, 'id'>): string {
-  return `/book/${book.id}`
+/** Detail route for a book; oneshots live on the oneshot page keyed by series. */
+export function bookDetailRoute(book: Pick<BookDto, 'id' | 'seriesId' | 'oneshot'>): string {
+  return book.oneshot ? `/oneshot/${book.seriesId}` : `/book/${book.id}`
 }

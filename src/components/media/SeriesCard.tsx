@@ -55,7 +55,7 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
 
   const frame = (
     <CardFrame
-      to={`/series/${series.id}`}
+      to={series.oneshot ? `/oneshot/${series.id}` : `/series/${series.id}`}
       label={title}
       className={selection ? undefined : className}
       actions={

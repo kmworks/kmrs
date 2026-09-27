@@ -2,7 +2,7 @@ import type { BookDto } from '@/lib/api/types'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, Play } from '@phosphor-icons/react'
 import { urls } from '@/lib/utils/urls'
-import { readRoute } from '@/lib/utils/nav'
+import { bookDetailRoute, readRoute } from '@/lib/utils/nav'
 import { useBust } from '@/lib/store/thumbnails'
 import { useUiStore } from '@/lib/store/ui'
 import { CoverImage } from './CoverImage'
@@ -70,7 +70,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
 
   const frame = (
     <CardFrame
-      to={`/book/${book.id}`}
+      to={bookDetailRoute(book)}
       label={title}
       className={selection ? undefined : className}
       actions={
@@ -78,7 +78,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
           <BookCardMenu
             book={book}
             navItem={
-              <MenuItem onSelect={() => navigate(readRoute({ id: book.id, media: book.media, deleted: book.deleted || libraryUnavailable }) ?? `/book/${book.id}`)}>
+              <MenuItem onSelect={() => navigate(readRoute({ id: book.id, media: book.media, deleted: book.deleted || libraryUnavailable }) ?? bookDetailRoute(book))}>
                 <Play className="size-4" /> Read
               </MenuItem>
             }

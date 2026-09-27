@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -81,17 +81,17 @@ export function BookDetailPage() {
   const previousQuery = useQuery({
     queryKey: ['books', bookId, 'previous'],
     queryFn: () => booksApi.previous(bookId),
-    enabled: !!book,
+    enabled: !!book && !book.oneshot,
   })
   const nextQuery = useQuery({
     queryKey: ['books', bookId, 'next'],
     queryFn: () => booksApi.next(bookId),
-    enabled: !!book,
+    enabled: !!book && !book.oneshot,
   })
   const readlistsQuery = useQuery({
     queryKey: ['readlists', 'book', bookId],
     queryFn: () => booksApi.readlists(bookId),
-    enabled: !!book,
+    enabled: !!book && !book.oneshot,
   })
 
   const markMutation = useMutation({
@@ -139,6 +139,7 @@ export function BookDetailPage() {
   if (bookQuery.error)
     return <DetailError error={bookQuery.error} notFoundTitle="Book not found" onRetry={() => bookQuery.refetch()} />
   if (!book) return null
+  if (book.oneshot) return <Navigate to={`/oneshot/${book.seriesId}`} replace />
 
   const library = librariesQuery.data?.find((l) => l.id === book.libraryId)
   const md = book.metadata

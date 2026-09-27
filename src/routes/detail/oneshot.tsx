@@ -1,11 +1,23 @@
-import { useEffect, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowSquareOut, BookOpen, Checks } from '@phosphor-icons/react'
+import {
+  ArrowSquareOut,
+  ArrowsClockwise,
+  BookmarkSimple,
+  BookOpen,
+  Checks,
+  DotsThreeVertical,
+  FileMagnifyingGlass,
+  ImageSquare,
+  PencilSimple,
+  Plus,
+  Trash,
+} from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import { librariesApi } from '@/lib/api/libraries'
 import { seriesApi } from '@/lib/api/series'
-import { canDownload, useAuthStore } from '@/lib/store/auth'
+import { canDownload, isAdmin, useAuthStore } from '@/lib/store/auth'
 import { useBust } from '@/lib/store/thumbnails'
 import { urls } from '@/lib/utils/urls'
 import { readRoute } from '@/lib/utils/nav'
@@ -14,10 +26,12 @@ import { formatBytes, formatDate, readingDirectionLabel, relativeTime, seriesSta
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
+import { IconButton } from '@/components/ui/IconButton'
 import { BackButton } from '@/components/ui/BackButton'
+import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { CoverImage } from '@/components/media/CoverImage'
-import { ReadListCard } from '@/components/media/SeriesCard'
+import { CollectionCard, ReadListCard } from '@/components/media/SeriesCard'
 import { HorizontalRow } from '@/components/media/HorizontalRow'
 import { useDensityCardWidth } from '@/lib/store/ui'
 import { DetailHero } from '@/components/detail/DetailHero'
@@ -25,6 +39,13 @@ import { DetailSkeleton } from '@/components/detail/DetailSkeleton'
 import { DetailError } from '@/components/detail/DetailError'
 import { Summary } from '@/components/detail/Summary'
 import { DownloadLink } from '@/components/detail/DownloadLink'
+import { AddToReadListDialog } from '@/components/detail/AddToReadListDialog'
+import { NewCollectionDialog } from '@/components/detail/NewCollectionDialog'
+import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
+import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
+import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
+import { PosterManager } from '@/components/metadata/PosterManager'
+import { ReaderToast, type Toast } from '@/components/reader/ReaderToast'
 
 function Field({ term, mono, children }: { term: string; mono?: boolean; children: ReactNode }) {
   return (
@@ -41,6 +62,21 @@ export function OneshotDetailPage() {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const rowCardWidth = useDensityCardWidth()
+  const [addToListOpen, setAddToListOpen] = useState(false)
+  const [newCollectionOpen, setNewCollectionOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editBookOpen, setEditBookOpen] = useState(false)
+  const [postersOpen, setPostersOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [toast, setToast] = useState<Toast | null>(null)
+  const toastTimer = useRef<number | undefined>(undefined)
+  const toastId = useRef(0)
+  const showToast = useCallback((message: string) => {
+    window.clearTimeout(toastTimer.current)
+    setToast({ id: ++toastId.current, message })
+    toastTimer.current = window.setTimeout(() => setToast(null), 3000)
+  }, [])
+  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   const seriesQuery = useQuery({ queryKey: ['series', seriesId], queryFn: () => seriesApi.get(seriesId) })
   const series = seriesQuery.data
@@ -52,9 +88,14 @@ export function OneshotDetailPage() {
     enabled: !!series,
   })
   const book = bookQuery.data ?? null
-  const bust = useBust(book?.id ?? seriesId)
+  const bust = useBust(seriesId)
 
   const librariesQuery = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
+  const collectionsQuery = useQuery({
+    queryKey: ['collections', 'series', seriesId],
+    queryFn: () => seriesApi.collections(seriesId),
+    enabled: !!series,
+  })
   const readlistsQuery = useQuery({
     queryKey: ['readlists', 'book', book?.id],
     queryFn: () => booksApi.readlists(book!.id),
@@ -69,6 +110,30 @@ export function OneshotDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['readlists'] })
     },
+  })
+
+  const analyzeMutation = useMutation({
+    mutationFn: () => booksApi.analyze(book!.id),
+    onSuccess: () => showToast('Analysis queued'),
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the analysis'),
+  })
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      await booksApi.refreshMetadata(book!.id)
+      await seriesApi.refreshMetadata(seriesId)
+    },
+    onSuccess: () => showToast('Metadata refresh queued'),
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the refresh'),
+  })
+  const deleteMutation = useMutation({
+    mutationFn: () => booksApi.deleteFile(book!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['books'] })
+      queryClient.invalidateQueries({ queryKey: ['series'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      navigate('/series')
+    },
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not delete the file'),
   })
 
   const title = series ? series.metadata.title || series.name : ''
@@ -106,7 +171,8 @@ export function OneshotDetailPage() {
   const route = readRoute({ id: book.id, media: book.media, deleted: unavailable })
   const issue = mediaIssue({ media: book.media, deleted: unavailable })
   const readlists = readlistsQuery.data ?? []
-  const cover = urls.bookThumbnail(book.id, bust || undefined)
+  const collections = collectionsQuery.data ?? []
+  const cover = urls.seriesThumbnail(series.id, bust || undefined)
   const authors = bookMd.authors.length > 0 ? bookMd.authors : series.booksMetadata.authors
   const authorsLine = authors.map((a) => `${a.name} (${a.role})`).join(', ')
   const summary = md.summary || bookMd.summary
@@ -151,6 +217,43 @@ export function OneshotDetailPage() {
               {completed ? 'Mark as unread' : 'Mark as read'}
             </Button>
             {canDownload(user) && <DownloadLink href={urls.bookFile(book.id)} disabled={unavailable} />}
+            {isAdmin(user) && (
+              <Menu
+                trigger={
+                  <IconButton label="More actions">
+                    <DotsThreeVertical className="size-5" />
+                  </IconButton>
+                }
+              >
+                <MenuItem onSelect={() => setEditOpen(true)}>
+                  <PencilSimple className="size-4" /> Edit metadata
+                </MenuItem>
+                <MenuItem onSelect={() => setEditBookOpen(true)}>
+                  <PencilSimple className="size-4" /> Edit book metadata
+                </MenuItem>
+                <MenuItem onSelect={() => setPostersOpen(true)}>
+                  <ImageSquare className="size-4" /> Manage posters
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem onSelect={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending}>
+                  <FileMagnifyingGlass className="size-4" /> Analyze
+                </MenuItem>
+                <MenuItem onSelect={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
+                  <ArrowsClockwise className="size-4" /> Refresh metadata
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem onSelect={() => setAddToListOpen(true)}>
+                  <BookmarkSimple className="size-4" /> Add to read list
+                </MenuItem>
+                <MenuItem onSelect={() => setNewCollectionOpen(true)}>
+                  <Plus className="size-4" /> New collection with this series
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem danger onSelect={() => setDeleteOpen(true)}>
+                  <Trash className="size-4" /> Delete file
+                </MenuItem>
+              </Menu>
+            )}
           </div>
           {issue && (
             <p
@@ -251,6 +354,16 @@ export function OneshotDetailPage() {
         )}
       </section>
 
+      {collections.length > 0 && (
+        <HorizontalRow title="In collections" className="mt-10">
+          {collections.map((c) => (
+            <div key={c.id} className="shrink-0" style={{ width: rowCardWidth }}>
+              <CollectionCard id={c.id} name={c.name} count={c.seriesIds.length} />
+            </div>
+          ))}
+        </HorizontalRow>
+      )}
+
       {readlists.length > 0 && (
         <HorizontalRow title="In read lists" className="mt-10">
           {readlists.map((l) => (
@@ -260,6 +373,21 @@ export function OneshotDetailPage() {
           ))}
         </HorizontalRow>
       )}
+
+      <AddToReadListDialog bookId={book.id} open={addToListOpen} onOpenChange={setAddToListOpen} />
+      <NewCollectionDialog open={newCollectionOpen} onOpenChange={setNewCollectionOpen} seriesId={series.id} />
+      <EditSeriesDialog open={editOpen} onClose={() => setEditOpen(false)} seriesIds={[series.id]} />
+      <EditBooksDialog open={editBookOpen} onClose={() => setEditBookOpen(false)} bookIds={[book.id]} />
+      <PosterManager open={postersOpen} onClose={() => setPostersOpen(false)} kind="series" entityId={series.id} title={title} />
+      <ConfirmDeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete book file"
+        name={`the file of ${title}`}
+        loading={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate()}
+      />
+      <ReaderToast toast={toast} />
     </div>
   )
 }

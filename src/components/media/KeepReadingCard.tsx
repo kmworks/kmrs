@@ -2,7 +2,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { BookOpen, CheckCircle, DotsThree } from '@phosphor-icons/react'
 import type { BookDto } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
-import { readRoute } from '@/lib/utils/nav'
+import { bookDetailRoute, readRoute } from '@/lib/utils/nav'
 import { useBust } from '@/lib/store/thumbnails'
 import { plural, relativeTime } from '@/lib/utils/format'
 import { cardStatusLabel } from '@/lib/utils/mediaStatus'
@@ -24,7 +24,7 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
   const tinted = tint !== null
   const libraryUnavailable = useLibraryUnavailable(book.libraryId)
   const unavailable = book.deleted || libraryUnavailable
-  const to = readRoute({ id: book.id, media: book.media, deleted: unavailable }) ?? `/book/${book.id}`
+  const to = readRoute({ id: book.id, media: book.media, deleted: unavailable }) ?? bookDetailRoute(book)
   const title = book.metadata.title || book.name
   const completed = book.readProgress?.completed ?? false
   const pct = !completed && book.media.pagesCount > 0 && book.readProgress ? book.readProgress.page / book.media.pagesCount : 0
@@ -82,7 +82,7 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
       <BookCardMenu
         book={book}
         navItem={
-          <MenuItem onSelect={() => navigate(`/book/${book.id}`)}>
+          <MenuItem onSelect={() => navigate(bookDetailRoute(book))}>
             <BookOpen className="size-4" /> Book details
           </MenuItem>
         }
