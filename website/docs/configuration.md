@@ -108,4 +108,10 @@ Every key below is commented out at its default value; uncomment to change it. A
 # dir = "/path/to/kmweb/dist" # env: KOMGA_WEBUI_DIR
 # auto-update = false # track the latest kmweb release into <config-dir>/webui; env: KOMGA_WEBUI_AUTOUPDATE
 # update-interval = "1d" # env: KOMGA_WEBUI_UPDATEINTERVAL
+
+[komf]
+# one-click setup of a komf metadata fetcher (kmrs enhancement, no Java equivalent);
+# komf's API has no authentication — only point this at a trusted network
+# url = "http://komf:8085" # env: KOMGA_KOMF_URL
+# komga-base-url = "http://kmrs:25600" # env: KOMGA_KOMF_KOMGABASEURL
 ```
