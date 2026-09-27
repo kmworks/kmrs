@@ -261,14 +261,16 @@ function PreviewRow<T extends { id: string }>({
           {renderCard(item)}
         </div>
       ))}
-      <Link
-        to={`/search?q=${encodeURIComponent(q)}&tab=${tab}${scopeParam}`}
-        style={{ width }}
-        className="flex shrink-0 snap-start flex-col items-center justify-center gap-1.5 self-stretch rounded-lg border border-line text-[13px] font-medium text-ink-3 transition-colors hover:border-accent/50 hover:text-accent-strong"
-      >
-        View all
-        <CaretRight className="size-4" />
-      </Link>
+      {page.totalElements > page.content.length && (
+        <Link
+          to={`/search?q=${encodeURIComponent(q)}&tab=${tab}${scopeParam}`}
+          style={{ width }}
+          className="cover-aspect flex shrink-0 snap-start flex-col items-center justify-center gap-1.5 rounded-lg border border-line text-[13px] font-medium text-ink-3 transition-colors hover:border-accent/50 hover:text-accent-strong"
+        >
+          View all
+          <CaretRight className="size-4" />
+        </Link>
+      )}
     </HorizontalRow>
   )
 }

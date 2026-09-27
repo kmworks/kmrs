@@ -1,5 +1,5 @@
 import * as RadixMenu from '@radix-ui/react-dropdown-menu'
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { cn } from '@/lib/utils/cn'
 
 interface MenuProps {
@@ -12,14 +12,25 @@ interface MenuProps {
 }
 
 export function Menu({ trigger, children, align = 'end', side = 'bottom', matchTriggerWidth }: MenuProps) {
+  // Radix returns focus to the trigger on close, which leaves a :focus-visible ring after
+  // pointer use; skip the restore for pointer-opened menus, keep it for keyboard
+  const pointerOpened = useRef(false)
   return (
     <RadixMenu.Root>
-      <RadixMenu.Trigger asChild>{trigger}</RadixMenu.Trigger>
+      <RadixMenu.Trigger asChild onPointerDown={() => (pointerOpened.current = true)}>
+        {trigger}
+      </RadixMenu.Trigger>
       <RadixMenu.Portal>
         <RadixMenu.Content
           align={align}
           side={side}
           sideOffset={6}
+          onCloseAutoFocus={(e) => {
+            if (pointerOpened.current) {
+              e.preventDefault()
+              pointerOpened.current = false
+            }
+          }}
           className={cn(
             'z-30 min-w-44 overflow-hidden rounded-xl border border-line bg-raised p-1 shadow-pop',
             matchTriggerWidth && 'w-[var(--radix-dropdown-menu-trigger-width)]',
