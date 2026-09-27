@@ -26,12 +26,21 @@ import {
   type ProvidersDraft,
 } from './draft'
 import { FormRow } from './FormRow'
+import { NotificationsFields } from './NotificationsFields'
 import { ProcessingFields } from './ProcessingFields'
 import { ProvidersFields } from './ProvidersFields'
+import { SelectInput, StringListInput } from './fields'
 
 const NAME_MATCHING_OPTIONS: Array<{ value: KomfNameMatchingMode; label: string }> = [
   { value: 'CLOSEST_MATCH', label: 'Closest match' },
   { value: 'EXACT', label: 'Exact' },
+]
+
+const COMICVINE_ID_FORMAT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'No override' },
+  { value: 'SERIES', label: 'Series' },
+  { value: 'VOLUME', label: 'Volume' },
+  { value: 'ISSUE', label: 'Issue' },
 ]
 
 interface LibraryOverrideRowProps {
@@ -135,6 +144,14 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
         : d.eventListenerLibraryFilter.filter((x) => x !== id),
     }))
 
+  const toggleNotifyLibrary = (id: string, on: boolean) =>
+    setDraft((d) => ({
+      ...d,
+      notificationsLibraryFilter: on
+        ? [...d.notificationsLibraryFilter, id]
+        : d.notificationsLibraryFilter.filter((x) => x !== id),
+    }))
+
   const setLibraryProcessing = (id: string, v: ProcessingDraft | undefined) =>
     setDraft((d) => {
       const next = { ...d.libraryProcessing }
@@ -178,6 +195,19 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
             ))}
           </div>
         </div>
+        <div className="pt-3">
+          <p className="text-sm text-ink-2">Excluded series</p>
+          <p className="mt-0.5 text-xs text-ink-3">
+            Series IDs to skip during automatic metadata updates, one per line.
+          </p>
+          <div className="mt-2">
+            <StringListInput
+              aria-label="Excluded series"
+              value={draft.eventListenerSeriesExcludeFilter}
+              onChange={(v) => setDraft((d) => ({ ...d, eventListenerSeriesExcludeFilter: v }))}
+            />
+          </div>
+        </div>
       </Section>
 
       <Section title="Providers">
@@ -207,6 +237,30 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
             onChange={(e) => setDraft((d) => ({ ...d, comicVineApiKey: e.target.value }))}
           />
           <TextField
+            label="ComicVine search limit"
+            helper="Maximum number of ComicVine search results. Empty clears the configured value."
+            inputMode="numeric"
+            value={draft.comicVineSearchLimit}
+            onChange={(e) => setDraft((d) => ({ ...d, comicVineSearchLimit: e.target.value }))}
+            error={errors.comicVineSearchLimit}
+          />
+          <TextField
+            label="ComicVine issue name"
+            helper="Empty clears the configured value."
+            value={draft.comicVineIssueName}
+            onChange={(e) => setDraft((d) => ({ ...d, comicVineIssueName: e.target.value }))}
+          />
+          <div className="flex flex-col gap-2">
+            <p className="text-[13px] font-medium text-ink-2">ComicVine ID format</p>
+            <SelectInput
+              aria-label="ComicVine ID format"
+              className="h-10 w-full"
+              options={COMICVINE_ID_FORMAT_OPTIONS}
+              value={draft.comicVineIdFormat}
+              onChange={(v) => setDraft((d) => ({ ...d, comicVineIdFormat: v }))}
+            />
+          </div>
+          <TextField
             label="Bangumi token"
             helper="Empty clears the configured value."
             value={draft.bangumiToken}
@@ -220,6 +274,32 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
           value={draft.defaultProcessing}
           onChange={(v) => setDraft((d) => ({ ...d, defaultProcessing: v }))}
         />
+      </Section>
+
+      <Section title="Notifications">
+        <NotificationsFields
+          value={draft.notifications}
+          onChange={(v) => setDraft((d) => ({ ...d, notifications: v }))}
+        />
+        <div className="pt-3">
+          <p className="text-sm text-ink-2">Notify for libraries</p>
+          <p className="mt-0.5 text-xs text-ink-3">
+            Only send notifications for selected libraries. Select none to notify for all.
+          </p>
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+            {sortedLibraries.map((lib) => (
+              <label key={lib.id} className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
+                <input
+                  type="checkbox"
+                  checked={draft.notificationsLibraryFilter.includes(lib.id)}
+                  onChange={(e) => toggleNotifyLibrary(lib.id, e.target.checked)}
+                  className="size-4 shrink-0 cursor-pointer accent-accent"
+                />
+                <span className="truncate">{lib.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
       </Section>
 
       <Section title="Library overrides">
@@ -275,6 +355,11 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
                 </Button>
               </div>
               {invalid && <p className="text-xs text-ink-3">Fix the invalid fields above to save.</p>}
+              {errors.messages.map((m) => (
+                <p key={m} className="text-xs text-danger">
+                  {m}
+                </p>
+              ))}
               {save.isError && (
                 <p className="text-xs text-danger">
                   {save.error instanceof Error ? save.error.message : 'Could not save configuration.'}

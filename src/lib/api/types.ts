@@ -820,11 +820,52 @@ export type KomfLibraryType = 'MANGA' | 'NOVEL' | 'COMIC' | 'WEBTOON'
 export type KomfUpdateMode = 'API' | 'COMIC_INFO' | 'MYLAR_SERIES_JSON'
 export type KomfReadingDirection = 'LEFT_TO_RIGHT' | 'RIGHT_TO_LEFT' | 'VERTICAL' | 'WEBTOON'
 export type KomfNameMatchingMode = 'EXACT' | 'CLOSEST_MATCH'
+export type KomfAuthorRole =
+  | 'WRITER'
+  | 'PENCILLER'
+  | 'INKER'
+  | 'COLORIST'
+  | 'LETTERER'
+  | 'COVER'
+  | 'EDITOR'
+  | 'TRANSLATOR'
+export type KomfMangaDexLink =
+  | 'MANGA_DEX'
+  | 'ANILIST'
+  | 'ANIME_PLANET'
+  | 'BOOKWALKER_JP'
+  | 'MANGA_UPDATES'
+  | 'NOVEL_UPDATES'
+  | 'KITSU'
+  | 'AMAZON'
+  | 'EBOOK_JAPAN'
+  | 'MY_ANIME_LIST'
+  | 'CD_JAPAN'
+  | 'RAW'
+  | 'ENGLISH_TL'
+export type KomfMangaBakaMode = 'API' | 'DATABASE'
+export type KomfChineseDirection = 't2s' | 's2t'
+export type KomfChineseField = 'title' | 'genres' | 'tags' | 'summary'
 
 export interface KomfEventListenerConfig {
   enabled: boolean
   /** library ids; empty means all libraries */
   metadataLibraryFilter: string[]
+  /** series ids excluded from automatic metadata updates */
+  metadataSeriesExcludeFilter: string[]
+  /** library ids; empty means all libraries */
+  notificationsLibraryFilter: string[]
+}
+
+export interface KomfPublisherTagName {
+  tagName: string
+  language: string
+}
+
+export interface KomfAlternateTitleLabels {
+  romaji: string | null
+  native: string | null
+  localized: string | null
 }
 
 export interface KomfPostProcessingConfig {
@@ -835,6 +876,35 @@ export interface KomfPostProcessingConfig {
   orderBooks: boolean
   readingDirectionValue: KomfReadingDirection | null
   languageValue: string | null
+  fallbackToAltTitle: boolean
+  scoreTagName: string | null
+  originalPublisherTagName: string | null
+  publisherTagNames: KomfPublisherTagName[]
+  /** komf-rs extensions */
+  alternateTitleLabels?: KomfAlternateTitleLabels | null
+  linksSkipEnabled?: boolean
+  linksMatchEnabled?: boolean
+}
+
+export interface KomfSearchTitleExtractionConfig {
+  enabled: boolean
+  bracketRegex: string | null
+  authorSeparator: string | null
+  titleSplitters: string[]
+  symbolNormalizeRegex: string | null
+  charMappings: Array<[string, string]>
+  cleanupRegex: string[]
+}
+
+export interface KomfChineseConversionConfig {
+  enabled: boolean
+  direction: KomfChineseDirection
+  search: boolean
+  matching: boolean
+  update: {
+    enabled: boolean
+    fields: KomfChineseField[]
+  }
 }
 
 export interface KomfMetadataProcessingConfig {
@@ -849,11 +919,107 @@ export interface KomfMetadataProcessingConfig {
   updateModes: KomfUpdateMode[]
   overrideComicInfo: boolean
   postProcessing: KomfPostProcessingConfig
+  /** komf-rs extensions */
+  mylarCovers?: boolean
+  mylarOutputDir?: string | null
+  searchTitleExtraction?: KomfSearchTitleExtractionConfig
+  failedMatchCollectionName?: string | null
+  chineseConversion?: KomfChineseConversionConfig
 }
 
+export interface KomfSeriesMetadataConfig {
+  status: boolean
+  title: boolean
+  /** komf-rs extension */
+  alternativeTitles?: boolean
+  summary: boolean
+  publisher: boolean
+  readingDirection: boolean
+  ageRating: boolean
+  language: boolean
+  genres: boolean
+  tags: boolean
+  totalBookCount: boolean
+  authors: boolean
+  releaseDate: boolean
+  thumbnail: boolean
+  links: boolean
+  books: boolean
+  /** komf-rs extension */
+  score?: boolean
+  useOriginalPublisher: boolean
+  originalPublisherTagName?: string | null
+  englishPublisherTagName?: string | null
+  frenchPublisherTagName?: string | null
+}
+
+export interface KomfBookMetadataConfig {
+  title: boolean
+  summary: boolean
+  number: boolean
+  numberSort?: boolean
+  releaseDate: boolean
+  authors: boolean
+  tags: boolean
+  isbn: boolean
+  links: boolean
+  thumbnail: boolean
+}
+
+export interface KomfBangumiArchiveConfig {
+  enabled: boolean
+  dir?: string | null
+  updateIntervalHours?: number
+  idleReleaseSecs?: number | null
+}
+
+export interface KomfEHentaiArchiveConfig {
+  enabled: boolean
+  url?: string | null
+  dbFile?: string | null
+  updateIntervalHours?: number
+  idleReleaseSecs?: number | null
+  searchCategoryFilter?: string[]
+  searchUploaderFilter?: string[]
+}
+
+/** Single provider block; the optional extras apply only to specific providers. */
 export interface KomfProviderConfig {
   enabled: boolean
   priority: number
+  seriesMetadata: KomfSeriesMetadataConfig
+  /** null for providers without book-level metadata (aniList, mangaBaka) */
+  bookMetadata: KomfBookMetadataConfig | null
+  /** null inherits the global name matching mode */
+  nameMatchingMode: KomfNameMatchingMode | null
+  mediaType: KomfLibraryType | null
+  authorRoles: KomfAuthorRole[]
+  artistRoles: KomfAuthorRole[]
+  /** bangumi */
+  tagWhitelist?: string[]
+  tagWhitelistFile?: string | null
+  /** aniList */
+  tagsScoreThreshold?: number
+  tagsSizeLimit?: number
+  /** mangaDex */
+  coverLanguages?: string[]
+  links?: KomfMangaDexLink[]
+  /** mangaBaka */
+  mode?: KomfMangaBakaMode
+  /** bangumi / eHentai offline archive (komf-rs extension) */
+  archive?: KomfBangumiArchiveConfig | KomfEHentaiArchiveConfig
+  /** eHentai */
+  preferredLanguages?: string[]
+  titlePriority?: string
+  translatorKeywords?: string[]
+  maleOnlyTagsFile?: string | null
+  titleTemplate?: string
+  tagTranslationEnabled?: boolean
+  tagTranslationUrl?: string
+  gidOnlyMatch?: boolean
+  searchDomain?: string
+  ipbMemberId?: string | null
+  ipbPassHash?: string | null
 }
 
 export interface KomfProvidersMap {
@@ -864,7 +1030,9 @@ export interface KomfProvidersMap {
   aniList: KomfProviderConfig
   mal: KomfProviderConfig
   comicVine: KomfProviderConfig
+  nautiljon: KomfProviderConfig
   yenPress: KomfProviderConfig
+  kodansha: KomfProviderConfig
   viz: KomfProviderConfig
   bangumi: KomfProviderConfig
   webtoons: KomfProviderConfig
@@ -875,10 +1043,29 @@ export interface KomfMetadataProvidersConfig {
   malClientId: string | null
   comicVineClientId: string | null
   bangumiToken: string | null
+  comicVineSearchLimit: number | null
+  comicVineIssueName: string | null
+  comicVineIdFormat: string | null
   nameMatchingMode: KomfNameMatchingMode
   defaultProviders: KomfProvidersMap
   /** null means the library has no override */
   libraryProviders: Record<string, KomfProvidersMap | null>
+  /** read-only offline database info */
+  mangaBakaDatabase?: { downloadTimestamp: string; checksum: string } | null
+  bookWalkerDownloadDate?: string | null
+}
+
+export interface KomfNotificationConfig {
+  discord?: {
+    /** masked on read (e.g. "********"); patched by index, see KomfConfigPatch */
+    webhooks?: string[] | null
+    seriesCover: boolean
+  }
+  apprise?: {
+    /** masked on read; patched by index, see KomfConfigPatch */
+    urls?: string[] | null
+    seriesCover: boolean
+  }
 }
 
 export interface KomfConfig {
@@ -889,14 +1076,31 @@ export interface KomfConfig {
       library: Record<string, KomfMetadataProcessingConfig>
     }
   }
+  notifications?: KomfNotificationConfig
   metadataProviders: KomfMetadataProvidersConfig
 }
 
-type KomfProcessingPatch = Partial<Omit<KomfMetadataProcessingConfig, 'postProcessing'>> & {
+export type KomfProcessingPatch = Partial<
+  Omit<KomfMetadataProcessingConfig, 'postProcessing' | 'searchTitleExtraction' | 'chineseConversion'>
+> & {
   postProcessing?: Partial<KomfPostProcessingConfig>
+  searchTitleExtraction?: Partial<KomfSearchTitleExtractionConfig>
+  chineseConversion?: Partial<Omit<KomfChineseConversionConfig, 'update'>> & {
+    update?: Partial<KomfChineseConversionConfig['update']>
+  }
 }
 
-type KomfProvidersPatch = { [K in keyof KomfProvidersMap]?: Partial<KomfProviderConfig> }
+export type KomfArchivePatch = Partial<KomfBangumiArchiveConfig & KomfEHentaiArchiveConfig>
+
+export type KomfProviderPatch = Partial<
+  Omit<KomfProviderConfig, 'seriesMetadata' | 'bookMetadata' | 'archive'>
+> & {
+  seriesMetadata?: Partial<KomfSeriesMetadataConfig>
+  bookMetadata?: Partial<KomfBookMetadataConfig> | null
+  archive?: KomfArchivePatch
+}
+
+type KomfProvidersPatch = { [K in keyof KomfProvidersMap]?: KomfProviderPatch }
 
 /** Merge-patch body: absent field = keep, explicit null = clear, value = set. */
 export interface KomfConfigPatch {
@@ -908,10 +1112,24 @@ export interface KomfConfigPatch {
       library?: Record<string, KomfProcessingPatch | null>
     }
   }
+  notifications?: {
+    discord?: {
+      /** index-merge map: same index replaces, null deletes, a new index appends */
+      webhooks?: Record<number, string | null>
+      seriesCover?: boolean
+    }
+    apprise?: {
+      urls?: Record<number, string | null>
+      seriesCover?: boolean
+    }
+  }
   metadataProviders?: {
     malClientId?: string | null
     comicVineClientId?: string | null
     bangumiToken?: string | null
+    comicVineSearchLimit?: number | null
+    comicVineIssueName?: string | null
+    comicVineIdFormat?: string | null
     nameMatchingMode?: KomfNameMatchingMode
     defaultProviders?: KomfProvidersPatch
     /** null deletes the library's override */
