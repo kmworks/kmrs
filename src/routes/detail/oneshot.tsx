@@ -13,13 +13,17 @@ import {
   FileMagnifyingGlass,
   ImageSquare,
   PencilSimple,
+  PlugsConnected,
   Plus,
+  Sparkle,
   Trash,
 } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import { librariesApi } from '@/lib/api/libraries'
 import { seriesApi } from '@/lib/api/series'
+import { komfApi } from '@/lib/api/komf'
 import { canDownload, isAdmin, useAuthStore } from '@/lib/store/auth'
+import { useKomfIntegration } from '@/lib/hooks/useKomfIntegration'
 import { useBust } from '@/lib/store/thumbnails'
 import { urls } from '@/lib/utils/urls'
 import { readRoute } from '@/lib/utils/nav'
@@ -50,6 +54,7 @@ import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
 import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
+import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
 import { ReaderToast, type Toast } from '@/components/reader/ReaderToast'
 
 function Field({ term, mono, children }: { term: string; mono?: boolean; children: ReactNode }) {
@@ -72,7 +77,9 @@ export function OneshotDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [editBookOpen, setEditBookOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
+  const [identifyOpen, setIdentifyOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const komfReady = useKomfIntegration()
   const [toast, setToast] = useState<Toast | null>(null)
   const toastTimer = useRef<number | undefined>(undefined)
   const toastId = useRef(0)
@@ -129,6 +136,13 @@ export function OneshotDetailPage() {
     },
     onSuccess: () => showToast('Metadata refresh queued'),
     onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the refresh'),
+  })
+  // komf PATCHes the metadata asynchronously once the job runs; the SSE SeriesChanged
+  // invalidation picks the result up, so no query invalidation here
+  const komfMatchMutation = useMutation({
+    mutationFn: (libraryId: string) => komfApi.matchSeries(libraryId, seriesId),
+    onSuccess: () => showToast('Match queued'),
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the match'),
   })
   const deleteMutation = useMutation({
     mutationFn: () => booksApi.deleteFile(book!.id),
@@ -252,6 +266,20 @@ export function OneshotDetailPage() {
                 <MenuItem onSelect={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
                   <ArrowsClockwise className="size-4" /> Refresh metadata
                 </MenuItem>
+                {komfReady && (
+                  <>
+                    <MenuSeparator />
+                    <MenuItem onSelect={() => setIdentifyOpen(true)}>
+                      <Sparkle className="size-4" /> Identify with komf
+                    </MenuItem>
+                    <MenuItem
+                      onSelect={() => komfMatchMutation.mutate(series.libraryId)}
+                      disabled={komfMatchMutation.isPending}
+                    >
+                      <PlugsConnected className="size-4" /> Match with komf
+                    </MenuItem>
+                  </>
+                )}
                 <MenuSeparator />
                 <MenuItem onSelect={() => setAddToListOpen(true)}>
                   <BookmarkSimple className="size-4" /> Add to read list
@@ -381,6 +409,14 @@ export function OneshotDetailPage() {
       <NewCollectionDialog open={newCollectionOpen} onOpenChange={setNewCollectionOpen} seriesId={series.id} />
       <EditSeriesDialog open={editOpen} onClose={() => setEditOpen(false)} seriesIds={[series.id]} />
       <EditBooksDialog open={editBookOpen} onClose={() => setEditBookOpen(false)} bookIds={[book.id]} />
+      {komfReady && (
+        <KomfIdentifyDialog
+          open={identifyOpen}
+          onOpenChange={setIdentifyOpen}
+          series={series}
+          onIdentified={() => showToast('Identify queued')}
+        />
+      )}
       <PosterManager open={postersOpen} onClose={() => setPostersOpen(false)} kind="series" entityId={series.id} title={title} />
       <ConfirmDeleteDialog
         open={deleteOpen}

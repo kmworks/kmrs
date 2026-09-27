@@ -792,3 +792,24 @@ export interface KomfIntegrationUpdateDto {
   url?: string
   baseUrl?: string
 }
+
+export interface KomfSeriesSearchResult {
+  url?: string
+  imageUrl?: string
+  title: string
+  provider: string
+  resultId: string
+  mediaType?: string
+  language?: string
+}
+
+export interface KomfIdentifyRequest {
+  libraryId?: string
+  seriesId: string
+  provider: string
+  providerSeriesId: string
+}
+
+export interface KomfMetadataJobResponse {
+  id: string
+}
