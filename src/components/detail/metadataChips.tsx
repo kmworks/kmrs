@@ -1,21 +1,10 @@
 import { Buildings, MaskHappy, Tag, UsersThree } from '@phosphor-icons/react'
 import type { AuthorDto } from '@/lib/api/types'
+import { sortAuthorsByRole } from '@/lib/utils/authors'
 import { serializeAuthor } from '@/components/filters/filterUrl'
 import type { DetailChipItem } from './DetailChipFlow'
 
 const iconCls = 'size-3.5'
-
-// writers first, custom roles last (KMReader order)
-const ROLE_ORDER = ['writer', 'penciller', 'inker', 'colorist', 'letterer', 'cover', 'editor', 'translator']
-
-export function sortAuthorsByRole(authors: AuthorDto[]): AuthorDto[] {
-  return [...authors].sort((a, b) => roleRank(a.role) - roleRank(b.role))
-}
-
-function roleRank(role: string): number {
-  const i = ROLE_ORDER.indexOf(role.toLowerCase())
-  return i < 0 ? ROLE_ORDER.length : i
-}
 
 /** publisher + author chips of a detail hero; authors link to the browse page under `base` */
 export function creatorChipItems(publisher: string, authors: AuthorDto[], base: '/series' | '/books'): DetailChipItem[] {

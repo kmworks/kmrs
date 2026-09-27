@@ -10,6 +10,7 @@ import { useLibraryUnavailable } from '@/lib/utils/libraries'
 import { useCoverTint } from '@/lib/utils/coverTint'
 import { cn } from '@/lib/utils/cn'
 import { MenuItem } from '@/components/ui/Menu'
+import { OneshotLine } from './badges'
 import { BookCardMenu } from './BookCardMenu'
 
 /**
@@ -70,7 +71,15 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
           <div>
             <p className={cn('line-clamp-2 pb-1 text-[13px] leading-snug font-semibold', titleColor)}>{title}</p>
             {(book.oneshot || book.seriesTitle) && (
-              <p className={cn('truncate text-xs', seriesColor)}>{book.oneshot ? 'Oneshot' : book.seriesTitle}</p>
+              <p className={cn('truncate text-xs', seriesColor)}>
+                {book.oneshot ? (
+                  <span className="inline-flex items-center gap-1">
+                    <OneshotLine authors={book.metadata.authors} />
+                  </span>
+                ) : (
+                  book.seriesTitle
+                )}
+              </p>
             )}
           </div>
           <div className="flex-1" />

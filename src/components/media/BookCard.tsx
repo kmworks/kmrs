@@ -7,7 +7,7 @@ import { useBust } from '@/lib/store/thumbnails'
 import { useUiStore } from '@/lib/store/ui'
 import { CoverImage } from './CoverImage'
 import { CardFrame, CardMenuButton, CardText, CardOverlayText } from './CardFrame'
-import { ProgressCapsule, CompletedBadge } from './badges'
+import { ProgressCapsule, CompletedBadge, OneshotLine } from './badges'
 import { BookCardMenu } from './BookCardMenu'
 import { MenuItem } from '@/components/ui/Menu'
 import { SelectBadge } from '@/components/selection/SelectBadge'
@@ -54,9 +54,14 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
     metaParts.join(' · ')
   )
 
-  // oneshots get the "Oneshot" label in the series-title slot, and the title clamps
-  // to one line just like when a series title is shown
-  const overline = book.oneshot ? 'Oneshot' : showSeries ? book.seriesTitle : undefined
+  // oneshots show the OneshotLine in the series-title slot; the title still clamps to one line
+  const overline = book.oneshot ? (
+    <span className="inline-flex items-center gap-1">
+      <OneshotLine authors={book.metadata.authors} />
+    </span>
+  ) : showSeries ? (
+    book.seriesTitle
+  ) : undefined
   const titleLines = showSeries || book.oneshot ? 1 : 2
 
   // like komga's card body line: unavailable or broken media replaces the normal meta

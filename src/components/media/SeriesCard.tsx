@@ -8,7 +8,7 @@ import { cardStatusLabel } from '@/lib/utils/mediaStatus'
 import { useLibraryUnavailable } from '@/lib/utils/libraries'
 import { CoverImage } from './CoverImage'
 import { CardFrame, CardMenuButton, CardText, CardOverlayText } from './CardFrame'
-import { ProgressCapsule, UnreadBadge } from './badges'
+import { ProgressCapsule, UnreadBadge, OneshotLine } from './badges'
 import { SeriesCardMenu } from './SeriesCardMenu'
 import { SelectBadge } from '@/components/selection/SelectBadge'
 import type { CardSelection } from '@/components/selection/useSelection'
@@ -16,16 +16,13 @@ import { cn } from '@/lib/utils/cn'
 
 function secondaryLine(series: SeriesDto): ReactNode {
   const { booksCount, booksUnreadCount, booksInProgressCount, booksReadCount } = series
-  // oneshot series show "Oneshot" as their status line (checkmark when completed)
-  // instead of a meaningless "1 books"
+  // oneshot series show the OneshotLine (checkmark when read) instead of a meaningless "1 books"
   if (series.oneshot) {
-    return booksReadCount > 0 ? (
+    return (
       <span className="inline-flex items-center gap-1">
-        <CheckCircle className="size-3" weight="fill" />
-        Oneshot
+        {booksReadCount > 0 && <CheckCircle className="size-3" weight="fill" />}
+        <OneshotLine authors={series.booksMetadata.authors} />
       </span>
-    ) : (
-      'Oneshot'
     )
   }
   if (booksInProgressCount > 0 && booksCount > 0) {

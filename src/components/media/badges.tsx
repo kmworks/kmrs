@@ -1,4 +1,6 @@
-import { Check } from '@phosphor-icons/react'
+import { Book, Check } from '@phosphor-icons/react'
+import type { AuthorDto } from '@/lib/api/types'
+import { primaryAuthor } from '@/lib/utils/authors'
 import { cn } from '@/lib/utils/cn'
 
 /** Capsule progress bar pinned to the bottom of a cover. */
@@ -44,5 +46,17 @@ export function UnreadBadge({ count, className }: { count: number; className?: s
     >
       {count > 99 ? '99+' : count}
     </span>
+  )
+}
+
+/** Oneshot marker for card text lines: a single-book icon (vs. the Books stack of
+    series) followed by the primary author, so the line carries useful info instead
+    of just the "Oneshot" label. Render as a fragment so the caller controls layout. */
+export function OneshotLine({ authors }: { authors: AuthorDto[] }) {
+  return (
+    <>
+      <Book className="size-3 shrink-0" />
+      {primaryAuthor(authors)?.name ?? 'Oneshot'}
+    </>
   )
 }
