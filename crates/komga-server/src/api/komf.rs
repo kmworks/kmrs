@@ -39,15 +39,14 @@ async fn put_integration(
         violations.push(v);
         String::new()
     });
-    let komga_base_url =
-        http_url("komgaBaseUrl", body.komga_base_url.as_deref()).unwrap_or_else(|v| {
-            violations.push(v);
-            String::new()
-        });
+    let base_url = http_url("baseUrl", body.base_url.as_deref()).unwrap_or_else(|v| {
+        violations.push(v);
+        String::new()
+    });
     if !violations.is_empty() {
         return Err(ApiError::Violations(violations));
     }
-    KomfIntegrationDao::new(state.kmrs_db.clone()).upsert(&url, &komga_base_url)?;
+    KomfIntegrationDao::new(state.kmrs_db.clone()).upsert(&url, &base_url)?;
     // provisioning failures are recorded on the integration row and surface in the DTO
     let _ = komf::provision(&state, &auth.0.user.id).await;
     Ok(Json(integration_dto(&state).await?))
@@ -86,7 +85,7 @@ async fn integration_dto(state: &AppState) -> Result<KomfIntegrationDto, ApiErro
         return Ok(KomfIntegrationDto {
             configured: false,
             url: None,
-            komga_base_url: None,
+            base_url: None,
             state: None,
             last_error: None,
             komf_reachable: false,
@@ -96,7 +95,7 @@ async fn integration_dto(state: &AppState) -> Result<KomfIntegrationDto, ApiErro
     Ok(KomfIntegrationDto {
         configured: true,
         url: Some(row.url),
-        komga_base_url: Some(row.komga_base_url),
+        base_url: Some(row.base_url),
         state: Some(row.state.as_str().to_string()),
         last_error: row.last_error,
         komf_reachable,
@@ -147,7 +146,9 @@ mod tests {
                 "PUT",
                 "/api/v1/komf/integration",
                 "k-user",
-                Some(serde_json::json!({"url": "http://komf:8085", "komgaBaseUrl": "http://kmrs:25600"})),
+                Some(
+                    serde_json::json!({"url": "http://komf:8085", "baseUrl": "http://kmrs:25600"}),
+                ),
             )
             .await;
         assert_eq!(status, StatusCode::FORBIDDEN);
@@ -182,7 +183,7 @@ mod tests {
                 "PUT",
                 "/api/v1/komf/integration",
                 "k-admin",
-                Some(serde_json::json!({"url": "", "komgaBaseUrl": "ftp://kmrs"})),
+                Some(serde_json::json!({"url": "", "baseUrl": "ftp://kmrs"})),
             )
             .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -205,7 +206,7 @@ mod tests {
                 "PUT",
                 "/api/v1/komf/integration",
                 "k-admin",
-                Some(serde_json::json!({"url": komf_url, "komgaBaseUrl": "http://kmrs:25600"})),
+                Some(serde_json::json!({"url": komf_url, "baseUrl": "http://kmrs:25600"})),
             )
             .await;
         assert_eq!(status, StatusCode::OK);

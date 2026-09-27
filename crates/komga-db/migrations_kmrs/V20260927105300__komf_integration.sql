@@ -1,7 +1,7 @@
 CREATE TABLE KOMF_INTEGRATION (
     ID                 INTEGER NOT NULL PRIMARY KEY CHECK (ID = 1),
     URL                TEXT    NOT NULL,
-    KOMGA_BASE_URL     TEXT    NOT NULL,
+    BASE_URL           TEXT    NOT NULL,
     OWNER_USER_ID      TEXT    NULL,
     API_KEY_ID         TEXT    NULL,
     STATE              TEXT    NOT NULL DEFAULT 'pending',

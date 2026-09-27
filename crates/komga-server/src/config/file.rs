@@ -33,7 +33,7 @@ pub struct FileConfig {
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct FileKomf {
     pub url: Option<String>,
-    pub komga_base_url: Option<String>,
+    pub base_url: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -521,13 +521,9 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         Some(u) => out.push_str(&format!("url = {} # env: KOMGA_KOMF_URL\n", q(u))),
         None => out.push_str("# url = \"http://komf:8085\" # env: KOMGA_KOMF_URL\n"),
     }
-    match &config.komf_komga_base_url {
-        Some(u) => out.push_str(&format!(
-            "komga-base-url = {} # env: KOMGA_KOMF_KOMGABASEURL\n",
-            q(u)
-        )),
-        None => out
-            .push_str("# komga-base-url = \"http://kmrs:25600\" # env: KOMGA_KOMF_KOMGABASEURL\n"),
+    match &config.komf_base_url {
+        Some(u) => out.push_str(&format!("base-url = {} # env: KOMGA_KOMF_BASEURL\n", q(u))),
+        None => out.push_str("# base-url = \"http://kmrs:25600\" # env: KOMGA_KOMF_BASEURL\n"),
     }
     out.push('\n');
     out

@@ -123,7 +123,7 @@ async fn try_provision(
     let client = KomfClient::new(&row.url);
     let body = serde_json::json!({
         "komga": {
-            "baseUri": row.komga_base_url,
+            "baseUri": row.base_url,
             "komgaApiKey": plain,
             "eventListener": { "enabled": true },
         }
@@ -193,7 +193,7 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
         }
         KomfIntegrationState::Connected => {
             let komga = KomfClient::new(&row.url).get_config().await?;
-            if komga.base_uri.as_deref() != Some(row.komga_base_url.as_str()) {
+            if komga.base_uri.as_deref() != Some(row.base_url.as_str()) {
                 tracing::info!("komf baseUri drifted from the integration row, re-provisioning");
                 if let Some(owner) = &row.owner_user_id {
                     provision(state, owner).await?;

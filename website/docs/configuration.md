@@ -113,5 +113,5 @@ Every key below is commented out at its default value; uncomment to change it. A
 # one-click setup of a komf metadata fetcher (kmrs enhancement, no Java equivalent);
 # komf's API has no authentication — only point this at a trusted network
 # url = "http://komf:8085" # env: KOMGA_KOMF_URL
-# komga-base-url = "http://kmrs:25600" # env: KOMGA_KOMF_KOMGABASEURL
+# base-url = "http://kmrs:25600" # env: KOMGA_KOMF_BASEURL
 ```

@@ -676,7 +676,7 @@ pub(crate) mod tests {
             webui_auto_update: false,
             webui_update_interval: std::time::Duration::from_secs(24 * 3600),
             komf_url: None,
-            komf_komga_base_url: None,
+            komf_base_url: None,
             sort_locale: None,
         };
         AppState {

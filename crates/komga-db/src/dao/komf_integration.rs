@@ -38,7 +38,7 @@ impl KomfIntegrationState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KomfIntegration {
     pub url: String,
-    pub komga_base_url: String,
+    pub base_url: String,
     /// owner of the minted API key; set once provisioning succeeded at least once
     pub owner_user_id: Option<String>,
     pub api_key_id: Option<String>,
@@ -53,12 +53,12 @@ pub struct KomfIntegrationDao {
 }
 
 const COLUMNS: &str =
-    "URL, KOMGA_BASE_URL, OWNER_USER_ID, API_KEY_ID, STATE, LAST_ERROR, CREATED_DATE, LAST_MODIFIED_DATE";
+    "URL, BASE_URL, OWNER_USER_ID, API_KEY_ID, STATE, LAST_ERROR, CREATED_DATE, LAST_MODIFIED_DATE";
 
 fn row_to_integration(row: &Row<'_>) -> rusqlite::Result<KomfIntegration> {
     Ok(KomfIntegration {
         url: row.get(0)?,
-        komga_base_url: row.get(1)?,
+        base_url: row.get(1)?,
         owner_user_id: row.get(2)?,
         api_key_id: row.get(3)?,
         state: KomfIntegrationState::from_column(row, 4)?,
@@ -84,20 +84,20 @@ impl KomfIntegrationDao {
 
     /// Re-arms provisioning on (re)configuration. The minted key reference is kept so
     /// the next provision can revoke it before minting a fresh one.
-    pub fn upsert(&self, url: &str, komga_base_url: &str) -> Result<()> {
+    pub fn upsert(&self, url: &str, base_url: &str) -> Result<()> {
         let now = time_codec::format_datetime(time_codec::now_utc());
         self.db.rw().execute(
             r#"
-            INSERT INTO KOMF_INTEGRATION (ID, URL, KOMGA_BASE_URL, STATE, CREATED_DATE, LAST_MODIFIED_DATE)
+            INSERT INTO KOMF_INTEGRATION (ID, URL, BASE_URL, STATE, CREATED_DATE, LAST_MODIFIED_DATE)
             VALUES (1, ?, ?, 'pending', ?, ?)
             ON CONFLICT (ID) DO UPDATE SET
                 URL = excluded.URL,
-                KOMGA_BASE_URL = excluded.KOMGA_BASE_URL,
+                BASE_URL = excluded.BASE_URL,
                 STATE = 'pending',
                 LAST_ERROR = NULL,
                 LAST_MODIFIED_DATE = excluded.LAST_MODIFIED_DATE
             "#,
-            rusqlite::params![url, komga_base_url, now, now],
+            rusqlite::params![url, base_url, now, now],
         )?;
         Ok(())
     }
@@ -157,7 +157,7 @@ mod tests {
         dao.upsert("http://komf:8085", "http://kmrs:25600").unwrap();
         let row = dao.get().unwrap().unwrap();
         assert_eq!(row.url, "http://komf:8085");
-        assert_eq!(row.komga_base_url, "http://kmrs:25600");
+        assert_eq!(row.base_url, "http://kmrs:25600");
         assert_eq!(row.state, KomfIntegrationState::Pending);
         assert_eq!(row.owner_user_id, None);
         assert_eq!(row.api_key_id, None);
