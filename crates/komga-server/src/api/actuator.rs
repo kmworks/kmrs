@@ -994,8 +994,8 @@ async fn get_scheduled_tasks(
             "AuthenticationActivityCleanupController.cleanup",
             86_400_000u64,
         ),
-        ("ScanScheduler.historyCleanup", 86_400_000u64),
-        ("ScanScheduler.thumbnailSweep", 86_400_000u64),
+        ("MaintenanceScheduler.historyCleanup", 86_400_000u64),
+        ("MaintenanceScheduler.thumbnailSweep", 86_400_000u64),
     ] {
         fixed_rate.push(ScheduledTaskEntry {
             runnable: ScheduledTaskRunnable {
@@ -1912,8 +1912,8 @@ mod tests {
                 "SseController.heartbeat",
                 "SseController.taskCount",
                 "AuthenticationActivityCleanupController.cleanup",
-                "ScanScheduler.historyCleanup",
-                "ScanScheduler.thumbnailSweep"
+                "MaintenanceScheduler.historyCleanup",
+                "MaintenanceScheduler.thumbnailSweep"
             ]
         );
         assert_eq!(body["fixedRate"][0]["initialDelay"], 15_000i64);
