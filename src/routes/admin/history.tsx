@@ -19,6 +19,10 @@ const EVENT_TYPES: Array<{ value: HistoricalEventType; label: string; badge: str
   { value: 'BookConverted', label: 'Book converted', badge: 'border-sky-500/40 bg-sky-500/10 text-sky-500' },
   { value: 'BookImported', label: 'Book imported', badge: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-500' },
   { value: 'DuplicatePageDeleted', label: 'Duplicate page deleted', badge: 'border-violet-500/40 bg-violet-500/10 text-violet-500' },
+  { value: 'BookTrashed', label: 'Book trashed', badge: 'border-orange-500/40 bg-orange-500/10 text-orange-500' },
+  { value: 'SeriesTrashed', label: 'Series trashed', badge: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-500' },
+  { value: 'BookPurged', label: 'Book purged', badge: 'border-rose-500/40 bg-rose-500/10 text-rose-500' },
+  { value: 'SeriesPurged', label: 'Series purged', badge: 'border-pink-500/40 bg-pink-500/10 text-pink-500' },
 ]
 
 const typeMeta = (t: string) => EVENT_TYPES.find((e) => e.value === t)
@@ -92,7 +96,7 @@ export function AdminHistoryPage() {
     <div className="max-w-5xl">
       <PageHeader
         title="History"
-        subtitle="File deletions, conversions, imports and duplicate page removals"
+        subtitle="File deletions, trash activity, conversions and imports"
         actions={
           <Menu
             trigger={
@@ -136,7 +140,7 @@ export function AdminHistoryPage() {
           body={
             typeFilter
               ? 'Nothing matching this filter has been recorded.'
-              : 'File deletions, conversions and imports will be recorded here.'
+              : 'File deletions, trash activity, conversions and imports will be recorded here.'
           }
         />
       ) : (

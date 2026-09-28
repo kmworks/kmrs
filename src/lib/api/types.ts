@@ -673,6 +673,10 @@ export type HistoricalEventType =
   | 'BookConverted'
   | 'BookImported'
   | 'DuplicatePageDeleted'
+  | 'BookTrashed'
+  | 'SeriesTrashed'
+  | 'BookPurged'
+  | 'SeriesPurged'
 
 export interface HistoricalEventDto {
   id: string
