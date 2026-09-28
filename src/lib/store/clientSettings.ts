@@ -8,8 +8,9 @@ const USER_SETTINGS_KEY = ['client-settings', 'user'] as const
 export const PINNED_LIBRARIES_KEY = 'webui.pinned.libraries'
 export const DASHBOARD_SECTIONS_KEY = 'webui.dashboard.sections'
 
+// library ids are uppercase TSIDs but the server only accepts lowercase dotted keys
 export const dashboardSectionsKey = (libraryId?: string) =>
-  libraryId ? `${DASHBOARD_SECTIONS_KEY}.${libraryId}` : DASHBOARD_SECTIONS_KEY
+  libraryId ? `${DASHBOARD_SECTIONS_KEY}.${libraryId.toLowerCase()}` : DASHBOARD_SECTIONS_KEY
 
 export function useUserClientSettings() {
   return useQuery({ queryKey: USER_SETTINGS_KEY, queryFn: clientSettingsApi.listUser })

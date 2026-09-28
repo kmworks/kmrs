@@ -85,7 +85,8 @@ export function HorizontalRow({ title, to, children, className, onEndReached }: 
       <div
         ref={ref}
         onScroll={onScroll}
-        className="no-scrollbar -mx-2 -mt-2 flex snap-x gap-4 overflow-x-auto px-2 pt-3.5 pb-2"
+        // overflow-x makes overflow-y compute to auto, so diagonal trackpad swipes rubber-band the row vertically
+        className="no-scrollbar -mx-2 -mt-2 flex snap-x gap-4 overflow-x-auto overscroll-y-none px-2 pt-3.5 pb-2"
       >
         {children}
       </div>
