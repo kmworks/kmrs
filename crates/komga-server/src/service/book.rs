@@ -289,8 +289,7 @@ pub fn add_thumbnail_for_book(
                 &thumbnail.id,
                 &thumbnail.media_type,
                 &bytes,
-            )
-            .map_err(crate::thumbnails::file_error)?;
+            )?;
             thumbnail.url = Some(url);
         }
     }
@@ -1503,6 +1502,48 @@ mod tests {
 
         delete_thumbnail_for_book(&state, &added).unwrap();
         assert!(!file.exists());
+    }
+
+    #[test]
+    fn add_thumbnail_for_book_file_storage_write_failure_returns_error() {
+        let state = crate::state::test_state_with_thumbnail_storage(
+            test_state(),
+            crate::config::ThumbnailStorage::File,
+        );
+        seed_library(&state, "lib1", true);
+        seed_series(&state, "lib1", "s1");
+        let book = seed_book(&state, "lib1", "s1", "file:/l/s/v01.cbz", 1);
+        // occupy the thumbnails dir path with a regular file: create_dir_all then
+        // fails deterministically (a read-only dir would be bypassed under root)
+        std::fs::write(state.config.config_dir.join("thumbnails"), b"not a dir").unwrap();
+
+        let err = add_thumbnail_for_book(
+            &state,
+            ThumbnailBook {
+                id: state.tsid.create_string(),
+                book_id: book.id.clone(),
+                thumbnail: Some(png_bytes()),
+                url: None,
+                selected: false,
+                type_: ThumbnailType::UserUploaded,
+                media_type: "image/png".into(),
+                file_size: 100,
+                dimension: Dimension {
+                    width: 48,
+                    height: 48,
+                },
+                created_date: now_utc(),
+                last_modified_date: now_utc(),
+            },
+            MarkSelectedPreference::Yes,
+        )
+        .unwrap_err();
+        assert!(matches!(err, komga_db::Error::Io(_)));
+        // nothing was inserted
+        assert!(ThumbnailBookDao::new(state.db.clone())
+            .find_all_by_book_id(&book.id)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

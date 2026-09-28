@@ -158,7 +158,8 @@ impl ThumbnailBookDao {
         Ok(id)
     }
 
-    pub fn update(&self, thumbnail: &ThumbnailBook) -> Result<()> {
+    /// Returns the number of affected rows (0 when the row was concurrently deleted).
+    pub fn update(&self, thumbnail: &ThumbnailBook) -> Result<u64> {
         let conn = self.db.rw();
         let sets = BOOK_COLUMNS
             .split(',')
@@ -167,11 +168,11 @@ impl ThumbnailBookDao {
             .join(", ");
         let mut values = Self::params(&thumbnail.id, thumbnail);
         values.push(Box::new(thumbnail.id.clone()));
-        conn.execute(
+        let n = conn.execute(
             &format!("UPDATE THUMBNAIL_BOOK SET {sets} WHERE ID = ?"),
             params_from_iter(values),
         )?;
-        Ok(())
+        Ok(n as u64)
     }
 
     /// Marks the given thumbnail as selected and deselects all others of the same book.
@@ -390,7 +391,8 @@ impl ThumbnailSeriesDao {
         Ok(id)
     }
 
-    pub fn update(&self, thumbnail: &ThumbnailSeries) -> Result<()> {
+    /// Returns the number of affected rows (0 when the row was concurrently deleted).
+    pub fn update(&self, thumbnail: &ThumbnailSeries) -> Result<u64> {
         let conn = self.db.rw();
         let sets = SERIES_COLUMNS
             .split(',')
@@ -399,11 +401,11 @@ impl ThumbnailSeriesDao {
             .join(", ");
         let mut values = Self::params(&thumbnail.id, thumbnail);
         values.push(Box::new(thumbnail.id.clone()));
-        conn.execute(
+        let n = conn.execute(
             &format!("UPDATE THUMBNAIL_SERIES SET {sets} WHERE ID = ?"),
             params_from_iter(values),
         )?;
-        Ok(())
+        Ok(n as u64)
     }
 
     pub fn mark_selected(&self, thumbnail: &ThumbnailSeries) -> Result<()> {
@@ -871,7 +873,11 @@ mod tests {
             width: 1,
             height: 2,
         };
-        dao.update(&updated).unwrap();
+        assert_eq!(dao.update(&updated).unwrap(), 1);
+        // 0 affected rows when the row is gone (e.g. deleted concurrently)
+        let mut ghost = updated.clone();
+        ghost.id = "missing".into();
+        assert_eq!(dao.update(&ghost).unwrap(), 0);
         let found = dao.find_by_id(&id1).unwrap().unwrap();
         assert_eq!(found.media_type, "image/png");
         assert_eq!(

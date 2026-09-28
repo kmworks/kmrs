@@ -32,6 +32,14 @@ impl ThumbnailMigrationDao {
         )?;
         Ok(())
     }
+
+    pub fn clear(&self, kind: &str) -> Result<()> {
+        self.db.rw().execute(
+            "DELETE FROM THUMBNAIL_STORAGE_MIGRATION WHERE KIND = ?",
+            [kind],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -56,5 +64,9 @@ mod tests {
         assert!(!dao.is_done("series").unwrap());
         dao.mark_done("book").unwrap();
         assert!(dao.is_done("book").unwrap());
+        dao.clear("book").unwrap();
+        assert!(!dao.is_done("book").unwrap());
+        // clearing an absent marker is a no-op
+        dao.clear("book").unwrap();
     }
 }
