@@ -75,7 +75,7 @@ export function CardText({ title, overline, secondary, titleLines = 1 }: CardTex
   const cardStyle = useUiStore((s) => s.cardStyle)
   if (cardStyle !== 'standard') return null
   return (
-    <div className="mt-2 min-w-0 px-1.5">
+    <div className="mt-1 min-w-0 px-1.5">
       {overline && <p className="mb-0.5 truncate text-[11px] leading-snug text-ink-3">{overline}</p>}
       <p className={cn('text-[13px] leading-snug font-medium text-ink', titleLines === 2 ? 'line-clamp-2' : 'truncate')}>
         {title}

@@ -111,9 +111,9 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
         />
         {selection?.active && <SelectBadge {...selection} label={title} />}
         <CompletedBadge show={!!book.readProgress?.completed} />
-        <ProgressCapsule value={progress} />
         <CardOverlayText title={title} overline={overline} secondary={secondaryText} titleLines={titleLines} />
       </div>
+      <ProgressCapsule value={progress} />
       <CardText title={title} overline={overline} secondary={secondaryText} titleLines={titleLines} />
     </CardFrame>
   )

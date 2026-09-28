@@ -230,7 +230,7 @@ function PreviewRow<T extends { id: string }>({
         <Link
           to={`/search?q=${encodeURIComponent(q)}&tab=${tab}${scopeParam}`}
           style={{ width }}
-          className="cover-aspect flex shrink-0 snap-start flex-col items-center justify-center gap-1.5 rounded-lg border border-line text-[13px] font-medium text-ink-3 transition-colors hover:border-accent/50 hover:text-accent-strong"
+          className="cover-aspect flex shrink-0 snap-start flex-col items-center justify-center gap-1.5 self-start rounded-lg border border-line text-[13px] font-medium text-ink-3 transition-colors hover:border-accent/50 hover:text-accent-strong"
         >
           View all
           <CaretRight className="size-4" />

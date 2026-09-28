@@ -75,11 +75,11 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
         />
         {selection?.active && <SelectBadge {...selection} label={title} />}
         <UnreadBadge count={series.booksUnreadCount} />
-        <ProgressCapsule
-          value={series.booksCount > 0 && series.booksInProgressCount > 0 ? series.booksReadCount / series.booksCount : 0}
-        />
         <CardOverlayText title={title} secondary={secondary} />
       </div>
+      <ProgressCapsule
+        value={series.booksCount > 0 && series.booksInProgressCount > 0 ? series.booksReadCount / series.booksCount : 0}
+      />
       <CardText title={title} secondary={secondary} />
     </CardFrame>
   )
