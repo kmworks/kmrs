@@ -327,7 +327,7 @@ async fn get_health(State(state): State<AppState>, auth: MaybeAuth) -> Response 
         data_source(&state.tasks_db),
     );
 
-    let (total, free) = disk_space_k_bytes(&state.config.config_dir);
+    let (total, free) = disk_space_bytes(&state.config.config_dir);
     let disk_component = HealthComponent {
         status: "UP",
         details: serde_json::json!({
@@ -350,21 +350,17 @@ async fn get_health(State(state): State<AppState>, auth: MaybeAuth) -> Response 
     })
 }
 
-/// `df -k <path>`: total and available 1K-blocks of the volume holding the config dir.
-fn disk_space_k_bytes(path: &std::path::Path) -> (i64, i64) {
-    std::process::Command::new("df")
-        .arg("-k")
-        .arg(path)
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .and_then(|out| {
-            let line = out.lines().nth(1)?.to_string();
-            let fields: Vec<&str> = line.split_whitespace().collect();
-            let total: i64 = fields.get(1)?.parse().ok()?;
-            let free: i64 = fields.get(3)?.parse().ok()?;
-            Some((total * 1024, free * 1024))
-        })
+/// Total and available bytes of the volume holding the config dir (Spring's
+/// DiskSpaceHealthIndicator uses `File.getTotalSpace`/`getUsableSpace`). The volume is
+/// the disk with the longest mount-point prefix of the path.
+fn disk_space_bytes(path: &std::path::Path) -> (i64, i64) {
+    let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    sysinfo::Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .filter(|d| path.starts_with(d.mount_point()))
+        .max_by_key(|d| d.mount_point().as_os_str().len())
+        .map(|d| (d.total_space() as i64, d.available_space() as i64))
         .unwrap_or((0, 0))
 }
 
@@ -476,7 +472,8 @@ async fn get_info() -> Response {
     })
 }
 
-/// `os.name` as Spring reports it (from `System.getProperty("os.name")`), with `uname -r` for the version.
+/// `os.name` as Spring reports it (from `System.getProperty("os.name")`), with the kernel
+/// release for the version.
 fn os_name_version() -> (String, String) {
     let name = match std::env::consts::OS {
         "macos" => "Mac OS X",
@@ -485,13 +482,7 @@ fn os_name_version() -> (String, String) {
         other => other,
     }
     .to_string();
-    let version = std::process::Command::new("uname")
-        .arg("-r")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+    let version = sysinfo::System::kernel_version().unwrap_or_else(|| "unknown".to_string());
     (name, version)
 }
 
