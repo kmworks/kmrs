@@ -234,6 +234,35 @@ impl ThumbnailBookDao {
         )?;
         Ok(())
     }
+
+    /// Blob-backed rows in ROWID order, for the one-time blob→file migration.
+    pub fn find_with_blob_batch(
+        &self,
+        after_rowid: i64,
+        limit: u32,
+    ) -> Result<Vec<(i64, ThumbnailBook)>> {
+        let conn = self.db.ro();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {BOOK_COLUMNS}, ROWID FROM THUMBNAIL_BOOK WHERE THUMBNAIL IS NOT NULL AND ROWID > ? ORDER BY ROWID LIMIT ?"
+        ))?;
+        let rows = stmt
+            .query_map(rusqlite::params![after_rowid, limit], |row| {
+                let thumbnail = Self::row_to_thumbnail(row)?;
+                let rowid = row.get(12)?;
+                Ok((rowid, thumbnail))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn all_urls(&self) -> Result<Vec<String>> {
+        let conn = self.db.ro();
+        let mut stmt = conn.prepare("SELECT URL FROM THUMBNAIL_BOOK WHERE URL IS NOT NULL")?;
+        let urls = stmt
+            .query_map([], |r| r.get(0))?
+            .collect::<std::result::Result<Vec<String>, _>>()?;
+        Ok(urls)
+    }
 }
 
 pub struct ThumbnailSeriesDao {
@@ -412,6 +441,35 @@ impl ThumbnailSeriesDao {
             stmt.execute([id])?;
         }
         Ok(())
+    }
+
+    /// Blob-backed rows in ROWID order, for the one-time blob→file migration.
+    pub fn find_with_blob_batch(
+        &self,
+        after_rowid: i64,
+        limit: u32,
+    ) -> Result<Vec<(i64, ThumbnailSeries)>> {
+        let conn = self.db.ro();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SERIES_COLUMNS}, ROWID FROM THUMBNAIL_SERIES WHERE THUMBNAIL IS NOT NULL AND ROWID > ? ORDER BY ROWID LIMIT ?"
+        ))?;
+        let rows = stmt
+            .query_map(rusqlite::params![after_rowid, limit], |row| {
+                let thumbnail = Self::row_to_thumbnail(row)?;
+                let rowid = row.get(12)?;
+                Ok((rowid, thumbnail))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn all_urls(&self) -> Result<Vec<String>> {
+        let conn = self.db.ro();
+        let mut stmt = conn.prepare("SELECT URL FROM THUMBNAIL_SERIES WHERE URL IS NOT NULL")?;
+        let urls = stmt
+            .query_map([], |r| r.get(0))?
+            .collect::<std::result::Result<Vec<String>, _>>()?;
+        Ok(urls)
     }
 }
 
@@ -866,6 +924,71 @@ mod tests {
 
         dao.delete_by_series_ids(&["ser1".to_string()]).unwrap();
         assert!(dao.find_all_by_series_id("ser1").unwrap().is_empty());
+    }
+
+    #[test]
+    fn blob_batch_and_all_urls() {
+        let db = db();
+        insert_book_chain(&db, "b1");
+        let book_dao = ThumbnailBookDao::new(db.clone());
+        let series_dao = ThumbnailSeriesDao::new(db);
+
+        let id1 = book_dao
+            .insert(&sample_book_thumbnail("b1", ThumbnailType::Generated))
+            .unwrap();
+        let mut sidecar = sample_book_thumbnail("b1", ThumbnailType::Sidecar);
+        sidecar.thumbnail = None;
+        sidecar.url = Some("file:/l/s/cover.jpg".into());
+        book_dao.insert(&sidecar).unwrap();
+        let id3 = book_dao
+            .insert(&sample_book_thumbnail("b1", ThumbnailType::UserUploaded))
+            .unwrap();
+
+        // blob rows only, in ROWID order, resumable via after_rowid
+        let batch = book_dao.find_with_blob_batch(0, 500).unwrap();
+        let ids: Vec<&str> = batch.iter().map(|(_, t)| t.id.as_str()).collect();
+        assert_eq!(ids, vec![id1.as_str(), id3.as_str()]);
+        let (rowid, _) = &batch[0];
+        let rest = book_dao.find_with_blob_batch(*rowid, 500).unwrap();
+        assert_eq!(rest.len(), 1);
+        assert_eq!(rest[0].1.id, id3);
+        assert!(book_dao
+            .find_with_blob_batch(i64::MAX, 500)
+            .unwrap()
+            .is_empty());
+
+        assert_eq!(
+            book_dao.all_urls().unwrap(),
+            vec!["file:/l/s/cover.jpg".to_string()]
+        );
+
+        let series_thumbnail = ThumbnailSeries {
+            id: String::new(),
+            series_id: "ser1".into(),
+            thumbnail: Some(vec![1]),
+            url: None,
+            selected: false,
+            type_: ThumbnailType::Generated,
+            media_type: "image/jpeg".into(),
+            file_size: 1,
+            dimension: Dimension {
+                width: 1,
+                height: 1,
+            },
+            created_date: now_utc(),
+            last_modified_date: now_utc(),
+        };
+        series_dao.insert(&series_thumbnail).unwrap();
+        let mut series_sidecar = series_thumbnail;
+        series_sidecar.thumbnail = None;
+        series_sidecar.url = Some("file:/l/s/series.jpg".into());
+        series_dao.insert(&series_sidecar).unwrap();
+        let batch = series_dao.find_with_blob_batch(0, 500).unwrap();
+        assert_eq!(batch.len(), 1);
+        assert_eq!(
+            series_dao.all_urls().unwrap(),
+            vec!["file:/l/s/series.jpg".to_string()]
+        );
     }
 
     #[test]

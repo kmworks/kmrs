@@ -1,6 +1,7 @@
 //! `SeriesLifecycle.kt`: series lifecycle (creation, book ordering, deletion, read progress,
 //! thumbnails).
 
+use crate::config::ThumbnailStorage;
 use crate::events::DomainEvent;
 pub use crate::service::book::MarkSelectedPreference;
 #[cfg(test)]
@@ -477,6 +478,28 @@ pub fn add_thumbnail_for_series(
     mark_selected: MarkSelectedPreference,
 ) -> Result<ThumbnailSeries> {
     let dao = ThumbnailSeriesDao::new(state.db.clone());
+    let mut thumbnail = if thumbnail.id.is_empty() {
+        ThumbnailSeries {
+            id: state.tsid.create_string(),
+            ..thumbnail
+        }
+    } else {
+        thumbnail
+    };
+    // file storage: offload the bytes first, the row then carries only the URL
+    if state.config.thumbnail_storage == ThumbnailStorage::File {
+        if let Some(bytes) = thumbnail.thumbnail.take() {
+            let url = crate::thumbnails::write(
+                &crate::thumbnails::thumbnails_dir(&state.config.config_dir),
+                crate::thumbnails::ThumbnailKind::Series,
+                &thumbnail.id,
+                &thumbnail.media_type,
+                &bytes,
+            )
+            .map_err(crate::thumbnails::file_error)?;
+            thumbnail.url = Some(url);
+        }
+    }
     if let Some(url) = &thumbnail.url {
         for existing in dao.find_all_by_series_id(&thumbnail.series_id)? {
             if existing.url.as_ref() == Some(url) {
@@ -516,6 +539,7 @@ pub fn delete_thumbnail_for_series(state: &AppState, thumbnail: &ThumbnailSeries
         ));
     }
     ThumbnailSeriesDao::new(state.db.clone()).delete(&thumbnail.id)?;
+    crate::thumbnails::remove_managed_files(state, thumbnail.url.as_deref());
     let _ = state
         .events
         .send(DomainEvent::ThumbnailSeriesDeleted(thumbnail.clone()));
@@ -679,6 +703,7 @@ pub(crate) mod tests {
             komf_base_url: None,
             history_retention_days: 180,
             sort_locale: None,
+            thumbnail_storage: Default::default(),
         };
         AppState {
             sessions: crate::auth::SessionStore::new(config.session_timeout),
@@ -1199,6 +1224,59 @@ pub(crate) mod tests {
         assert!(err
             .to_string()
             .contains("Only uploaded thumbnails can be deleted"));
+    }
+
+    #[test]
+    fn thumbnail_file_storage_offloads_and_removes_files() {
+        let state = crate::state::test_state_with_thumbnail_storage(
+            test_state(),
+            crate::config::ThumbnailStorage::File,
+        );
+        seed_library(&state.db, "lib1");
+        let series = create_series(&state, &sample_series("lib1", "S")).unwrap();
+        let dao = ThumbnailSeriesDao::new(state.db.clone());
+
+        let make = |type_: ThumbnailType| ThumbnailSeries {
+            id: String::new(),
+            series_id: series.id.clone(),
+            thumbnail: Some(vec![1, 2]),
+            url: None,
+            selected: false,
+            type_,
+            media_type: "image/png".into(),
+            file_size: 2,
+            dimension: komga_core::model::thumbnail::Dimension {
+                width: 1,
+                height: 1,
+            },
+            created_date: time_codec::now_utc(),
+            last_modified_date: time_codec::now_utc(),
+        };
+
+        let added = add_thumbnail_for_series(
+            &state,
+            make(ThumbnailType::UserUploaded),
+            MarkSelectedPreference::Yes,
+        )
+        .unwrap();
+        // the row carries only the file URL; the file holds the bytes
+        assert!(added.thumbnail.is_none());
+        let url = added.url.as_ref().expect("file-backed row has a URL");
+        let file = std::path::PathBuf::from(komga_core::dto::url_to_file_path(url));
+        assert_eq!(std::fs::read(&file).unwrap(), vec![1, 2]);
+        let row = dao.find_by_id(&added.id).unwrap().unwrap();
+        assert!(row.thumbnail.is_none());
+        assert_eq!(row.url.as_deref(), Some(url.as_str()));
+        // the read path serves the bytes from the file
+        assert_eq!(
+            get_thumbnail_bytes(&state, &series.id, "u1")
+                .unwrap()
+                .expect("thumbnail bytes"),
+            vec![1, 2]
+        );
+
+        delete_thumbnail_for_series(&state, &added).unwrap();
+        assert!(!file.exists());
     }
 
     #[test]
