@@ -152,10 +152,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-15 items-center gap-2.5 px-4 pt-2">
-        {/* measured optical offset: centers the mark on the wordmark's cap-top–baseline midline (Newsreader text-xl) */}
-        <LogoMark className="size-6 -translate-y-[3.5px]" />
-        <span className="font-display text-xl font-semibold tracking-tight">KMReader</span>
+      <div className="flex h-24 items-center justify-center">
+        <LogoMark className="size-12" />
       </div>
 
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-3">
