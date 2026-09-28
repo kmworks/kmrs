@@ -85,8 +85,10 @@ export function HorizontalRow({ title, to, children, className, onEndReached }: 
       <div
         ref={ref}
         onScroll={onScroll}
-        // overflow-x makes overflow-y compute to auto, so diagonal trackpad swipes rubber-band the row vertically
-        className="no-scrollbar -mx-2 -mt-2 flex snap-x gap-4 overflow-x-auto overscroll-y-none px-2 pt-3.5 pb-2"
+        // overflow-x makes overflow-y compute to auto, letting diagonal trackpad swipes rubber-band
+        // the row vertically; hidden clips the same but is not user-scrollable, so vertical swipes
+        // still chain to the page (overscroll-behavior would swallow them)
+        className="no-scrollbar -mx-2 -mt-2 flex snap-x gap-4 overflow-x-auto overflow-y-hidden px-2 pt-3.5 pb-2"
       >
         {children}
       </div>
