@@ -25,7 +25,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           id={inputId}
           className={cn(
             'h-10 w-full rounded-lg border bg-surface px-3 text-base text-ink transition-colors',
-            'placeholder:text-ink-3 focus:outline-none',
+            'placeholder:text-ink-3 focus:outline-none disabled:opacity-50',
             error ? 'border-danger/60 focus:border-danger' : 'border-line focus:border-accent/70',
             trailing && 'pr-10',
           )}

@@ -46,6 +46,7 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
   const [url, setUrl] = useState(integration.url ?? '')
   const [baseUrl, setBaseUrl] = useState(integration.baseUrl ?? window.location.origin)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   // structural sharing keeps the reference stable across refetches, so in-progress edits survive
   useEffect(() => {
@@ -57,15 +58,30 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
 
   const connect = useMutation({
     mutationFn: () => komfApi.updateIntegration({ url: url.trim(), baseUrl: baseUrl.trim() }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setEditing(false)
+      invalidate()
+    },
   })
   const disconnect = useMutation({
     mutationFn: komfApi.disconnect,
     onSuccess: () => {
       setConfirmOpen(false)
+      setEditing(false)
       invalidate()
     },
   })
+
+  const cancelEdit = () => {
+    setUrl(integration.url ?? '')
+    setBaseUrl(integration.baseUrl ?? window.location.origin)
+    setEditing(false)
+    connect.reset()
+  }
+
+  // a configured integration shows its saved values read-only; Edit unlocks them so a
+  // changed URL goes through Reconnect (re-provision) instead of a destructive disconnect
+  const locked = integration.configured && !editing
 
   const violations = connect.error ? violationMessages(connect.error) : []
   const violationFor = (field: string) => violations.find((v) => v.field === field)?.message
@@ -107,6 +123,7 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             error={violationFor('url')}
+            disabled={locked}
           />
           <TextField
             label="kmrs base URL"
@@ -114,14 +131,26 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
             error={violationFor('baseUrl')}
+            disabled={locked}
           />
           <div className="flex items-center gap-2">
-            <Button variant="primary" loading={connect.isPending} onClick={() => connect.mutate()}>
-              {integration.configured ? 'Reconnect' : 'Connect'}
-            </Button>
+            {locked ? (
+              <Button variant="primary" onClick={() => setEditing(true)}>
+                Edit
+              </Button>
+            ) : (
+              <Button variant="primary" loading={connect.isPending} onClick={() => connect.mutate()}>
+                {integration.configured ? 'Reconnect' : 'Connect'}
+              </Button>
+            )}
             {integration.state === 'connected' && (
               <Button variant="secondary" onClick={() => navigate('/admin/integrations/komf')}>
                 Configure
+              </Button>
+            )}
+            {editing && integration.configured && (
+              <Button variant="ghost" onClick={cancelEdit}>
+                Cancel
               </Button>
             )}
             {integration.configured && (
