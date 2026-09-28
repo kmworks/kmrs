@@ -75,7 +75,7 @@ pub fn matches_if_none_match(inm: &str, etag: &str) -> bool {
 }
 
 /// Deep ETag for a stored thumbnail row: it changes exactly when the served bytes
-/// change, so an `If-None-Match` hit can be answered without reading the bytes.
+/// change, so an `If-None-Match` hit is answered without hashing the body.
 /// Blob rows are content-immutable per id (in-place updates only re-point the row at
 /// another book/series); URL-backed rows can change under the same URL, so the file's
 /// mtime and size go in — a stat is cheap next to a full read. Returns None when the
@@ -97,7 +97,7 @@ pub fn stored_thumbnail_etag(
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
         .as_nanos();
-    Some(format!("\"krs-f:{id}:{mtime}:{}\")", meta.len()))
+    Some(format!("\"krs-f:{id}:{mtime}:{}\"", meta.len()))
 }
 
 /// Serves a stored thumbnail with its deep ETag: an `If-None-Match` hit short-circuits
@@ -175,7 +175,15 @@ mod tests {
         std::fs::write(&file, b"v1").unwrap();
         let url = komga_media::scanner::path_to_url(&file);
         let etag = stored_thumbnail_etag("t1", 2, false, Some(&url)).unwrap();
-        assert!(etag.starts_with("\"krs-f:t1:"));
+        // the full entity-tag is quoted and holds only id, mtime nanos and size
+        let inner = etag
+            .strip_prefix("\"krs-f:t1:")
+            .and_then(|s| s.strip_suffix('"'))
+            .unwrap();
+        let mut parts = inner.split(':');
+        assert!(parts.next().unwrap().parse::<u128>().is_ok());
+        assert_eq!(parts.next(), Some("2"));
+        assert_eq!(parts.next(), None);
 
         std::fs::write(&file, b"v2-longer").unwrap();
         let etag2 = stored_thumbnail_etag("t1", 2, false, Some(&url)).unwrap();
