@@ -4,6 +4,7 @@ import { BookOpen, CircleNotch, Link as LinkIcon, MagnifyingGlass, Stack } from 
 import { komfApi } from '@/lib/api/komf'
 import { seriesApi } from '@/lib/api/series'
 import type { SeriesDto, WebLinkDto } from '@/lib/api/types'
+import { cn } from '@/lib/utils/cn'
 import { trackKomfJob } from '@/lib/store/komfJobs'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
@@ -228,13 +229,20 @@ function IdentifyContent({
             {results.map((r) => {
               const key = `${r.provider}:${r.resultId}`
               const meta = [r.mediaType, r.language].filter(Boolean).join(' · ')
+              const chipClass = 'shrink-0 rounded-full border border-line bg-raised px-2 py-0.5 text-[11px] font-medium text-ink-2'
               return (
-                <li key={key}>
+                <li
+                  key={key}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-raised',
+                    identify.isPending && 'opacity-60',
+                  )}
+                >
                   <button
                     type="button"
                     disabled={identify.isPending}
                     onClick={() => identify.mutate({ provider: r.provider, providerSeriesId: r.resultId })}
-                    className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-raised disabled:cursor-default disabled:opacity-60"
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left disabled:cursor-default"
                   >
                     {r.imageUrl ? (
                       <CoverImage src={r.imageUrl} alt={r.title} className="w-11 shrink-0" />
@@ -247,14 +255,21 @@ function IdentifyContent({
                       <span className="block truncate text-sm font-medium text-ink">{r.title}</span>
                       {meta && <span className="mt-0.5 block truncate text-xs text-ink-3">{meta}</span>}
                     </span>
-                    {pendingKey === key ? (
-                      <CircleNotch className="size-4 shrink-0 animate-spin text-ink-3" />
-                    ) : (
-                      <span className="shrink-0 rounded-full border border-line bg-raised px-2 py-0.5 text-[11px] font-medium text-ink-2">
-                        {r.provider}
-                      </span>
-                    )}
                   </button>
+                  {pendingKey === key ? (
+                    <CircleNotch className="size-4 shrink-0 animate-spin text-ink-3" />
+                  ) : r.url ? (
+                    <a
+                      href={r.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={cn(chipClass, 'transition-colors hover:border-accent/60 hover:text-accent')}
+                    >
+                      {r.provider}
+                    </a>
+                  ) : (
+                    <span className={chipClass}>{r.provider}</span>
+                  )}
                 </li>
               )
             })}

@@ -49,7 +49,7 @@ export const CardMenuButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes
         type="button"
         className={cn(
           'absolute top-1.5 left-1 z-10 inline-flex size-7 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white shadow-sm backdrop-blur-sm transition-opacity hover:bg-black/80',
-          'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-70',
+          'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100',
           className,
         )}
         {...rest}

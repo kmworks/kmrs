@@ -68,7 +68,7 @@ function LibraryScopeSwitcher({
     ...libraries.filter((l) => !pinnedSet.has(l.id)),
   ]
   return (
-    <div className="inline-flex max-w-full items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5">
+    <div className="inline-flex items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5">
       <ScopeButton active={value === 'all'} onClick={() => onChange('all')}>
         All
       </ScopeButton>
