@@ -188,7 +188,7 @@ def compare_actuator_scheduledtasks(java_body, rust_body):
         if key not in rust_body:
             problems.append(f"rust missing {key}")
     r_targets = [t.get("runnable", {}).get("target", "") for t in rust_body.get("fixedRate", [])]
-    for required in ("SseController.heartbeat", "SseController.taskCount", "AuthenticationActivityCleanupController.cleanup"):
+    for required in ("Sse.heartbeat", "Sse.taskCount", "MaintenanceScheduler.authActivityCleanup"):
         if required not in r_targets:
             problems.append(f"rust missing fixedRate target {required}")
     for task in rust_body.get("fixedRate", []):

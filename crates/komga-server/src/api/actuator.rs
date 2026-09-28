@@ -964,7 +964,9 @@ struct ScheduledTaskRunnable {
 /// Spring's `ScheduledTasksEndpoint`, fed by the scan scheduler's per-library interval tasks
 /// plus the fixed-rate jobs (SSE heartbeat / task count, daily cleanups, thumbnail sweep,
 /// web UI update check when enabled), each with `initialDelay == interval == period` like
-/// `FixedRateTask`.
+/// `FixedRateTask`. Targets name the kmrs implementation, not Java's class names: the endpoint
+/// is a diagnostic view of this process, and Java's own values (FQN signatures, unstable lambda
+/// class names) are not a contract worth mimicking.
 async fn get_scheduled_tasks(
     State(state): State<AppState>,
     auth: RequireAuth,
@@ -988,12 +990,9 @@ async fn get_scheduled_tasks(
             })
             .collect();
     for (target, millis) in [
-        ("SseController.heartbeat", 15_000u64),
-        ("SseController.taskCount", 10_000u64),
-        (
-            "AuthenticationActivityCleanupController.cleanup",
-            86_400_000u64,
-        ),
+        ("Sse.heartbeat", 15_000u64),
+        ("Sse.taskCount", 10_000u64),
+        ("MaintenanceScheduler.authActivityCleanup", 86_400_000u64),
         ("MaintenanceScheduler.historyCleanup", 86_400_000u64),
         ("MaintenanceScheduler.thumbnailSweep", 86_400_000u64),
     ] {
@@ -1909,9 +1908,9 @@ mod tests {
         assert_eq!(
             targets,
             vec![
-                "SseController.heartbeat",
-                "SseController.taskCount",
-                "AuthenticationActivityCleanupController.cleanup",
+                "Sse.heartbeat",
+                "Sse.taskCount",
+                "MaintenanceScheduler.authActivityCleanup",
                 "MaintenanceScheduler.historyCleanup",
                 "MaintenanceScheduler.thumbnailSweep"
             ]
