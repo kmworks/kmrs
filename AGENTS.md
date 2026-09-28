@@ -42,6 +42,6 @@ A new configuration key must land in all three places: the loader/render (`crate
 
 ## Checks and workflow
 
-- CI: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test`, builds on ubuntu/macos/windows, docker. Keep clippy warning-free.
+- CI: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`, builds on ubuntu/macos/windows, docker. Keep clippy warning-free.
 - PRs are in English (title, body, comments).
 - Squash-merge with a hand-written commit message (`gh pr merge --squash --subject ... --body ...`), never the default message.
