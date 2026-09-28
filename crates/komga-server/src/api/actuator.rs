@@ -962,11 +962,12 @@ struct ScheduledTaskRunnable {
 }
 
 /// Spring's `ScheduledTasksEndpoint`, fed by the scan scheduler's per-library interval tasks
-/// plus the fixed-rate jobs (SSE heartbeat / task count, daily cleanups, thumbnail sweep,
-/// web UI update check when enabled), each with `initialDelay == interval == period` like
-/// `FixedRateTask`. Targets name the kmrs implementation, not Java's class names: the endpoint
-/// is a diagnostic view of this process, and Java's own values (FQN signatures, unstable lambda
-/// class names) are not a contract worth mimicking.
+/// plus the fixed-rate jobs (daily cleanups, thumbnail sweep, web UI update check when
+/// enabled), each with `initialDelay == interval == period` like `FixedRateTask`. Targets name
+/// the kmrs implementation, not Java's class names: Java's own values (FQN signatures,
+/// unstable lambda class names) are not a contract worth mimicking. Java's global SSE
+/// heartbeat/task-count jobs are absent because kmrs runs those as per-connection timers, not
+/// scheduled tasks.
 async fn get_scheduled_tasks(
     State(state): State<AppState>,
     auth: RequireAuth,
@@ -990,8 +991,6 @@ async fn get_scheduled_tasks(
             })
             .collect();
     for (target, millis) in [
-        ("Sse.heartbeat", 15_000u64),
-        ("Sse.taskCount", 10_000u64),
         ("MaintenanceScheduler.authActivityCleanup", 86_400_000u64),
         ("MaintenanceScheduler.historyCleanup", 86_400_000u64),
         ("MaintenanceScheduler.thumbnailSweep", 86_400_000u64),
@@ -1908,16 +1907,13 @@ mod tests {
         assert_eq!(
             targets,
             vec![
-                "Sse.heartbeat",
-                "Sse.taskCount",
                 "MaintenanceScheduler.authActivityCleanup",
                 "MaintenanceScheduler.historyCleanup",
                 "MaintenanceScheduler.thumbnailSweep"
             ]
         );
-        assert_eq!(body["fixedRate"][0]["initialDelay"], 15_000i64);
-        assert_eq!(body["fixedRate"][0]["interval"], 15_000i64);
-        assert_eq!(body["fixedRate"][2]["interval"], 86_400_000i64);
+        assert_eq!(body["fixedRate"][0]["initialDelay"], 86_400_000i64);
+        assert_eq!(body["fixedRate"][0]["interval"], 86_400_000i64);
     }
 
     fn service_series_test_library() -> komga_core::model::library::Library {
