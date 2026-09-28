@@ -110,7 +110,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
           className={cn(selection?.selected && 'ring-2 ring-accent')}
         />
         {selection?.active && <SelectBadge {...selection} label={title} />}
-        {book.readProgress?.completed && <CompletedBadge />}
+        <CompletedBadge show={!!book.readProgress?.completed} />
         <ProgressCapsule value={progress} />
         <CardOverlayText title={title} overline={overline} secondary={secondaryText} titleLines={titleLines} />
       </div>

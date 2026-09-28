@@ -36,6 +36,7 @@ import { ReadListCard } from '@/components/media/SeriesCard'
 import { HorizontalRow } from '@/components/media/HorizontalRow'
 import { useDensityCardWidth } from '@/lib/store/ui'
 import { DetailHero } from '@/components/detail/DetailHero'
+import { DetailTitle } from '@/components/detail/DetailTitle'
 import { DetailSkeleton } from '@/components/detail/DetailSkeleton'
 import { DetailError } from '@/components/detail/DetailError'
 import { DetailChipFlow } from '@/components/detail/DetailChipFlow'
@@ -165,7 +166,7 @@ export function BookDetailPage() {
               </Link>
             </p>
           )}
-          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink md:text-4xl">{title}</h1>
+          <DetailTitle title={title} />
           <p className="mt-1.5 text-ink-2">
             <Link to={`/series/${book.seriesId}`} className="transition-colors hover:text-accent-strong">
               {book.seriesTitle}

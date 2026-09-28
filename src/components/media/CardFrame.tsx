@@ -23,7 +23,7 @@ export function CardFrame({ to, children, className, label, actions }: CardFrame
       className={cn(
         'group block cursor-pointer rounded-lg outline-none transition-transform duration-200 ease-out-expo',
         'active:scale-[0.98]',
-        actions ? undefined : className,
+        actions ? undefined : cn('animate-card-in', className),
       )}
     >
       {children}
@@ -31,7 +31,7 @@ export function CardFrame({ to, children, className, label, actions }: CardFrame
   )
   if (!actions) return link
   return (
-    <div className={cn('group relative rounded-lg', className)}>
+    <div className={cn('group relative animate-card-in rounded-lg', className)}>
       {link}
       {actions}
     </div>

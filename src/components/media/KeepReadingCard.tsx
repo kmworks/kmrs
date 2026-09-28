@@ -4,6 +4,7 @@ import type { BookDto } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
 import { bookDetailRoute, readRoute } from '@/lib/utils/nav'
 import { useBust } from '@/lib/store/thumbnails'
+import { useImageCrossfade } from '@/lib/hooks/useImageCrossfade'
 import { plural, relativeTime } from '@/lib/utils/format'
 import { cardStatusLabel } from '@/lib/utils/mediaStatus'
 import { useLibraryUnavailable } from '@/lib/utils/libraries'
@@ -21,6 +22,7 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
   const navigate = useNavigate()
   const bust = useBust(book.id)
   const cover = urls.bookThumbnail(book.id, bust || undefined)
+  const xf = useImageCrossfade(cover)
   const tint = useCoverTint(cover)
   const tinted = tint !== null
   const libraryUnavailable = useLibraryUnavailable(book.libraryId)
@@ -49,7 +51,7 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
   return (
     <div
       className={cn(
-        'group relative flex w-[250px] shrink-0 items-center rounded-xl p-2 transition-[background-color,box-shadow,filter] duration-200 hover:shadow-card hover:brightness-[1.07]',
+        'group relative flex w-[250px] shrink-0 animate-card-in items-center rounded-xl p-2 transition-[background-color,box-shadow,filter] duration-200 hover:shadow-card hover:brightness-[1.07]',
         !tinted && 'bg-raised',
         className,
       )}
@@ -59,13 +61,22 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
 
       {/* cover + text form a single navigation target; the trailing menu stays a separate one */}
       <Link to={to} aria-label={`Continue reading ${title}`} className="flex min-w-0 flex-1 items-center gap-3 self-stretch outline-none">
-        <img
-          src={cover}
-          alt={title}
-          loading="lazy"
-          draggable={false}
-          className="cover-aspect w-[45px] shrink-0 rounded-md object-cover shadow-[0_2px_10px_rgb(0_0_0/0.5)] ring-1 ring-line"
-        />
+        <div className="cover-aspect relative w-[45px] shrink-0 overflow-hidden rounded-md shadow-[0_2px_10px_rgb(0_0_0/0.5)] ring-1 ring-line">
+          {xf.base && <img src={xf.base} alt="" aria-hidden draggable={false} className="absolute inset-0 size-full object-cover" />}
+          <img
+            src={cover}
+            alt={title}
+            loading="lazy"
+            draggable={false}
+            onLoad={xf.onLoad}
+            onError={xf.onError}
+            onTransitionEnd={xf.onTransitionEnd}
+            className={cn(
+              'absolute inset-0 size-full object-cover transition-opacity duration-300 ease-out-expo',
+              xf.loaded ? 'opacity-100' : 'opacity-0',
+            )}
+          />
+        </div>
         <div className="flex min-w-0 flex-1 flex-col self-stretch">
           <div className="flex-1" />
           <div>

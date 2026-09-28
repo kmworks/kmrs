@@ -11,7 +11,7 @@ export function creatorChipItems(publisher: string, authors: AuthorDto[], base: 
   const items: DetailChipItem[] = []
   if (publisher)
     items.push({
-      key: 'publisher',
+      key: `publisher-${publisher}`,
       label: publisher,
       icon: <Buildings className={iconCls} />,
       to: `/series?publishers=${encodeURIComponent(publisher)}`,

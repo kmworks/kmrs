@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { FadeKey } from '@/components/ui/FadeKey'
 import {
   ArrowDown,
   ArrowLeft,
@@ -66,7 +67,10 @@ export function SeriesMetaLine({ md, className }: { md: SeriesMetadataDto; class
   if (direction) items.push({ key: 'direction', label: direction, icon: readingDirectionIcon(md.readingDirection) })
   if (items.length === 0) return null
   return (
-    <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-2', className)}>
+    <FadeKey
+      id={items.map((i) => `${i.key}:${i.label}`).join('|')}
+      className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-2', className)}
+    >
       {items.map((item) =>
         item.to ? (
           <Link
@@ -84,6 +88,6 @@ export function SeriesMetaLine({ md, className }: { md: SeriesMetadataDto; class
           </span>
         ),
       )}
-    </div>
+    </FadeKey>
   )
 }

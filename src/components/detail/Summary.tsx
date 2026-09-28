@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils/cn'
+import { FadeKey } from '@/components/ui/FadeKey'
 
 /** Long text clamped to 4 lines with a More/Less toggle, shown only when it actually overflows. */
 export function Summary({ text, className }: { text: string; className?: string }) {
@@ -14,7 +15,7 @@ export function Summary({ text, className }: { text: string; className?: string 
   }, [text])
 
   return (
-    <div className={className}>
+    <FadeKey id={text} className={className}>
       <p ref={ref} className={cn('max-w-3xl leading-relaxed text-ink-2', !expanded && 'line-clamp-4')}>
         {text}
       </p>
@@ -27,6 +28,6 @@ export function Summary({ text, className }: { text: string; className?: string 
           {expanded ? 'Less' : 'More'}
         </button>
       )}
-    </div>
+    </FadeKey>
   )
 }

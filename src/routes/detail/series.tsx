@@ -44,6 +44,7 @@ import { BookCard } from '@/components/media/BookCard'
 import { CollectionCard } from '@/components/media/SeriesCard'
 import { HorizontalRow } from '@/components/media/HorizontalRow'
 import { DetailHero } from '@/components/detail/DetailHero'
+import { DetailTitle } from '@/components/detail/DetailTitle'
 import { DetailSkeleton } from '@/components/detail/DetailSkeleton'
 import { DetailError } from '@/components/detail/DetailError'
 import { DetailChipFlow } from '@/components/detail/DetailChipFlow'
@@ -219,7 +220,7 @@ export function SeriesDetailPage() {
               </Link>
             </p>
           )}
-          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink md:text-4xl">{title}</h1>
+          <DetailTitle title={title} />
           <DetailChipFlow items={creatorItems} className="mt-2.5" />
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button

@@ -160,4 +160,34 @@
   .img-fade {
     animation: fade-in 0.35s var(--ease-out-expo, ease-out);
   }
+
+  /* entrance for cards mounting into an already-rendered list (SSE inserts, infinite scroll) */
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-card-in {
+    animation: card-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+
+  /* replayed on badge value changes via key remount */
+  @keyframes badge-pop {
+    from {
+      opacity: 0.3;
+      transform: scale(0.7);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .animate-badge-pop {
+    animation: badge-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
 }
