@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useWindowKeys } from '@/components/reader/keys'
 import { useReaderNav } from '@/components/reader/useReaderNav'
-import { alignLocatorHref, buildEpubPreferences, manifestEntries, positionOf, progressionLocator, type TocEntry } from './preferences'
+import { alignLocatorHref, buildEpubPreferences, manifestEntries, positionOf, progressionLocator, resolvePositionLocator, type TocEntry } from './preferences'
 import { EpubChrome } from './EpubChrome'
 import { EpubSettingsPanel } from './EpubSettingsPanel'
 import { EpubTocDrawer } from './EpubTocDrawer'
@@ -105,7 +105,8 @@ export function EpubReader({ book }: { book: BookDto }) {
       if (!nav.incognito) {
         const progression = await booksApi.progression(bookId).catch(() => undefined)
         const stored = progression?.locator ? Locator.deserialize(progression.locator) : undefined
-        if (stored) initialPosition = alignLocatorHref(stored, publication)
+        if (stored)
+          initialPosition = resolvePositionLocator(alignLocatorHref(stored, publication), positions)
       }
       if (cancelled) return
 

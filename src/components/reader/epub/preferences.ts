@@ -44,6 +44,47 @@ export function alignLocatorHref(locator: Locator, publication: Publication): Lo
   })
 }
 
+/**
+ * Other clients store progressions without locations.position, which the navigator's initial
+ * position requires — snap to the closest positions entry, keeping the stored progression.
+ */
+export function resolvePositionLocator(locator: Locator, positions: Locator[]): Locator | undefined {
+  const own = locator.locations.position
+  if (own !== undefined && positions.some((p) => p.locations.position === own)) return locator
+
+  const progression = locator.locations.progression
+  const sameHref = positions.filter((p) => p.href === locator.href)
+  let base: Locator | undefined
+  if (sameHref.length > 0) {
+    base =
+      progression === undefined
+        ? sameHref[0]
+        : sameHref.reduce((a, b) =>
+            Math.abs((b.locations.progression ?? 0) - progression) <
+            Math.abs((a.locations.progression ?? 0) - progression)
+              ? b
+              : a,
+          )
+  } else {
+    const totalProgression = locator.locations.totalProgression
+    if (totalProgression !== undefined) {
+      base = positions.reduce((a, b) =>
+        Math.abs((b.locations.totalProgression ?? 0) - totalProgression) <
+        Math.abs((a.locations.totalProgression ?? 0) - totalProgression)
+          ? b
+          : a,
+      )
+    }
+  }
+  if (!base) return undefined
+
+  const overrides: { progression?: number; totalProgression?: number } = {}
+  if (progression !== undefined) overrides.progression = progression
+  if (locator.locations.totalProgression !== undefined)
+    overrides.totalProgression = locator.locations.totalProgression
+  return base.copyWithLocations(overrides)
+}
+
 /** 1-based position number for the slider: the locator's own position, else the readingOrder match. */
 export function positionOf(locator: Locator, positions: Locator[]): number {
   const own = locator.locations.position
