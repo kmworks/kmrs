@@ -304,9 +304,9 @@ export function BookDetailPage() {
             </Field>
           )}
           <Field term={t('field.file')} mono>
-            <span className="block truncate" title={filePathFromUrl(book.url)}>
-              {fileNameFromUrl(book.url)}
-            </span>
+            <Tooltip content={filePathFromUrl(book.url)}>
+              <span className="block truncate">{fileNameFromUrl(book.url)}</span>
+            </Tooltip>
           </Field>
           <Field term={t('field.added')}>{formatDate(book.created)}</Field>
         </dl>
