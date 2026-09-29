@@ -66,10 +66,16 @@ export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuP
             <CheckSquare className="size-4" /> {t('menu.select')}
           </MenuItem>
         )}
-        <MenuItem onSelect={() => markMutation.mutate(!completed)}>
-          {completed ? <ArrowCounterClockwise className="size-4" /> : <Checks className="size-4" />}
-          {completed ? t('menu.markAsUnread') : t('menu.markAsRead')}
-        </MenuItem>
+        {!completed && (
+          <MenuItem onSelect={() => markMutation.mutate(true)}>
+            <Checks className="size-4" /> {t('menu.markAsRead')}
+          </MenuItem>
+        )}
+        {book.readProgress && (
+          <MenuItem onSelect={() => markMutation.mutate(false)}>
+            <ArrowCounterClockwise className="size-4" /> {t('menu.markAsUnread')}
+          </MenuItem>
+        )}
         <MenuItem onSelect={() => setAddOpen(true)}>
           <ListPlus className="size-4" /> {t('menu.addToReadList')}
         </MenuItem>
