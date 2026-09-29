@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -95,7 +95,7 @@ export function SearchPage() {
           q={q}
           queryKey={['series', 'search', q, sk]}
           fetchPage={(page) => seriesApi.list({ search: scopedSearch(q, libraryIds), page, size: 24 })}
-          renderCard={(s) => <SeriesCard series={s} selection={cardSelection(seriesSel, s.id)} />}
+          renderCard={(s, ids) => <SeriesCard series={s} selection={cardSelection(seriesSel, s.id, ids)} />}
           selectionBar={(items) => <SeriesSelectionBar selection={seriesSel} loadedIds={items.map((s) => s.id)} />}
         />
       ) : tab === 'books' ? (
@@ -103,7 +103,7 @@ export function SearchPage() {
           q={q}
           queryKey={['books', 'search', q, sk]}
           fetchPage={(page) => booksApi.list({ search: scopedSearch(q, libraryIds), page, size: 24 })}
-          renderCard={(b) => <BookCard book={b} showSeries selection={cardSelection(booksSel, b.id)} />}
+          renderCard={(b, ids) => <BookCard book={b} showSeries selection={cardSelection(booksSel, b.id, ids)} />}
           selectionBar={(items) => <BooksSelectionBar selection={booksSel} loadedIds={items.map((b) => b.id)} />}
         />
       ) : tab === 'collections' ? (
@@ -251,7 +251,8 @@ function CategoryGrid<T extends { id: string }>({
   q: string
   queryKey: readonly unknown[]
   fetchPage: (page: number) => Promise<Page<T>>
-  renderCard: (item: T) => ReactNode
+  /** orderedIds is the loaded grid order, used for shift-click range selection */
+  renderCard: (item: T, orderedIds: string[]) => ReactNode
   /** rendered below the grid with the currently loaded items (batch actions) */
   selectionBar?: (items: T[]) => ReactNode
 }) {
@@ -277,17 +278,18 @@ function CategoryGrid<T extends { id: string }>({
     return () => io.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
+  const items = useMemo(() => data?.pages.flatMap((p) => p.content) ?? [], [data?.pages])
+  const loadedIds = useMemo(() => items.map((i) => i.id), [items])
+
   if (isLoading) return <GridSkeleton count={12} />
   if (isError) return <SearchError error={error} onRetry={() => void refetch()} />
-
-  const items = data?.pages.flatMap((p) => p.content) ?? []
   if (items.length === 0) return <NoResults q={q} />
 
   return (
     <>
       <MediaGrid>
         {items.map((item) => (
-          <Fragment key={item.id}>{renderCard(item)}</Fragment>
+          <Fragment key={item.id}>{renderCard(item, loadedIds)}</Fragment>
         ))}
       </MediaGrid>
       {selectionBar?.(items)}

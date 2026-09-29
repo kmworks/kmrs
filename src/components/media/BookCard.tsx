@@ -97,7 +97,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
                 )}
               </>
             }
-            onSelect={selection?.onToggle}
+            onSelect={() => selection?.onToggle()}
             trigger={<CardMenuButton aria-label={t('card.actionsFor', { title })} />}
           />
         )
@@ -124,12 +124,13 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
   // in selection mode the whole card toggles; capture phase so both the badge and the Link see one click
   return (
     <div
-      className={cn('rounded-lg', className)}
+      // select-none: shift-click range selection must not grow a browser text selection
+      className={cn('rounded-lg', selection.active && 'select-none', className)}
       onClickCapture={(e) => {
         if (!selection.active) return
         e.preventDefault()
         e.stopPropagation()
-        selection.onToggle()
+        selection.onToggle(e.shiftKey)
       }}
     >
       {frame}

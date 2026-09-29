@@ -19,7 +19,7 @@ export function SelectBadge({ active, selected, onToggle, label }: SelectBadgePr
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        onToggle()
+        onToggle(e.shiftKey)
       }}
       className={cn(
         'absolute top-1.5 left-1.5 flex size-6 cursor-pointer items-center justify-center rounded-full border transition-opacity',

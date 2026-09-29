@@ -65,7 +65,8 @@ export function BrowseSeriesPage() {
     placeholderData: keepPreviousData,
   })
 
-  const items = q.data?.pages.flatMap((p) => p.content) ?? []
+  const items = useMemo(() => q.data?.pages.flatMap((p) => p.content) ?? [], [q.data?.pages])
+  const loadedIds = useMemo(() => items.map((s) => s.id), [items])
   const total = q.data?.pages[0]?.totalElements
   const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = q
   const loadMore = useCallback(() => {
@@ -117,7 +118,7 @@ export function BrowseSeriesPage() {
         <>
           <MediaGrid>
             {items.map((s) => (
-              <SeriesCard key={s.id} series={s} selection={cardSelection(selection, s.id)} />
+              <SeriesCard key={s.id} series={s} selection={cardSelection(selection, s.id, loadedIds)} />
             ))}
           </MediaGrid>
           {isFetchingNextPage && (
@@ -144,7 +145,7 @@ export function BrowseSeriesPage() {
         onSetExclusive={filters.setExclusive}
         onClearAll={filters.clearAll}
       />
-      <SeriesSelectionBar selection={selection} loadedIds={items.map((s) => s.id)} />
+      <SeriesSelectionBar selection={selection} loadedIds={loadedIds} />
     </div>
   )
 }
