@@ -124,6 +124,7 @@
   },
   "reset": {
     "body": "Reset <name>{{name}}</name>? komf removes the metadata it wrote, including field locks and uploaded covers.",
+    "libraryBody": "Reset <name>{{name}}</name>? komf removes the metadata it wrote for every series in this library, including field locks and uploaded covers.",
     "confirm": "Reset"
   },
   "poster": {

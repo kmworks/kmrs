@@ -72,6 +72,12 @@
     "refreshQueued": "Metadata refresh queued",
     "refreshFailed": "Could not queue the metadata refresh",
     "emptyTrashQueued": "Empty trash queued",
-    "emptyTrashFailed": "Could not empty the trash"
+    "emptyTrashFailed": "Could not empty the trash",
+    "matchKomf": "Match with komf",
+    "resetKomf": "Reset metadata with komf",
+    "matchQueued": "Match queued",
+    "matchFailed": "Could not queue the match",
+    "metadataReset": "Metadata reset",
+    "metadataResetFailed": "Could not reset the metadata"
   }
 }

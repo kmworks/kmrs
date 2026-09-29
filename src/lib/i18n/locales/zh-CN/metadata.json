@@ -123,6 +123,7 @@
   },
   "reset": {
     "body": "重置<name>{{name}}</name>？komf 会移除它写入的元数据，包括字段锁定和已上传的封面。",
+    "libraryBody": "重置<name>{{name}}</name>？komf 会移除它为库中每个系列写入的元数据，包括字段锁定和已上传的封面。",
     "confirm": "重置"
   },
   "poster": {

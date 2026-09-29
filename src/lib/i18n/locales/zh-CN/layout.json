@@ -71,6 +71,12 @@
     "refreshQueued": "元数据刷新已加入队列",
     "refreshFailed": "无法将元数据刷新加入队列",
     "emptyTrashQueued": "清空回收站已加入队列",
-    "emptyTrashFailed": "无法清空回收站"
+    "emptyTrashFailed": "无法清空回收站",
+    "matchKomf": "用 komf 匹配",
+    "resetKomf": "用 komf 重置元数据",
+    "matchQueued": "匹配已加入队列",
+    "matchFailed": "无法将匹配加入队列",
+    "metadataReset": "元数据已重置",
+    "metadataResetFailed": "无法重置元数据"
   }
 }
