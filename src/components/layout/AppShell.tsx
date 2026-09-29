@@ -61,6 +61,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Switch } from '@/components/ui/Switch'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { PinLibrariesDialog } from '@/components/layout/PinLibrariesDialog'
+import { SidebarLibraryMenu } from '@/components/layout/SidebarLibraryMenu'
 import { SearchScopeMenu } from '@/components/search/SearchScopeMenu'
 import { useSearchScopeDefault } from '@/components/search/scope'
 
@@ -71,6 +72,7 @@ function NavItem({
   end,
   onClick,
   trailing,
+  actions,
 }: {
   to: string
   icon: React.ReactNode
@@ -78,8 +80,11 @@ function NavItem({
   end?: boolean
   onClick?: () => void
   trailing?: React.ReactNode
+  /** overlay controls (e.g. the admin actions menu); rendered as siblings of the
+      link so no interactive element nests inside the <a> */
+  actions?: React.ReactNode
 }) {
-  return (
+  const link = (
     <NavLink
       to={to}
       end={end}
@@ -88,6 +93,7 @@ function NavItem({
         cn(
           'flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-colors duration-150',
           isActive ? 'bg-accent-soft font-medium text-accent-strong' : 'text-ink-2 hover:bg-raised hover:text-ink',
+          actions && 'pr-9',
         )
       }
     >
@@ -95,6 +101,13 @@ function NavItem({
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {trailing}
     </NavLink>
+  )
+  if (!actions) return link
+  return (
+    <div className="group relative">
+      {link}
+      <div className="absolute inset-y-0 right-2 flex items-center">{actions}</div>
+    </div>
   )
 }
 
@@ -204,6 +217,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     <PushPin weight="fill" className="size-3 shrink-0 text-ink-3" aria-label="Pinned" />
                   ) : undefined
                 }
+                actions={isAdmin(user) ? <SidebarLibraryMenu library={lib} /> : undefined}
               >
                 {lib.name}
               </NavItem>
