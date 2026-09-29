@@ -11,6 +11,8 @@
   "addToCollection": "添加到合集",
   "addSeries": "添加系列",
   "addBooks": "添加书籍",
+  "removeFromCollection": "从《{{name}}》移除",
+  "removeFromReadList": "从《{{name}}》移除",
   "rename": "重命名",
   "nameLabel": "名称",
   "summaryLabel": "简介",
@@ -46,7 +48,13 @@
     "resetMetadataFailed": "无法重置元数据",
     "queueMatchFailed": "无法将匹配加入队列",
     "deleteFileFailed": "无法删除文件",
-    "deleteFilesFailed": "无法删除文件"
+    "deleteFilesFailed": "无法删除文件",
+    "removedFromCollection": "已从《{{name}}》移除",
+    "removedFromReadList": "已从《{{name}}》移除",
+    "collectionDeleted": "合集已删除",
+    "readListDeleted": "阅读列表已删除",
+    "removeFromCollectionFailed": "无法从合集移除",
+    "removeFromReadListFailed": "无法从阅读列表移除"
   },
   "notFound": {
     "book": "找不到这本书",

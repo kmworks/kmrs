@@ -55,6 +55,7 @@ import { DownloadLink } from '@/components/detail/DownloadLink'
 import { AddToReadListDialog } from '@/components/detail/AddToReadListDialog'
 import { AddToCollectionDialog } from '@/components/browse/AddToCollectionDialog'
 import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
+import { RemoveFromCollectionButton, RemoveFromReadListButton } from '@/components/detail/MembershipRemoveButton'
 import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
@@ -404,7 +405,12 @@ export function OneshotDetailPage() {
         <HorizontalRow title={t('inCollections')} className="mt-10">
           {collections.map((c) => (
             <div key={c.id} className="shrink-0" style={{ width: rowCardWidth }}>
-              <CollectionCard id={c.id} name={c.name} count={c.seriesIds.length} />
+              <CollectionCard
+                id={c.id}
+                name={c.name}
+                count={c.seriesIds.length}
+                actions={isAdmin(user) ? <RemoveFromCollectionButton collection={c} seriesId={series.id} /> : undefined}
+              />
             </div>
           ))}
         </HorizontalRow>
@@ -414,7 +420,12 @@ export function OneshotDetailPage() {
         <HorizontalRow title={t('inReadLists')} className="mt-10">
           {readlists.map((l) => (
             <div key={l.id} className="shrink-0" style={{ width: rowCardWidth }}>
-              <ReadListCard id={l.id} name={l.name} count={l.bookIds.length} />
+              <ReadListCard
+                id={l.id}
+                name={l.name}
+                count={l.bookIds.length}
+                actions={isAdmin(user) ? <RemoveFromReadListButton readlist={l} bookId={book.id} /> : undefined}
+              />
             </div>
           ))}
         </HorizontalRow>

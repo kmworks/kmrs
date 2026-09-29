@@ -56,6 +56,7 @@ import { Summary } from '@/components/detail/Summary'
 import { DownloadLink } from '@/components/detail/DownloadLink'
 import { AddToCollectionDialog } from '@/components/browse/AddToCollectionDialog'
 import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
+import { RemoveFromCollectionButton } from '@/components/detail/MembershipRemoveButton'
 import { EditSeriesDialog } from '@/components/metadata/EditSeriesDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
 import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
@@ -422,7 +423,12 @@ export function SeriesDetailPage() {
         <HorizontalRow title={t('inCollections')} className="mt-10">
           {collections.map((c) => (
             <div key={c.id} className="shrink-0" style={{ width: rowCardWidth }}>
-              <CollectionCard id={c.id} name={c.name} count={c.seriesIds.length} />
+              <CollectionCard
+                id={c.id}
+                name={c.name}
+                count={c.seriesIds.length}
+                actions={isAdmin(user) ? <RemoveFromCollectionButton collection={c} seriesId={series.id} /> : undefined}
+              />
             </div>
           ))}
         </HorizontalRow>

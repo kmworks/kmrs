@@ -47,6 +47,7 @@ import { Summary } from '@/components/detail/Summary'
 import { DownloadLink } from '@/components/detail/DownloadLink'
 import { AddToReadListDialog } from '@/components/detail/AddToReadListDialog'
 import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
+import { RemoveFromReadListButton } from '@/components/detail/MembershipRemoveButton'
 import { EditBooksDialog } from '@/components/metadata/EditBooksDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
 import { showToast } from '@/lib/store/toast'
@@ -322,7 +323,12 @@ export function BookDetailPage() {
         <HorizontalRow title={t('inReadLists')} className="mt-10">
           {readlists.map((l) => (
             <div key={l.id} className="shrink-0" style={{ width: rowCardWidth }}>
-              <ReadListCard id={l.id} name={l.name} count={l.bookIds.length} />
+              <ReadListCard
+                id={l.id}
+                name={l.name}
+                count={l.bookIds.length}
+                actions={isAdmin(user) ? <RemoveFromReadListButton readlist={l} bookId={book.id} /> : undefined}
+              />
             </div>
           ))}
         </HorizontalRow>

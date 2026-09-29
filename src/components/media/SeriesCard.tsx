@@ -109,17 +109,20 @@ export function CollectionCard({
   name,
   count,
   className,
+  actions,
 }: {
   id: string
   name: string
   count: number
   className?: string
+  /** overlay controls rendered next to the link (see CardFrame) */
+  actions?: ReactNode
 }) {
   const { t } = useTranslation('media')
   const bust = useBust(id)
   const secondary = t('collection.seriesCount', { count })
   return (
-    <CardFrame to={`/collections/${id}`} label={name} className={className}>
+    <CardFrame to={`/collections/${id}`} label={name} className={className} actions={actions}>
       <div className={cn('relative')}>
         <CoverImage src={urls.collectionThumbnail(id, bust || undefined)} alt={name} />
         <CardOverlayText title={name} secondary={secondary} />
@@ -134,17 +137,20 @@ export function ReadListCard({
   name,
   count,
   className,
+  actions,
 }: {
   id: string
   name: string
   count: number
   className?: string
+  /** overlay controls rendered next to the link (see CardFrame) */
+  actions?: ReactNode
 }) {
   const { t } = useTranslation('media')
   const bust = useBust(id)
   const secondary = t('readList.bookCount', { count })
   return (
-    <CardFrame to={`/readlists/${id}`} label={name} className={className}>
+    <CardFrame to={`/readlists/${id}`} label={name} className={className} actions={actions}>
       <div className="relative">
         <CoverImage src={urls.readlistThumbnail(id, bust || undefined)} alt={name} />
         <CardOverlayText title={name} secondary={secondary} />

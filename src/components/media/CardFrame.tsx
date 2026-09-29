@@ -38,11 +38,12 @@ export function CardFrame({ to, children, className, label, actions }: CardFrame
   )
 }
 
-/** Hover-revealed menu trigger pinned to the cover's top-left (badges live top-right);
+/** Hover-revealed corner action pinned to the cover's top-left (badges live top-right);
     on cards with a selection checkbox it shifts right of it via className. Forwards
-    props+ref because Radix Trigger asChild injects handlers/state onto the child. */
+    props+ref because Radix Trigger asChild injects handlers/state onto the child.
+    Defaults to the menu dots; pass children to use it for another card action. */
 export const CardMenuButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>(
-  function CardMenuButton({ className, ...rest }, ref) {
+  function CardMenuButton({ className, children, ...rest }, ref) {
     return (
       <button
         ref={ref}
@@ -54,7 +55,7 @@ export const CardMenuButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes
         )}
         {...rest}
       >
-        <DotsThree className="size-4" weight="bold" />
+        {children ?? <DotsThree className="size-4" weight="bold" />}
       </button>
     )
   },
