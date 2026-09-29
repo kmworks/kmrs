@@ -15,6 +15,7 @@ export interface TrackedJob {
 interface KomfJobsState {
   jobs: Record<string, TrackedJob>
   track: (jobId: string, label: string) => void
+  trackMany: (entries: { id: string; label: string }[]) => void
   dismiss: (jobId: string) => void
 }
 
@@ -47,8 +48,7 @@ function providerName(raw: string): string {
     .join(' ')
 }
 
-// abort controllers and removal timers are not UI state, so they stay outside the store
-const controllers = new Map<string, AbortController>()
+// removal timers and the aggregate stream are not UI state, so they stay outside the store
 const removeTimers = new Map<string, number>()
 
 export const useKomfJobs = create<KomfJobsState>()((set, get) => ({
@@ -56,25 +56,39 @@ export const useKomfJobs = create<KomfJobsState>()((set, get) => ({
 
   track: (jobId, label) => {
     if (get().jobs[jobId]) return
-    const controller = new AbortController()
-    controllers.set(jobId, controller)
     set((s) => ({
       jobs: { ...s.jobs, [jobId]: { id: jobId, label, text: 'Matching…', failed: null, done: false } },
     }))
-    void runJob(jobId, controller.signal)
+    restartStream()
+  },
+
+  trackMany: (entries) => {
+    const fresh = entries.filter((e) => !get().jobs[e.id])
+    if (fresh.length === 0) return
+    const jobs = { ...get().jobs }
+    for (const e of fresh) {
+      jobs[e.id] = { id: e.id, label: e.label, text: 'Matching…', failed: null, done: false }
+    }
+    set({ jobs })
+    restartStream()
   },
 
   dismiss: (jobId) => {
-    controllers.get(jobId)?.abort()
-    controllers.delete(jobId)
+    const job = get().jobs[jobId]
     window.clearTimeout(removeTimers.get(jobId))
     removeTimers.delete(jobId)
     removeJob(jobId)
+    // an unfinished job still holds an upstream stream on the aggregate connection
+    if (job && !job.done) restartStream()
   },
 }))
 
 export function trackKomfJob(jobId: string, label: string) {
   useKomfJobs.getState().track(jobId, label)
+}
+
+export function trackKomfJobs(entries: { id: string; label: string }[]) {
+  useKomfJobs.getState().trackMany(entries)
 }
 
 function updateJob(jobId: string, patch: Partial<TrackedJob>) {
@@ -97,7 +111,6 @@ function removeJob(jobId: string) {
 function finishJob(jobId: string, failed: string | null) {
   const job = useKomfJobs.getState().jobs[jobId]
   if (!job || job.done) return
-  controllers.delete(jobId)
   updateJob(jobId, { done: true, failed })
   if (failed) {
     showToast(`${job.label}: ${failed}`)
@@ -113,9 +126,71 @@ function finishJob(jobId: string, failed: string | null) {
   }
 }
 
-async function runJob(jobId: string, signal: AbortSignal) {
+function unfinishedIds(): string[] {
+  return Object.values(useKomfJobs.getState().jobs)
+    .filter((j) => !j.done)
+    .map((j) => j.id)
+}
+
+// mirrors the aggregate endpoint's per-stream id cap
+const STREAM_ID_CHUNK = 64
+
+// every tracked job's events arrive on aggregate streams (one per STREAM_ID_CHUNK
+// ids); adding or dropping a job reopens them with the live id set
+let streamGen = 0
+const controllers = new Set<AbortController>()
+const resolving = new Set<string>()
+
+function restartStream() {
+  streamGen++
+  for (const c of controllers) c.abort()
+  controllers.clear()
+  const ids = unfinishedIds()
+  for (let i = 0; i < ids.length; i += STREAM_ID_CHUNK) {
+    void runChunk(ids.slice(i, i + STREAM_ID_CHUNK), streamGen)
+  }
+}
+
+// one chunk's stream, re-established on error the way EventSource would; a natural
+// end (every upstream closed) resolves the chunk's final statuses via the jobs API
+async function runChunk(ids: string[], gen: number) {
+  for (;;) {
+    if (gen !== streamGen) return
+    const pending = ids.filter((id) => {
+      const j = useKomfJobs.getState().jobs[id]
+      return j && !j.done
+    })
+    if (pending.length === 0) return
+    const controller = new AbortController()
+    controllers.add(controller)
+    const ended = await runStream(pending, controller.signal)
+    controllers.delete(controller)
+    if (gen !== streamGen) return
+    if (ended && (await resolveAll(pending))) return
+    // the connection dropped mid-run, or komf still reports jobs running after
+    // closing their streams; EventSource would auto-reconnect, a fetch stream
+    // needs a manual one
+    await new Promise((r) => window.setTimeout(r, 3000))
+  }
+}
+
+/** Resolves final statuses via the jobs API; false while any job still runs. */
+async function resolveAll(ids: string[]): Promise<boolean> {
+  const results = await Promise.all(ids.map((id) => resolveFinal(id)))
+  return results.every(Boolean)
+}
+
+async function runStream(ids: string[], signal: AbortSignal): Promise<boolean> {
   try {
-    await streamEvents(jobId, signal, (event) => {
+    await streamEvents(ids, signal, (event) => {
+      const jobId = event.jobId
+      if (!jobId || !useKomfJobs.getState().jobs[jobId]) return
+      if (event.type === 'JobStreamClosedEvent') {
+        // komf closes a job's stream when the job ends, so the final status
+        // comes from the jobs API
+        void resolveFinal(jobId)
+        return
+      }
       switch (event.type) {
         case 'ProviderSeriesEvent':
           updateJob(jobId, { text: `${providerName(event.provider)}…` })
@@ -139,29 +214,40 @@ async function runJob(jobId: string, signal: AbortSignal) {
           break
       }
     })
+    return true
   } catch {
-    // stream errors fall through to the status check so a dropped connection
-    // does not leave the card spinning
+    return false
   }
-  if (signal.aborted) return
-  // the stream closes when the job finishes without a completion event, so the
-  // final status comes from the jobs API
+}
+
+async function resolveFinal(jobId: string): Promise<boolean> {
+  if (resolving.has(jobId)) return true
+  const tracked = useKomfJobs.getState().jobs[jobId]
+  if (!tracked || tracked.done) return true
+  resolving.add(jobId)
   try {
     const job = await komfApi.getJob(jobId)
+    // the stream closing does not make a running job a success; leave it tracked
+    // so the chunk's reconnect loop picks it up again
+    if (job.status === 'RUNNING') return false
     const recorded = useKomfJobs.getState().jobs[jobId]?.failed ?? null
     finishJob(jobId, job.status === 'FAILED' ? (job.message ?? recorded ?? i18n.t('metadata:identify.matchFailed')) : null)
+    return true
   } catch {
     // komf no longer knows the job (e.g. after EventStreamNotFoundEvent): fall back
     // to whatever the stream told us
     const recorded = useKomfJobs.getState().jobs[jobId]?.failed ?? null
     finishJob(jobId, recorded ?? i18n.t('metadata:identify.matchFailed'))
+    return true
+  } finally {
+    resolving.delete(jobId)
   }
 }
 
 // the body is read manually because EventSource auto-reconnects when komf closes
 // the stream on completion; a fetch stream just ends
-async function streamEvents(jobId: string, signal: AbortSignal, onEvent: (event: KomfJobEvent) => void) {
-  const res = await fetch(`/api/v1/komf/jobs/${jobId}/events`, {
+async function streamEvents(jobIds: string[], signal: AbortSignal, onEvent: (event: KomfJobEvent) => void) {
+  const res = await fetch(`/api/v1/komf/jobs/events?ids=${jobIds.map(encodeURIComponent).join(',')}`, {
     signal,
     credentials: 'same-origin',
     headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -189,7 +275,7 @@ function parseFrame(frame: string): KomfJobEvent | null {
   let data = ''
   for (const line of frame.split('\n')) {
     if (line.startsWith('event:')) name = line.slice(6).trim()
-    else if (line.startsWith('data:')) data += line.slice(5).trim()
+    else if (line.startsWith('data:')) data += (data === '' ? '' : '\n') + line.slice(5).trim()
   }
   if (!name) return null
   let fields: Record<string, unknown> = {}

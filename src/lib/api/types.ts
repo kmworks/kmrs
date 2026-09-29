@@ -1169,7 +1169,10 @@ export interface KomfJobPage {
   currentPage: number
 }
 
-export type KomfJobEvent =
+export type KomfJobEvent = {
+  /** injected by the aggregate stream (/komf/jobs/events) so events can be routed to their job */
+  jobId?: string
+} & (
   | { type: 'ProviderSeriesEvent'; provider: string }
   | { type: 'ProviderBookEvent'; provider: string; totalBooks: number; bookProgress: number }
   | { type: 'ProviderCompletedEvent'; provider: string }
@@ -1177,6 +1180,8 @@ export type KomfJobEvent =
   | { type: 'PostProcessingStartEvent' }
   | { type: 'ProcessingErrorEvent'; message: string }
   | { type: 'EventStreamNotFoundEvent' }
+  | { type: 'JobStreamClosedEvent' }
+)
 
 /** Readium position list; locator payloads stay opaque, @readium/shared parses them. */
 export interface R2PositionsDto {

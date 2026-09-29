@@ -145,7 +145,7 @@ export function BrowseSeriesPage() {
         onSetExclusive={filters.setExclusive}
         onClearAll={filters.clearAll}
       />
-      <SeriesSelectionBar selection={selection} loadedIds={loadedIds} />
+      <SeriesSelectionBar selection={selection} items={items} />
     </div>
   )
 }

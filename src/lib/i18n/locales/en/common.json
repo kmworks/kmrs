@@ -56,5 +56,11 @@
     "body": "The page you are looking for does not exist or has moved.",
     "back": "Back to dashboard"
   },
-  "oneshot": "Oneshot"
+  "oneshot": "Oneshot",
+  "komf": {
+    "jobsSummary_one": "{{count}} match",
+    "jobsSummary_other": "{{count}} matches",
+    "moreFailed_one": "+{{count}} failed",
+    "moreFailed_other": "+{{count}} failed"
+  }
 }

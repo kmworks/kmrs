@@ -96,7 +96,7 @@ export function SearchPage() {
           queryKey={['series', 'search', q, sk]}
           fetchPage={(page) => seriesApi.list({ search: scopedSearch(q, libraryIds), page, size: 24 })}
           renderCard={(s, ids) => <SeriesCard series={s} selection={cardSelection(seriesSel, s.id, ids)} />}
-          selectionBar={(items) => <SeriesSelectionBar selection={seriesSel} loadedIds={items.map((s) => s.id)} />}
+          selectionBar={(items) => <SeriesSelectionBar selection={seriesSel} items={items} />}
         />
       ) : tab === 'books' ? (
         <CategoryGrid
