@@ -388,8 +388,9 @@ async fn get_jobs_events(
     }
     let row = connected_integration(&state)?;
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(256);
+    let client = KomfClient::new(&row.url);
     for id in ids {
-        let client = KomfClient::new(&row.url);
+        let client = client.clone();
         let tx = tx.clone();
         tokio::spawn(async move { relay_job_events(client, id, tx).await });
     }
@@ -414,7 +415,8 @@ async fn relay_job_events(
 }
 
 fn closed_frame(job_id: &str) -> String {
-    format!("event: JobStreamClosedEvent\ndata: {{\"jobId\":\"{job_id}\"}}\n\n")
+    let data = serde_json::json!({"jobId": job_id});
+    format!("event: JobStreamClosedEvent\ndata: {data}\n\n")
 }
 
 async fn relay_job_stream(
@@ -429,18 +431,16 @@ async fn relay_job_stream(
         return Ok(());
     }
     let mut stream = response.bytes_stream();
-    let mut buffer = String::new();
+    let mut buffer: Vec<u8> = Vec::new();
     loop {
         tokio::select! {
             // the client went away; stop holding an upstream connection for it
             _ = tx.closed() => return Ok(()),
             chunk = stream.next() => {
                 let Some(chunk) = chunk else { return Ok(()) };
-                buffer.push_str(&String::from_utf8_lossy(&chunk?));
-                let (frames, rest) = split_frames(buffer);
-                buffer = rest;
-                for frame in frames {
-                    if tx.send(tag_frame(&frame, job_id)).await.is_err() {
+                buffer.extend_from_slice(&chunk?);
+                for frame in split_frames(&mut buffer) {
+                    if tx.send(tag_frame(&String::from_utf8_lossy(&frame), job_id)).await.is_err() {
                         return Ok(());
                     }
                 }
@@ -449,24 +449,30 @@ async fn relay_job_stream(
     }
 }
 
-/// Splits complete SSE frames off the buffer; the terminator may be an LF or CRLF pair.
-fn split_frames(mut buffer: String) -> (Vec<String>, String) {
+/// Splits complete SSE frames off the buffer; the terminator may be an LF or CRLF
+/// pair. Splitting happens on bytes because a multi-byte UTF-8 character may
+/// straddle two chunks and must not be decoded mid-sequence.
+fn split_frames(buffer: &mut Vec<u8>) -> Vec<Vec<u8>> {
     let mut frames = vec![];
     loop {
-        let lf = buffer.find("\n\n").map(|p| (p, 2));
-        let crlf = buffer.find("\r\n\r\n").map(|p| (p, 4));
+        let lf = find_subslice(buffer, b"\n\n").map(|p| (p, 2));
+        let crlf = find_subslice(buffer, b"\r\n\r\n").map(|p| (p, 4));
         let Some((pos, len)) = [lf, crlf].into_iter().flatten().min_by_key(|(p, _)| *p) else {
             break;
         };
-        frames.push(buffer[..pos].to_string());
-        buffer = buffer[pos + len..].to_string();
+        frames.push(buffer[..pos].to_vec());
+        buffer.drain(..pos + len);
     }
-    (frames, buffer)
+    frames
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 /// Injects the job id into the frame's data payload so the aggregate client can route
-/// the event. Frames without an event line are keep-alives and pass through untouched;
-/// unparseable payloads pass through too and are simply unroutable.
+/// the event. Frames without an event line are keep-alives; they and frames with
+/// unparseable payloads pass through byte-identical.
 fn tag_frame(frame: &str, job_id: &str) -> String {
     let mut name = None;
     let mut data = String::new();
@@ -491,7 +497,7 @@ fn tag_frame(frame: &str, job_id: &str) -> String {
                 map.insert("jobId".into(), job_id.into());
                 serde_json::Value::Object(map)
             }
-            _ => return format!("event: {name}\ndata: {data}\n\n"),
+            _ => return format!("{frame}\n\n"),
         }
     };
     format!("event: {name}\ndata: {tagged}\n\n")
@@ -1375,5 +1381,71 @@ mod tests {
             assert_eq!(violations[0]["fieldName"], format!("komga.{key}"));
         }
         assert!(komf.captured().is_empty());
+    }
+
+    #[test]
+    fn split_frames_handles_crlf_and_partial_frames() {
+        let mut buf = b"event: A\r\ndata: {}\r\n\r\nevent: B".to_vec();
+        let frames = split_frames(&mut buf);
+        assert_eq!(frames, vec![b"event: A\r\ndata: {}".to_vec()]);
+        assert_eq!(buf, b"event: B".to_vec());
+    }
+
+    #[test]
+    fn split_frames_keeps_utf8_split_across_chunks_intact() {
+        // '日' is E6 97 A5: the frame arrives split inside the character
+        let mut buf = b"data: {\"msg\":\"\xe6".to_vec();
+        assert!(split_frames(&mut buf).is_empty());
+        buf.extend_from_slice(b"\x97\xa5\"}\n\n");
+        let frames = split_frames(&mut buf);
+        assert_eq!(frames.len(), 1);
+        assert_eq!(
+            String::from_utf8_lossy(&frames[0]),
+            "data: {\"msg\":\"日\"}"
+        );
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn tag_frame_injects_job_id() {
+        let tagged = tag_frame(
+            "event: ProviderSeriesEvent\ndata: {\"provider\":\"MANGADEX\"}",
+            "job-1",
+        );
+        let (event_line, data_line) = tagged.split_once('\n').unwrap();
+        assert_eq!(event_line, "event: ProviderSeriesEvent");
+        let data: serde_json::Value =
+            serde_json::from_str(data_line.strip_prefix("data: ").unwrap().trim()).unwrap();
+        assert_eq!(data["provider"], "MANGADEX");
+        assert_eq!(data["jobId"], "job-1");
+    }
+
+    #[test]
+    fn tag_frame_synthesizes_data_for_empty_payloads() {
+        let tagged = tag_frame("event: EventStreamNotFoundEvent", "job-1");
+        assert_eq!(
+            tagged,
+            "event: EventStreamNotFoundEvent\ndata: {\"jobId\":\"job-1\"}\n\n"
+        );
+    }
+
+    #[test]
+    fn tag_frame_passes_keep_alives_and_untaggable_frames_through() {
+        assert_eq!(tag_frame(": keep-alive", "job-1"), ": keep-alive\n\n");
+        let raw = "event: X\ndata: not json";
+        assert_eq!(tag_frame(raw, "job-1"), format!("{raw}\n\n"));
+    }
+
+    #[test]
+    fn closed_frame_escapes_the_job_id() {
+        let frame = closed_frame("bad\"\nid");
+        let data = frame
+            .lines()
+            .nth(1)
+            .unwrap()
+            .strip_prefix("data: ")
+            .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(data).unwrap();
+        assert_eq!(parsed["jobId"], "bad\"\nid");
     }
 }
