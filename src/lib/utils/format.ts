@@ -35,6 +35,21 @@ export function relativeTime(iso?: string): string {
   return rtf.format(-Math.floor(mo / 12), 'year')
 }
 
+// book urls are `file:/…` URLs; display the decoded plain path, falling back to the raw value
+export function filePathFromUrl(url: string): string {
+  const path = url.replace(/^file:(\/\/)?/, '')
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
+}
+
+export function fileNameFromUrl(url: string): string {
+  const path = filePathFromUrl(url)
+  return path.split('/').pop() || path
+}
+
 export function readingDirectionLabel(dir?: string): string {
   switch (dir) {
     case 'LEFT_TO_RIGHT':

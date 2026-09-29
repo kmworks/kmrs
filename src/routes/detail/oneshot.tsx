@@ -31,7 +31,7 @@ import { useBust } from '@/lib/store/thumbnails'
 import { urls } from '@/lib/utils/urls'
 import { readRoute } from '@/lib/utils/nav'
 import { mediaIssue } from '@/lib/utils/mediaStatus'
-import { formatBytes, formatDate, relativeTime } from '@/lib/utils/format'
+import { formatBytes, formatDate, relativeTime, fileNameFromUrl, filePathFromUrl } from '@/lib/utils/format'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
@@ -383,6 +383,11 @@ export function OneshotDetailPage() {
               {bookMd.isbn}
             </Field>
           )}
+          <Field term={t('field.file')} mono>
+            <span className="block truncate" title={filePathFromUrl(book.url)}>
+              {fileNameFromUrl(book.url)}
+            </span>
+          </Field>
           <Field term={t('field.added')}>{formatDate(book.created)}</Field>
         </dl>
 
