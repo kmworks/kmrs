@@ -10,13 +10,16 @@ use crate::error::{ApiError, Violation};
 use crate::service::komf::{self, KomfClient};
 use crate::state::AppState;
 use axum::body::Body;
-use axum::extract::{Path, RawQuery, State};
+use axum::extract::{Path, Query, RawQuery, State};
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{routing, Json, Router};
 use komga_db::dao::komf_integration::{KomfIntegration, KomfIntegrationDao, KomfIntegrationState};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::convert::Infallible;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::StreamExt;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -50,6 +53,7 @@ pub fn router() -> Router<AppState> {
             routing::get(get_config).patch(patch_config),
         )
         .route("/api/v1/komf/jobs", routing::get(get_jobs))
+        .route("/api/v1/komf/jobs/events", routing::get(get_jobs_events))
         .route("/api/v1/komf/jobs/{jobId}", routing::get(get_job))
         .route(
             "/api/v1/komf/jobs/{jobId}/events",
@@ -338,6 +342,159 @@ async fn get_job_events(
         .header(axum::http::header::CACHE_CONTROL, "no-cache")
         .body(Body::from_stream(response.bytes_stream()))
         .unwrap())
+}
+
+/// Bounds the upstream fan-out of one aggregate stream.
+const MAX_EVENT_STREAM_IDS: usize = 64;
+
+#[derive(serde::Deserialize)]
+struct JobsEventsQuery {
+    ids: Option<String>,
+}
+
+/// One stream for many jobs: every requested job's komf event stream is relayed with
+/// its frames tagged by jobId, so a client tracking several matches keeps a single
+/// connection. komf closes a job's stream when the job ends; since the aggregate
+/// stays open until every job's stream has closed, that is reported as a synthetic
+/// JobStreamClosedEvent. A job whose stream fails to open (komf error, unreachable)
+/// gets only the closed event, leaving the final status to the jobs API.
+async fn get_jobs_events(
+    State(state): State<AppState>,
+    auth: RequireAuth,
+    Query(query): Query<JobsEventsQuery>,
+) -> Result<Response, ApiError> {
+    auth.0.require_admin()?;
+    let mut ids: Vec<String> = query
+        .ids
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    ids.retain(|id| seen.insert(id.clone()));
+    if ids.is_empty() {
+        return Err(ApiError::Violations(vec![Violation {
+            field_name: "ids".into(),
+            message: "must not be blank".into(),
+        }]));
+    }
+    if ids.len() > MAX_EVENT_STREAM_IDS {
+        return Err(ApiError::Violations(vec![Violation {
+            field_name: "ids".into(),
+            message: format!("must contain at most {MAX_EVENT_STREAM_IDS} ids"),
+        }]));
+    }
+    let row = connected_integration(&state)?;
+    let (tx, rx) = tokio::sync::mpsc::channel::<String>(256);
+    for id in ids {
+        let client = KomfClient::new(&row.url);
+        let tx = tx.clone();
+        tokio::spawn(async move { relay_job_events(client, id, tx).await });
+    }
+    drop(tx);
+    let stream = ReceiverStream::new(rx).map(Ok::<String, Infallible>);
+    Ok(Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "text/event-stream")
+        .header(axum::http::header::CACHE_CONTROL, "no-cache")
+        .body(Body::from_stream(stream))
+        .unwrap())
+}
+
+async fn relay_job_events(
+    client: KomfClient,
+    job_id: String,
+    tx: tokio::sync::mpsc::Sender<String>,
+) {
+    if let Err(e) = relay_job_stream(&client, &job_id, &tx).await {
+        tracing::debug!("komf job events relay for {job_id} ended early: {e:#}");
+    }
+    let _ = tx.send(closed_frame(&job_id)).await;
+}
+
+fn closed_frame(job_id: &str) -> String {
+    format!("event: JobStreamClosedEvent\ndata: {{\"jobId\":\"{job_id}\"}}\n\n")
+}
+
+async fn relay_job_stream(
+    client: &KomfClient,
+    job_id: &str,
+    tx: &tokio::sync::mpsc::Sender<String>,
+) -> anyhow::Result<()> {
+    let response = client
+        .proxy_job_events(&format!("{KOMF_JOBS}/{job_id}/events"))
+        .await?;
+    if !response.status().is_success() {
+        return Ok(());
+    }
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    loop {
+        tokio::select! {
+            // the client went away; stop holding an upstream connection for it
+            _ = tx.closed() => return Ok(()),
+            chunk = stream.next() => {
+                let Some(chunk) = chunk else { return Ok(()) };
+                buffer.push_str(&String::from_utf8_lossy(&chunk?));
+                let (frames, rest) = split_frames(buffer);
+                buffer = rest;
+                for frame in frames {
+                    if tx.send(tag_frame(&frame, job_id)).await.is_err() {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Splits complete SSE frames off the buffer; the terminator may be an LF or CRLF pair.
+fn split_frames(mut buffer: String) -> (Vec<String>, String) {
+    let mut frames = vec![];
+    loop {
+        let lf = buffer.find("\n\n").map(|p| (p, 2));
+        let crlf = buffer.find("\r\n\r\n").map(|p| (p, 4));
+        let Some((pos, len)) = [lf, crlf].into_iter().flatten().min_by_key(|(p, _)| *p) else {
+            break;
+        };
+        frames.push(buffer[..pos].to_string());
+        buffer = buffer[pos + len..].to_string();
+    }
+    (frames, buffer)
+}
+
+/// Injects the job id into the frame's data payload so the aggregate client can route
+/// the event. Frames without an event line are keep-alives and pass through untouched;
+/// unparseable payloads pass through too and are simply unroutable.
+fn tag_frame(frame: &str, job_id: &str) -> String {
+    let mut name = None;
+    let mut data = String::new();
+    for line in frame.lines() {
+        if let Some(value) = line.strip_prefix("event:") {
+            name = Some(value.trim().to_string());
+        } else if let Some(value) = line.strip_prefix("data:") {
+            if !data.is_empty() {
+                data.push('\n');
+            }
+            data.push_str(value.trim());
+        }
+    }
+    let Some(name) = name else {
+        return format!("{frame}\n\n");
+    };
+    let tagged = if data.is_empty() {
+        serde_json::json!({"jobId": job_id})
+    } else {
+        match serde_json::from_str::<serde_json::Value>(&data) {
+            Ok(serde_json::Value::Object(mut map)) => {
+                map.insert("jobId".into(), job_id.into());
+                serde_json::Value::Object(map)
+            }
+            _ => return format!("event: {name}\ndata: {data}\n\n"),
+        }
+    };
+    format!("event: {name}\ndata: {tagged}\n\n")
 }
 
 /// Proxying only makes sense once provisioning succeeded; anything earlier is a
@@ -759,6 +916,10 @@ mod tests {
             .get_json("/api/v1/komf/jobs/job-1/events", "k-user")
             .await;
         assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, _) = app
+            .get_json("/api/v1/komf/jobs/events?ids=job-1", "k-user")
+            .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -777,6 +938,10 @@ mod tests {
         assert_eq!(status, StatusCode::CONFLICT);
         let (status, _) = app
             .get_json("/api/v1/komf/jobs/job-1/events", "k-admin")
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        let (status, _) = app
+            .get_json("/api/v1/komf/jobs/events?ids=job-1", "k-admin")
             .await;
         assert_eq!(status, StatusCode::CONFLICT);
     }
@@ -1028,6 +1193,76 @@ mod tests {
         let captured = komf.captured();
         assert_eq!(captured.len(), 1);
         assert_eq!(captured[0].path, "/api/jobs/job-1/events");
+    }
+
+    #[tokio::test]
+    async fn jobs_events_aggregates_tagged_frames() {
+        let app = admin_app();
+        let komf = serve_komf_proxy().await;
+        seed_connected(&app.state, &komf.url);
+
+        let (status, headers, bytes) = app
+            .get_response("/api/v1/komf/jobs/events?ids=job-1,job-2,job-1", "k-admin")
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            headers[axum::http::header::CONTENT_TYPE],
+            "text/event-stream"
+        );
+        assert_eq!(headers[axum::http::header::CACHE_CONTROL], "no-cache");
+        let body = String::from_utf8(bytes).unwrap();
+        // each job's frames carry the routing tag; event names pass through unchanged
+        assert!(body.contains("event: ProviderSeriesEvent"));
+        assert!(body.contains("event: ProviderCompletedEvent"));
+        assert!(body.contains("\"jobId\":\"job-1\""));
+        assert!(body.contains("\"jobId\":\"job-2\""));
+        // one closed event per job, even though job-1 was requested twice
+        assert_eq!(body.matches("event: JobStreamClosedEvent").count(), 2);
+
+        let captured = komf.captured();
+        let mut paths: Vec<&str> = captured.iter().map(|r| r.path.as_str()).collect();
+        paths.sort_unstable();
+        assert_eq!(paths, ["/api/jobs/job-1/events", "/api/jobs/job-2/events"]);
+    }
+
+    #[tokio::test]
+    async fn jobs_events_reports_failed_upstream_as_closed() {
+        let app = admin_app();
+        let komf = serve_komf_proxy().await;
+        seed_connected(&app.state, &komf.url);
+
+        let (status, _, bytes) = app
+            .get_response("/api/v1/komf/jobs/events?ids=broken-1", "k-admin")
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        let body = String::from_utf8(bytes).unwrap();
+        assert!(body.contains("event: JobStreamClosedEvent"));
+        assert!(body.contains("\"jobId\":\"broken-1\""));
+        assert!(!body.contains("ProviderSeriesEvent"));
+    }
+
+    #[tokio::test]
+    async fn jobs_events_validates_ids() {
+        let app = admin_app();
+
+        let (status, body) = app.get_json("/api/v1/komf/jobs/events", "k-admin").await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["violations"][0]["fieldName"], "ids");
+        let (status, _) = app
+            .get_json("/api/v1/komf/jobs/events?ids=,,", "k-admin")
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let too_many = (0..=MAX_EVENT_STREAM_IDS)
+            .map(|i| format!("j{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let (status, _) = app
+            .get_json(
+                &format!("/api/v1/komf/jobs/events?ids={too_many}"),
+                "k-admin",
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
