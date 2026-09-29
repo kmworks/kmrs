@@ -1076,6 +1076,23 @@ mod tests {
     }
 
     #[test]
+    fn find_all_decode_error_names_column_and_row() {
+        let db = base_db();
+        db.rw()
+            .execute(
+                "UPDATE READ_PROGRESS SET READ_DATE = 'garbage' WHERE BOOK_ID = 'b1'",
+                [],
+            )
+            .unwrap();
+        let err = dao(&db)
+            .find_all(&search(None), &ctx_user(), &unpaged())
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("READ_DATE"), "{msg}");
+        assert!(msg.contains("b1"), "{msg}");
+    }
+
+    #[test]
     fn find_all_parses_iso8601_read_date() {
         let db = base_db();
         db.rw()
