@@ -1,0 +1,75 @@
+import { EpubPreferences, type IEpubPreferences } from '@readium/navigator'
+import { Locator, type Publication } from '@readium/shared'
+import type { EpubTheme } from '@/lib/store/readerSettings'
+
+type ThemeColors = Pick<IEpubPreferences, 'backgroundColor' | 'textColor' | 'linkColor' | 'visitedColor'>
+
+// DAY clears the color overrides so publisher styles win
+const THEME_COLORS: Record<EpubTheme, ThemeColors> = {
+  DAY: { backgroundColor: null, textColor: null, linkColor: null, visitedColor: null },
+  SEPIA: { backgroundColor: '#e9ddc8', textColor: '#000000', linkColor: '#0000ee', visitedColor: '#551a8b' },
+  NIGHT: { backgroundColor: '#000000', textColor: '#fefefe', linkColor: '#63caff', visitedColor: '#0099e5' },
+}
+
+export function buildEpubPreferences(s: {
+  epubTheme: EpubTheme
+  epubScroll: boolean
+  epubFontSize: number
+  epubLineHeight: number | null
+}): EpubPreferences {
+  return new EpubPreferences({
+    ...THEME_COLORS[s.epubTheme],
+    scroll: s.epubScroll,
+    fontSize: s.epubFontSize === 1 ? null : s.epubFontSize,
+    lineHeight: s.epubLineHeight,
+  })
+}
+
+/**
+ * kmrs serves positions and stored progression with EPUB-internal hrefs (OEBPS/ch1.xhtml)
+ * while the manifest's readingOrder uses absolute /resource/ URLs, and the navigator
+ * matches hrefs by exact string — align locators to the readingOrder.
+ */
+export function alignLocatorHref(locator: Locator, publication: Publication): Locator {
+  const item = publication.readingOrder.items.find(
+    (i) => i.href === locator.href || i.href.endsWith(`/${locator.href}`),
+  )
+  if (!item || item.href === locator.href) return locator
+  return new Locator({
+    href: item.href,
+    type: item.type ?? locator.type,
+    title: locator.title,
+    locations: locator.locations,
+    text: locator.text,
+  })
+}
+
+/** 1-based position number for the slider: the locator's own position, else the readingOrder match. */
+export function positionOf(locator: Locator, positions: Locator[]): number {
+  const own = locator.locations.position
+  if (own && own >= 1) return Math.floor(own)
+  const index = positions.findIndex((p) => p.href === locator.href)
+  return index >= 0 ? index + 1 : 1
+}
+
+/** kmrs validates progression hrefs against EPUB-internal paths, not the absolute /resource/ URLs the navigator uses. */
+export function progressionLocator(locator: Locator): unknown {
+  const json = locator.serialize()
+  const marker = '/resource/'
+  const index = typeof json.href === 'string' ? json.href.indexOf(marker) : -1
+  if (index >= 0) json.href = json.href.slice(index + marker.length)
+  return json
+}
+
+export interface TocEntry {
+  title?: string
+  href?: string
+  children?: TocEntry[]
+}
+
+/** kmrs puts toc/landmarks/pageList at the manifest top level; ts-toolkit only parses toc. */
+export function manifestEntries(json: unknown, key: 'toc' | 'landmarks' | 'pageList'): TocEntry[] {
+  if (!json || typeof json !== 'object') return []
+  const value = (json as Record<string, unknown>)[key]
+  return Array.isArray(value) ? (value as TocEntry[]) : []
+}

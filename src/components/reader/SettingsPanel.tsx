@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { X } from '@phosphor-icons/react'
@@ -15,6 +14,7 @@ import { IconButton } from '@/components/ui/IconButton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Slider } from '@/components/ui/Slider'
 import { Switch } from '@/components/ui/Switch'
+import { Row, Section } from '@/components/reader/panel'
 import { cn } from '@/lib/utils/cn'
 
 const SCALE_LABEL_KEYS: Record<ScaleType, string> = {
@@ -55,24 +55,6 @@ interface SettingsPanelProps {
   onDirectionChange: (direction: ReadingDirection) => void
   onAlwaysFullscreenChange: (on: boolean) => void
   onClose: () => void
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="space-y-2.5">
-      <h3 className="text-[11px] font-medium tracking-wide text-white/50 uppercase">{title}</h3>
-      {children}
-    </section>
-  )
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-[13px] text-white/80">{label}</span>
-      {children}
-    </div>
-  )
 }
 
 export function SettingsPanel({

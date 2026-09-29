@@ -21,6 +21,25 @@
     "lastPage": "最后一页",
     "page": "页码"
   },
+  "epub": {
+    "toc": "目录",
+    "landmarks": "地标",
+    "pageList": "页面列表",
+    "position": "位置",
+    "theme": "主题",
+    "themeDay": "日间",
+    "themeSepia": "羊皮纸",
+    "themeNight": "夜间",
+    "layout": "布局",
+    "layoutPaginated": "分页",
+    "layoutScroll": "滚动",
+    "typography": "排版",
+    "fontSize": "字号",
+    "lineHeight": "行距",
+    "default": "默认",
+    "resetDefault": "恢复默认",
+    "loadFailed": "EPUB 加载失败"
+  },
   "panel": {
     "title": "阅读器设置",
     "close": "关闭设置",

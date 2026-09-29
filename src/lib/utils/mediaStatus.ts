@@ -70,8 +70,6 @@ export function mediaIssue(book: Pick<BookDto, 'media' | 'deleted'>): MediaIssue
     default:
       break
   }
-  if (media.mediaProfile === 'EPUB' && !media.epubDivinaCompatible)
-    return { severity: 'muted', title: i18n.t('mediaIssue.epubUnsupported') }
   return null
 }
 

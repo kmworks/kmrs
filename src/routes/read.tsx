@@ -5,11 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { BookOpen, CircleNotch, Images, Warning } from '@phosphor-icons/react'
 import i18n from '@/lib/i18n'
 import { booksApi } from '@/lib/api/books'
-import { readlistsApi } from '@/lib/api/collections'
 import { bookPostersApi, readListPostersApi, seriesPostersApi } from '@/lib/api/posters'
 import { seriesApi } from '@/lib/api/series'
 import { ApiError } from '@/lib/api/client'
-import type { BookDto, ReadingDirection } from '@/lib/api/types'
+import type { ReadingDirection } from '@/lib/api/types'
 import { canDownload, isAdmin, useAuthStore } from '@/lib/store/auth'
 import { useThumbnailBust } from '@/lib/store/thumbnails'
 import {
@@ -28,12 +27,14 @@ import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ContinuousReader } from '@/components/reader/ContinuousReader'
+import { EpubReader } from '@/components/reader/epub/EpubReader'
 import { PagedReader } from '@/components/reader/PagedReader'
 import { ReaderChrome, type PosterTarget } from '@/components/reader/ReaderChrome'
 import { SettingsPanel } from '@/components/reader/SettingsPanel'
 import { ShortcutsHelp } from '@/components/reader/ShortcutsHelp'
 import { ThumbnailExplorer } from '@/components/reader/ThumbnailExplorer'
 import { useWindowKeys } from '@/components/reader/keys'
+import { useReaderNav } from '@/components/reader/useReaderNav'
 
 const SCALE_CYCLE: ScaleType[] = ['SCREEN', 'WIDTH', 'WIDTH_SHRINK_ONLY', 'HEIGHT', 'ORIGINAL']
 const CONTINUOUS_SCALE_CYCLE: ContinuousScaleType[] = ['WIDTH', 'ORIGINAL']
@@ -79,9 +80,20 @@ function Reader({ bookId }: { bookId: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const context = searchParams.get('context')
-  const contextId = searchParams.get('contextId')
-  const incognito = searchParams.get('incognito') === 'true'
+  const {
+    context,
+    contextId,
+    incognito,
+    siblingPrevious,
+    siblingNext,
+    isFullscreen,
+    toggleFullscreen,
+    onAlwaysFullscreenChange,
+    exitReader,
+    goToBook,
+    goBook,
+    boundaryTurn,
+  } = useReaderNav(bookId)
   const initialPageParam = Number(searchParams.get('page'))
 
   const settingsDirection = useReaderSettings((s) => s.readingDirection)
@@ -91,6 +103,8 @@ function Reader({ bookId }: { bookId: string }) {
 
   const bookQuery = useQuery({ queryKey: ['books', 'detail', bookId], queryFn: () => booksApi.get(bookId) })
   const book = bookQuery.data
+  // reflowable EPUBs go to the Readium-based reader and have no image pages
+  const reflowableEpub = book?.media.mediaProfile === 'EPUB' && !book.media.epubDivinaCompatible
   const seriesQuery = useQuery({
     queryKey: ['series', 'detail', book?.seriesId],
     queryFn: () => seriesApi.get(book!.seriesId),
@@ -98,6 +112,7 @@ function Reader({ bookId }: { bookId: string }) {
   })
   const pagesQuery = useQuery({
     queryKey: ['books', 'pages', bookId],
+    enabled: !reflowableEpub,
     queryFn: async (): Promise<SpreadPage[]> => {
       const [pageDtos, supported] = await Promise.all([booksApi.pages(bookId), supportedImageFormats()])
       return pageDtos.map((p) => ({
@@ -111,20 +126,6 @@ function Reader({ bookId }: { bookId: string }) {
   const pages = pagesQuery.data
   const pagesCount = pages?.length ?? 0
 
-  const siblingQuery = (dir: 'previous' | 'next') => ({
-    queryKey: ['books', 'sibling', dir, bookId, context, contextId],
-    queryFn: (): Promise<BookDto | null> => {
-      const request =
-        context === 'READLIST' && contextId ? readlistsApi[dir](contextId, bookId) : booksApi[dir](bookId)
-      return request.catch((e) => {
-        if (e instanceof ApiError && e.status === 404) return null
-        throw e
-      })
-    },
-  })
-  const siblingPrevious = useQuery(siblingQuery('previous')).data ?? null
-  const siblingNext = useQuery(siblingQuery('next')).data ?? null
-
   const [page, setPage] = useState<number | null>(null)
   const [chromeVisible, setChromeVisible] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -132,15 +133,12 @@ function Reader({ bookId }: { bookId: string }) {
   const [helpOpen, setHelpOpen] = useState(false)
   // series metadata can override the direction for this session only
   const [sessionDirection, setSessionDirection] = useState<ReadingDirection | null>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [posterBusy, setPosterBusy] = useState(false)
 
   const direction = sessionDirection ?? settingsDirection
 
   const progressTimer = useRef<number | undefined>(undefined)
   const pendingPage = useRef<number | null>(null)
-  const jumpArmed = useRef<'previous' | 'next' | null>(null)
-  const jumpTimer = useRef<number | undefined>(undefined)
 
   // initial page: ?page= wins, then unread progress, else first page
   useEffect(() => {
@@ -200,95 +198,6 @@ function Reader({ bookId }: { bookId: string }) {
   }, [seriesQuery.data, settingsDirection, t])
 
   useDocumentTitle(book ? book.metadata.title || book.name : undefined)
-  useEffect(
-    () => () => {
-      window.clearTimeout(jumpTimer.current)
-    },
-    [],
-  )
-
-  useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
-    document.addEventListener('fullscreenchange', onChange)
-    return () => document.removeEventListener('fullscreenchange', onChange)
-  }, [])
-  useEffect(() => {
-    if (useReaderSettings.getState().alwaysFullscreen && !document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {})
-    }
-  }, [])
-  useEffect(
-    () => () => {
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    },
-    [],
-  )
-  const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    else document.documentElement.requestFullscreen().catch(() => {})
-  }, [])
-  const onAlwaysFullscreenChange = useCallback((on: boolean) => {
-    useReaderSettings.getState().update({ alwaysFullscreen: on })
-    if (on) document.documentElement.requestFullscreen().catch(() => {})
-    else if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-  }, [])
-
-  // closing returns to whatever page opened the reader; the book page is only the fallback for direct loads
-  const exitReader = useCallback(() => {
-    if ((window.history.state?.idx ?? 0) > 0) navigate(-1)
-    else navigate(`/book/${bookId}`)
-  }, [navigate, bookId])
-
-  // replace keeps the reading session a single history entry, so back from the book page never loops into the reader
-  const goToBook = useCallback(() => navigate(`/book/${bookId}`, { replace: true }), [navigate, bookId])
-
-  const contextQuery = useCallback(() => {
-    const q = new URLSearchParams()
-    if (context && contextId) {
-      q.set('context', context)
-      q.set('contextId', contextId)
-    }
-    if (incognito) q.set('incognito', 'true')
-    const s = q.toString()
-    return s ? `?${s}` : ''
-  }, [context, contextId, incognito])
-
-  const goBook = useCallback(
-    (dir: 'previous' | 'next') => {
-      const sibling = dir === 'next' ? siblingNext : siblingPrevious
-      // replace keeps the whole reading session as one history entry, so closing still returns to the page that opened the reader
-      if (sibling) navigate(`/book/${sibling.id}/read${contextQuery()}`, { replace: true })
-      else exitReader()
-    },
-    [siblingNext, siblingPrevious, navigate, contextQuery, exitReader],
-  )
-
-  // first boundary turn arms the jump, a second one within the toast window commits it
-  const boundaryTurn = useCallback(
-    (dir: 'previous' | 'next') => {
-      if (jumpArmed.current === dir) {
-        window.clearTimeout(jumpTimer.current)
-        jumpArmed.current = null
-        goBook(dir)
-        return
-      }
-      jumpArmed.current = dir
-      const hasSibling = dir === 'next' ? !!siblingNext : !!siblingPrevious
-      showToast(
-        t(
-          dir === 'next'
-            ? hasSibling
-              ? 'toast.boundary.lastNext'
-              : 'toast.boundary.lastExit'
-            : hasSibling
-              ? 'toast.boundary.firstPrevious'
-              : 'toast.boundary.firstExit',
-        ),
-      )
-      jumpTimer.current = window.setTimeout(() => (jumpArmed.current = null), 3000)
-    },
-    [siblingNext, siblingPrevious, goBook, t],
-  )
 
   const goTo = useCallback(
     (n: number) => {
@@ -429,6 +338,10 @@ function Reader({ bookId }: { bookId: string }) {
         </div>
       )
     }
+  }
+
+  if (book && reflowableEpub) {
+    return <EpubReader book={book} />
   }
 
   if (pagesQuery.isError) {

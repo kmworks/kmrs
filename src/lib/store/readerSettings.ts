@@ -6,6 +6,7 @@ import type { PagedReaderLayout } from '@/lib/utils/spreads'
 export type ScaleType = 'SCREEN' | 'WIDTH' | 'WIDTH_SHRINK_ONLY' | 'HEIGHT' | 'ORIGINAL'
 export type ContinuousScaleType = 'WIDTH' | 'ORIGINAL'
 export type ReaderBackground = 'BLACK' | 'GRAY' | 'WHITE'
+export type EpubTheme = 'DAY' | 'SEPIA' | 'NIGHT'
 
 interface ReaderSettings {
   scale: ScaleType
@@ -20,6 +21,12 @@ interface ReaderSettings {
   animations: boolean
   alwaysFullscreen: boolean
   background: ReaderBackground
+  epubTheme: EpubTheme
+  epubScroll: boolean
+  /** multiplier over the publisher font size, 1 keeps the book default */
+  epubFontSize: number
+  /** null keeps the publisher default */
+  epubLineHeight: number | null
 }
 
 interface ReaderSettingsState extends ReaderSettings {
@@ -45,6 +52,10 @@ export const useReaderSettings = create<ReaderSettingsState>()(
       animations: true,
       alwaysFullscreen: false,
       background: 'BLACK',
+      epubTheme: 'DAY',
+      epubScroll: false,
+      epubFontSize: 1,
+      epubLineHeight: null,
       update: (patch) => set(patch),
     }),
     { name: 'kmweb.reader' },

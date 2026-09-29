@@ -1177,3 +1177,15 @@ export type KomfJobEvent =
   | { type: 'PostProcessingStartEvent' }
   | { type: 'ProcessingErrorEvent'; message: string }
   | { type: 'EventStreamNotFoundEvent' }
+
+/** Readium position list; locator payloads stay opaque, @readium/shared parses them. */
+export interface R2PositionsDto {
+  total: number
+  positions: unknown[]
+}
+
+export interface R2ProgressionDto {
+  modified: string
+  device: { id: string; name: string }
+  locator: unknown
+}

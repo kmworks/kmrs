@@ -21,6 +21,25 @@
     "lastPage": "Last page",
     "page": "Page"
   },
+  "epub": {
+    "toc": "Contents",
+    "landmarks": "Landmarks",
+    "pageList": "Pages",
+    "position": "Position",
+    "theme": "Theme",
+    "themeDay": "Day",
+    "themeSepia": "Sepia",
+    "themeNight": "Night",
+    "layout": "Layout",
+    "layoutPaginated": "Paginated",
+    "layoutScroll": "Scrolled",
+    "typography": "Typography",
+    "fontSize": "Font size",
+    "lineHeight": "Line height",
+    "default": "Default",
+    "resetDefault": "Reset to default",
+    "loadFailed": "Failed to load the EPUB"
+  },
   "panel": {
     "title": "Reader settings",
     "close": "Close settings",

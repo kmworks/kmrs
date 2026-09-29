@@ -7,6 +7,8 @@ import type {
   Page,
   PageDto,
   PageParams,
+  R2PositionsDto,
+  R2ProgressionDto,
   ReadListDto,
 } from './types'
 
@@ -31,6 +33,12 @@ export const booksApi = {
   pages: (bookId: string) => api.get<PageDto[]>(`/api/v1/books/${bookId}/pages`),
 
   readlists: (bookId: string) => api.get<ReadListDto[]>(`/api/v1/books/${bookId}/readlists`),
+
+  positions: (bookId: string) => api.get<R2PositionsDto>(`/api/v1/books/${bookId}/positions`),
+  /** undefined when the user has no stored progression (204) */
+  progression: (bookId: string) => api.get<R2ProgressionDto | undefined>(`/api/v1/books/${bookId}/progression`),
+  updateProgression: (bookId: string, body: R2ProgressionDto) =>
+    api.put<void>(`/api/v1/books/${bookId}/progression`, body),
 
   updateProgress: (bookId: string, progress: { page?: number; completed?: boolean }) =>
     api.patch<void>(`/api/v1/books/${bookId}/read-progress`, progress),

@@ -49,8 +49,7 @@
     "error": "媒体分析失败",
     "unsupported": "不支持此媒体类型",
     "outdated": "此书的文件已变更，需要重新分析",
-    "unknown": "此书尚未分析",
-    "epubUnsupported": "网页阅读器暂不支持 EPUB"
+    "unknown": "此书尚未分析"
   },
   "notFound": {
     "title": "页面不存在",

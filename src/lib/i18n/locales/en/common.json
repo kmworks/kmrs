@@ -49,8 +49,7 @@
     "error": "Media analysis failed",
     "unsupported": "This media type is not supported",
     "outdated": "The file for this book has changed and needs to be re-analyzed",
-    "unknown": "This book has not been analyzed yet",
-    "epubUnsupported": "EPUB books are not supported by the web reader yet"
+    "unknown": "This book has not been analyzed yet"
   },
   "notFound": {
     "title": "Page not found",
