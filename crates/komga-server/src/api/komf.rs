@@ -454,15 +454,17 @@ async fn relay_job_stream(
 /// straddle two chunks and must not be decoded mid-sequence.
 fn split_frames(buffer: &mut Vec<u8>) -> Vec<Vec<u8>> {
     let mut frames = vec![];
+    let mut start = 0;
     loop {
-        let lf = find_subslice(buffer, b"\n\n").map(|p| (p, 2));
-        let crlf = find_subslice(buffer, b"\r\n\r\n").map(|p| (p, 4));
+        let lf = find_subslice(&buffer[start..], b"\n\n").map(|p| (p, 2));
+        let crlf = find_subslice(&buffer[start..], b"\r\n\r\n").map(|p| (p, 4));
         let Some((pos, len)) = [lf, crlf].into_iter().flatten().min_by_key(|(p, _)| *p) else {
             break;
         };
-        frames.push(buffer[..pos].to_vec());
-        buffer.drain(..pos + len);
+        frames.push(buffer[start..start + pos].to_vec());
+        start += pos + len;
     }
+    buffer.drain(..start);
     frames
 }
 
@@ -969,6 +971,10 @@ mod tests {
 
         let (status, _) = app.get_json("/api/v1/komf/jobs", "k-admin").await;
         assert_eq!(status, StatusCode::CONFLICT);
+        let (status, _) = app
+            .get_json("/api/v1/komf/jobs/events?ids=job-1", "k-admin")
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT);
     }
 
     #[tokio::test]
@@ -1245,6 +1251,23 @@ mod tests {
         assert!(body.contains("event: JobStreamClosedEvent"));
         assert!(body.contains("\"jobId\":\"broken-1\""));
         assert!(!body.contains("ProviderSeriesEvent"));
+    }
+
+    #[tokio::test]
+    async fn jobs_events_keeps_good_jobs_when_others_fail() {
+        let app = admin_app();
+        let komf = serve_komf_proxy().await;
+        seed_connected(&app.state, &komf.url);
+
+        let (status, _, bytes) = app
+            .get_response("/api/v1/komf/jobs/events?ids=job-1,broken-1", "k-admin")
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        let body = String::from_utf8(bytes).unwrap();
+        assert!(body.contains("event: ProviderSeriesEvent"));
+        assert!(body.contains("\"jobId\":\"job-1\""));
+        assert!(body.contains("\"jobId\":\"broken-1\""));
+        assert_eq!(body.matches("event: JobStreamClosedEvent").count(), 2);
     }
 
     #[tokio::test]
