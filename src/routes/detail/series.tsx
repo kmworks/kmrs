@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Trans, useTranslation } from 'react-i18next'
 import {
   ArrowCounterClockwise,
   ArrowSquareOut,
@@ -24,6 +25,7 @@ import { booksApi } from '@/lib/api/books'
 import { librariesApi } from '@/lib/api/libraries'
 import { komfApi } from '@/lib/api/komf'
 import { canDownload, isAdmin, useAuthStore } from '@/lib/store/auth'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { useKomfIntegration } from '@/lib/hooks/useKomfIntegration'
 import { useBust } from '@/lib/store/thumbnails'
 import { urls } from '@/lib/utils/urls'
@@ -69,6 +71,7 @@ import { BOOK_FILTER_GROUPS, SERIES_BOOK_DEFAULT_SORT, SERIES_BOOK_SORT_OPTIONS 
 const PAGE_SIZE = 48
 
 export function SeriesDetailPage() {
+  const { t } = useTranslation('detail')
   const { seriesId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -137,20 +140,20 @@ export function SeriesDetailPage() {
 
   const analyzeMutation = useMutation({
     mutationFn: () => seriesApi.analyze(seriesId),
-    onSuccess: () => showToast('Analysis queued'),
-    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the analysis'),
+    onSuccess: () => showToast(t('toast.analysisQueued')),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('toast.queueAnalysisFailed')),
   })
   const refreshMutation = useMutation({
     mutationFn: () => seriesApi.refreshMetadata(seriesId),
-    onSuccess: () => showToast('Metadata refresh queued'),
-    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the refresh'),
+    onSuccess: () => showToast(t('toast.refreshQueued')),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('toast.queueRefreshFailed')),
   })
   // komf PATCHes the metadata asynchronously once the job runs; the SSE SeriesChanged
   // invalidation picks the result up, so no query invalidation here
   const komfMatchMutation = useMutation({
     mutationFn: (libraryId: string) => komfApi.matchSeries(libraryId, seriesId),
     onSuccess: ({ id }) => trackKomfJob(id, title),
-    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the match'),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('toast.queueMatchFailed')),
   })
   const komfResetMutation = useMutation({
     mutationFn: (libraryId: string) => komfApi.resetSeries(libraryId, seriesId),
@@ -158,9 +161,9 @@ export function SeriesDetailPage() {
       setKomfResetOpen(false)
       queryClient.invalidateQueries({ queryKey: ['series'] })
       queryClient.invalidateQueries({ queryKey: ['books'] })
-      showToast('Metadata reset')
+      showToast(t('toast.metadataReset'))
     },
-    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not reset the metadata'),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('toast.resetMetadataFailed')),
   })
   const deleteMutation = useMutation({
     mutationFn: () => seriesApi.deleteFile(seriesId),
@@ -170,12 +173,10 @@ export function SeriesDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       navigate('/series')
     },
-    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not delete the files'),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('toast.deleteFilesFailed')),
   })
 
-  useEffect(() => {
-    document.title = title ? `${title} · KMReader` : 'KMReader'
-  }, [title])
+  useDocumentTitle(title || undefined)
 
   const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = booksQuery
   const loadMore = useCallback(() => {
@@ -185,7 +186,7 @@ export function SeriesDetailPage() {
 
   if (seriesQuery.isPending) return <DetailSkeleton />
   if (seriesQuery.error)
-    return <DetailError error={seriesQuery.error} notFoundTitle="Series not found" onRetry={() => seriesQuery.refetch()} />
+    return <DetailError error={seriesQuery.error} notFoundTitle={t('notFound.series')} onRetry={() => seriesQuery.refetch()} />
   if (!series) return null
   if (series.oneshot) return <Navigate to={`/oneshot/${series.id}`} replace />
 
@@ -230,81 +231,81 @@ export function SeriesDetailPage() {
               onClick={() => readTargetRoute && navigate(readTargetRoute)}
             >
               <BookOpen className="size-4" />
-              Read
+              {t('read')}
             </Button>
-            <Tooltip content="Read without saving progress">
+            <Tooltip content={t('peekTooltip')}>
               <Button
                 variant="secondary"
                 disabled={!readTargetRoute}
                 onClick={() => readTargetRoute && navigate(`${readTargetRoute}?incognito=true`)}
               >
                 <EyeSlash className="size-4" />
-                Peek
+                {t('peek')}
               </Button>
             </Tooltip>
             {canMarkRead && (
               <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(true)}>
                 <Checks className="size-4" />
-                Mark as read
+                {t('markAsRead')}
               </Button>
             )}
             {canMarkUnread && (
               <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(false)}>
                 <Circle className="size-4" />
-                Mark as unread
+                {t('markAsUnread')}
               </Button>
             )}
             {canDownload(user) && <DownloadLink href={urls.seriesFile(series.id)} disabled={unavailable} />}
             {isAdmin(user) && (
               <Menu
                 trigger={
-                  <IconButton label="More actions">
+                  <IconButton label={t('moreActions')}>
                     <DotsThreeVertical className="size-5" />
                   </IconButton>
                 }
               >
                 <MenuItem onSelect={() => setEditOpen(true)}>
-                  <PencilSimple className="size-4" /> Edit metadata
+                  <PencilSimple className="size-4" /> {t('menu.editMetadata')}
                 </MenuItem>
                 <MenuItem onSelect={() => setPostersOpen(true)}>
-                  <ImageSquare className="size-4" /> Manage posters
+                  <ImageSquare className="size-4" /> {t('menu.managePosters')}
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem onSelect={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending}>
-                  <FileMagnifyingGlass className="size-4" /> Analyze
+                  <FileMagnifyingGlass className="size-4" /> {t('menu.analyze')}
                 </MenuItem>
                 <MenuItem onSelect={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
-                  <ArrowsClockwise className="size-4" /> Refresh metadata
+                  <ArrowsClockwise className="size-4" /> {t('menu.refreshMetadata')}
                 </MenuItem>
                 {komfReady && (
                   <>
                     <MenuSeparator />
                     <MenuItem onSelect={() => setIdentifyOpen(true)}>
-                      <Sparkle className="size-4" /> Identify with komf
+                      <Sparkle className="size-4" /> {t('menu.identifyKomf')}
                     </MenuItem>
                     <MenuItem
                       onSelect={() => komfMatchMutation.mutate(series.libraryId)}
                       disabled={komfMatchMutation.isPending}
                     >
-                      <PlugsConnected className="size-4" /> Match with komf
+                      <PlugsConnected className="size-4" /> {t('menu.matchKomf')}
                     </MenuItem>
                     <MenuItem onSelect={() => setKomfResetOpen(true)}>
-                      <ArrowCounterClockwise className="size-4" /> Reset metadata with komf
+                      <ArrowCounterClockwise className="size-4" /> {t('menu.resetKomf')}
                     </MenuItem>
                   </>
                 )}
                 <MenuSeparator />
                 <MenuItem onSelect={() => setAddToCollectionOpen(true)}>
-                  <FolderPlus className="size-4" /> Add to collection
+                  <FolderPlus className="size-4" /> {t('addToCollection')}
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem danger onSelect={() => setDeleteOpen(true)}>
-                  <Trash className="size-4" /> Delete file
+                  <Trash className="size-4" /> {t('menu.deleteFile')}
                 </MenuItem>
               </Menu>
             )}
           </div>
-          {unavailable && <p className="mt-2 text-xs font-medium text-danger">Unavailable</p>}
+          {unavailable && <p className="mt-2 text-xs font-medium text-danger">{t('common:state.unavailable')}</p>}
         </div>
       </DetailHero>
 
@@ -348,15 +349,27 @@ export function SeriesDetailPage() {
       )}
 
       <p className="mt-4 text-sm text-ink-3">
-        <span className="font-mono text-ink-2">{series.booksCount}</span> books
+        <Trans
+          i18nKey="detail:stats.books"
+          count={series.booksCount}
+          components={{ num: <span className="font-mono text-ink-2" /> }}
+        />
         {' · '}
-        <span className="font-mono text-ink-2">{series.booksReadCount}</span> read
+        <Trans
+          i18nKey="detail:stats.read"
+          count={series.booksReadCount}
+          components={{ num: <span className="font-mono text-ink-2" /> }}
+        />
         {' · '}
-        <span className="font-mono text-ink-2">{series.booksUnreadCount}</span> unread
+        <Trans
+          i18nKey="detail:stats.unread"
+          count={series.booksUnreadCount}
+          components={{ num: <span className="font-mono text-ink-2" /> }}
+        />
       </p>
 
       <section className="mt-10">
-        <h2 className="mb-4 font-display text-xl font-semibold text-ink">Books</h2>
+        <h2 className="mb-4 font-display text-xl font-semibold text-ink">{t('booksHeading')}</h2>
         <FilterBar
           count={booksTotal}
           noun="books"
@@ -375,16 +388,19 @@ export function SeriesDetailPage() {
           <GridSkeleton count={6} />
         ) : booksQuery.error ? (
           <EmptyState
-            title="Could not load books"
+            title={t('empty.loadBooksFailed')}
             body={booksQuery.error.message}
             action={
               <Button variant="secondary" onClick={() => booksQuery.refetch()}>
-                Retry
+                {t('common:action.retry')}
               </Button>
             }
           />
         ) : books.length === 0 ? (
-          <EmptyState title="No books" body={hasFilters ? 'No books match the filters.' : 'This series has no books.'} />
+          <EmptyState
+            title={t('empty.noBooks')}
+            body={hasFilters ? t('empty.noBooksFiltered') : t('empty.seriesEmpty')}
+          />
         ) : (
           <>
             <MediaGrid>
@@ -403,7 +419,7 @@ export function SeriesDetailPage() {
       </section>
 
       {collections.length > 0 && (
-        <HorizontalRow title="In collections" className="mt-10">
+        <HorizontalRow title={t('inCollections')} className="mt-10">
           {collections.map((c) => (
             <div key={c.id} className="shrink-0" style={{ width: rowCardWidth }}>
               <CollectionCard id={c.id} name={c.name} count={c.seriesIds.length} />
@@ -439,7 +455,7 @@ export function SeriesDetailPage() {
             open={identifyOpen}
             onOpenChange={setIdentifyOpen}
             series={series}
-            onIdentified={() => showToast('Identify queued')}
+            onIdentified={() => showToast(t('toast.identifyQueued'))}
           />
           <KomfResetDialog
             open={komfResetOpen}
@@ -454,8 +470,8 @@ export function SeriesDetailPage() {
       <ConfirmDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete series files"
-        name={`all files of ${title}`}
+        title={t('deleteDialog.seriesFilesTitle')}
+        name={t('deleteDialog.seriesFilesName', { name: title })}
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
       />

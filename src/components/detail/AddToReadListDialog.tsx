@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Plus } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
 import { booksApi } from '@/lib/api/books'
 import type { ReadListDto } from '@/lib/api/types'
-import { plural } from '@/lib/utils/format'
 import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
 import { Button } from '@/components/ui/Button'
@@ -18,6 +18,7 @@ interface AddToReadListDialogProps {
 }
 
 export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadListDialogProps) {
+  const { t } = useTranslation('detail')
   const queryClient = useQueryClient()
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -63,7 +64,7 @@ export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadLis
   const creatingOpen = creating || (listsQuery.isSuccess && lists.length === 0)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Add to read list" size="sm">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('addToReadList')} size="sm">
       <div className="py-2">
         {listsQuery.isPending ? (
           <div className="space-y-3 px-5 py-2">
@@ -72,13 +73,13 @@ export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadLis
             <Skeleton className="h-8 w-2/3" />
           </div>
         ) : lists.length === 0 ? (
-          <p className="px-5 py-3 text-sm text-ink-3">No read lists yet</p>
+          <p className="px-5 py-3 text-sm text-ink-3">{t('addToReadListDialog.empty')}</p>
         ) : (
           lists.map((list) => (
             <div key={list.id} className="flex items-center justify-between gap-3 px-5 py-2">
               <div className="min-w-0">
                 <p className="truncate text-sm text-ink">{list.name}</p>
-                <p className="text-xs text-ink-3">{plural(list.bookIds.length, 'book')}</p>
+                <p className="text-xs text-ink-3">{t('bookCount', { count: list.bookIds.length })}</p>
               </div>
               <Switch
                 checked={memberIds.has(list.id)}
@@ -100,19 +101,19 @@ export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadLis
             className="flex items-end gap-2"
           >
             <TextField
-              label="New read list"
+              label={t('browse:addToReadList.newLabel')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Name"
+              placeholder={t('nameLabel')}
               className="flex-1"
               autoFocus
             />
             <Button type="submit" variant="primary" loading={createMutation.isPending} disabled={!newName.trim()}>
-              Create
+              {t('common:action.create')}
             </Button>
             {lists.length > 0 && (
               <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
-                Cancel
+                {t('common:action.cancel')}
               </Button>
             )}
           </form>
@@ -123,7 +124,7 @@ export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadLis
             className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-2 transition-colors hover:bg-raised hover:text-ink"
           >
             <Plus className="size-4" />
-            New read list
+            {t('browse:addToReadList.newLabel')}
           </button>
         )}
       </div>

@@ -1,10 +1,11 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Trash } from '@phosphor-icons/react'
 import { pageHashesApi } from '@/lib/api/pageHashes'
 import type { PageHashMatchDto } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
-import { formatBytes, plural } from '@/lib/utils/format'
+import { formatBytes } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { IconButton } from '@/components/ui/IconButton'
@@ -17,6 +18,7 @@ interface MatchesDialogProps {
 }
 
 function MatchCard({ hash, match }: { hash: string; match: PageHashMatchDto }) {
+  const { t } = useTranslation('admin-maintenance')
   const queryClient = useQueryClient()
 
   const remove = useMutation({
@@ -46,7 +48,7 @@ function MatchCard({ hash, match }: { hash: string; match: PageHashMatchDto }) {
           </p>
         </div>
         <IconButton
-          label="Delete this page from the book"
+          label={t('pageHashes.deletePageLabel')}
           className="size-8 text-danger hover:bg-danger/10"
           onClick={() => remove.mutate()}
           disabled={remove.isPending}
@@ -56,7 +58,7 @@ function MatchCard({ hash, match }: { hash: string; match: PageHashMatchDto }) {
       </figcaption>
       {remove.isError && (
         <p className="px-2.5 pb-2 text-[11px] text-danger">
-          {remove.error instanceof Error ? remove.error.message : 'Delete failed'}
+          {remove.error instanceof Error ? remove.error.message : t('pageHashes.deleteFailed')}
         </p>
       )}
     </figure>
@@ -64,6 +66,7 @@ function MatchCard({ hash, match }: { hash: string; match: PageHashMatchDto }) {
 }
 
 export function MatchesDialog({ hash, onOpenChange }: MatchesDialogProps) {
+  const { t } = useTranslation('admin-maintenance')
   const q = useInfiniteQuery({
     queryKey: ['admin', 'page-hashes', 'matches', hash],
     queryFn: ({ pageParam }) => pageHashesApi.matches(hash!, { page: pageParam, size: 24 }),
@@ -76,7 +79,7 @@ export function MatchesDialog({ hash, onOpenChange }: MatchesDialogProps) {
   const matches = q.data?.pages.flatMap((p) => p.content) ?? []
 
   return (
-    <Dialog open={!!hash} onOpenChange={onOpenChange} title="Matching pages" size="lg">
+    <Dialog open={!!hash} onOpenChange={onOpenChange} title={t('pageHashes.matchesTitle')} size="lg">
       <div className="p-5">
         <p className="mb-4 truncate font-mono text-xs text-ink-3" title={hash ?? undefined}>
           {hash}
@@ -90,17 +93,17 @@ export function MatchesDialog({ hash, onOpenChange }: MatchesDialogProps) {
         ) : q.isError ? (
           <div className="flex items-center gap-3">
             <p className="text-sm text-danger">
-              {q.error instanceof Error ? q.error.message : 'Could not load matches.'}
+              {q.error instanceof Error ? q.error.message : t('pageHashes.loadMatchesError')}
             </p>
             <Button size="sm" onClick={() => void q.refetch()}>
-              Try again
+              {t('pageHashes.tryAgain')}
             </Button>
           </div>
         ) : matches.length === 0 ? (
-          <p className="text-sm text-ink-3">No remaining matches for this hash.</p>
+          <p className="text-sm text-ink-3">{t('pageHashes.noMatches')}</p>
         ) : (
           <>
-            <p className="mb-3 text-xs text-ink-3">{plural(q.data.pages[0].totalElements, 'match', 'matches')}</p>
+            <p className="mb-3 text-xs text-ink-3">{t('pageHashes.matchCount', { count: q.data.pages[0].totalElements })}</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {matches.map((m) => (
                 <MatchCard key={`${m.bookId}:${m.pageNumber}`} hash={hash!} match={m} />

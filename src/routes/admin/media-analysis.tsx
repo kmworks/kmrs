@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ArrowClockwise, MagnifyingGlass, Sparkle, WarningCircle } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import { librariesApi } from '@/lib/api/libraries'
 import type { BookDto, BookSearch, MediaStatus, SearchCondition } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
 import { bookDetailRoute } from '@/lib/utils/nav'
-import { plural } from '@/lib/utils/format'
 import { convertErrorCodes } from '@/lib/utils/mediaStatus'
 import { cn } from '@/lib/utils/cn'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -30,6 +31,7 @@ function searchFor(libraryId: string | null): BookSearch {
 }
 
 function StatusBadge({ status }: { status: MediaStatus }) {
+  const { t } = useTranslation('admin-maintenance')
   return (
     <span
       className={cn(
@@ -37,12 +39,13 @@ function StatusBadge({ status }: { status: MediaStatus }) {
         status === 'ERROR' ? 'border-danger/40 bg-danger/10 text-danger' : 'border-accent/40 bg-accent-soft text-accent-strong',
       )}
     >
-      {status === 'ERROR' ? 'Error' : 'Unsupported'}
+      {status === 'ERROR' ? t('common:cardStatus.error') : t('common:cardStatus.unsupported')}
     </span>
   )
 }
 
 function Row({ book, libraryName }: { book: BookDto; libraryName: string }) {
+  const { t } = useTranslation('admin-maintenance')
   const queryClient = useQueryClient()
   const [feedback, setFeedback] = useState<string | null>(null)
 
@@ -53,7 +56,7 @@ function Row({ book, libraryName }: { book: BookDto; libraryName: string }) {
   const act = useMutation({
     mutationFn: (kind: 'analyze' | 'refresh') => (kind === 'analyze' ? booksApi.analyze(book.id) : booksApi.refreshMetadata(book.id)),
     onSuccess: (_data, kind) => {
-      setFeedback(kind === 'analyze' ? 'Analysis queued' : 'Refresh queued')
+      setFeedback(kind === 'analyze' ? t('detail:toast.analysisQueued') : t('mediaAnalysis.refreshQueued'))
       invalidate()
     },
   })
@@ -75,11 +78,11 @@ function Row({ book, libraryName }: { book: BookDto; libraryName: string }) {
           <span className="text-ink-3"> · {book.metadata.title || book.name}</span>
         </p>
         <p className="mt-0.5 truncate text-xs text-ink-3" title={book.media.comment || undefined}>
-          {book.media.comment ? convertErrorCodes(book.media.comment) : 'No details reported'}
+          {book.media.comment ? convertErrorCodes(book.media.comment) : t('mediaAnalysis.noDetails')}
         </p>
         {act.isError && (
           <p className="mt-0.5 text-xs text-danger">
-            {act.error instanceof Error ? act.error.message : 'Action failed'}
+            {act.error instanceof Error ? act.error.message : t('mediaAnalysis.actionFailed')}
           </p>
         )}
         {feedback && !act.isError && <p className="mt-0.5 text-xs text-accent-strong">{feedback}</p>}
@@ -91,11 +94,11 @@ function Row({ book, libraryName }: { book: BookDto; libraryName: string }) {
       <div className="flex shrink-0 gap-1.5">
         <Button size="sm" onClick={() => act.mutate('analyze')} disabled={act.isPending}>
           <MagnifyingGlass className="size-4" />
-          Analyze
+          {t('detail:menu.analyze')}
         </Button>
         <Button size="sm" onClick={() => act.mutate('refresh')} disabled={act.isPending}>
           <ArrowClockwise className="size-4" />
-          Refresh metadata
+          {t('detail:menu.refreshMetadata')}
         </Button>
       </div>
     </li>
@@ -103,8 +106,11 @@ function Row({ book, libraryName }: { book: BookDto; libraryName: string }) {
 }
 
 export function AdminMediaAnalysisPage() {
+  const { t } = useTranslation('admin-maintenance')
   const [libraryId, setLibraryId] = useState<string | null>(null)
   const librariesQuery = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
+
+  useDocumentTitle(t('layout:nav.mediaAnalysis'))
 
   const q = useInfiniteQuery({
     queryKey: ['admin', 'media-analysis', libraryId ?? 'all'],
@@ -117,13 +123,13 @@ export function AdminMediaAnalysisPage() {
 
   const items = q.data?.pages.flatMap((p) => p.content) ?? []
   const total = q.data?.pages[0]?.totalElements
-  const libraryName = (id: string) => librariesQuery.data?.find((l) => l.id === id)?.name ?? 'Unknown library'
+  const libraryName = (id: string) => librariesQuery.data?.find((l) => l.id === id)?.name ?? t('unknownLibrary')
 
   return (
     <div className="max-w-5xl">
       <PageHeader
-        title="Media analysis"
-        subtitle={total !== undefined ? plural(total, 'book') + ' needing attention' : 'Books with broken or unsupported media'}
+        title={t('layout:nav.mediaAnalysis')}
+        subtitle={total !== undefined ? t('mediaAnalysis.needingAttention', { count: total }) : t('mediaAnalysis.subtitleFallback')}
         actions={<LibraryFilterMenu value={libraryId} onChange={setLibraryId} />}
       />
 
@@ -136,15 +142,15 @@ export function AdminMediaAnalysisPage() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load books"
-          body={q.error instanceof Error ? q.error.message : 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('browse:books.loadError')}
+          body={q.error instanceof Error ? q.error.message : t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<Sparkle />}
-          title="All media is healthy"
-          body="No books with analysis errors or unsupported formats. New problems will show up here after the next scan."
+          title={t('mediaAnalysis.emptyTitle')}
+          body={t('mediaAnalysis.emptyBody')}
         />
       ) : (
         <>

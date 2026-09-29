@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { BookOpen, CircleNotch, Link as LinkIcon, MagnifyingGlass, Stack } from '@phosphor-icons/react'
 import { komfApi } from '@/lib/api/komf'
@@ -20,8 +21,9 @@ interface KomfIdentifyDialogProps {
 }
 
 export function KomfIdentifyDialog({ open, onOpenChange, series, onIdentified }: KomfIdentifyDialogProps) {
+  const { t } = useTranslation('metadata')
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Identify with komf">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('detail:menu.identifyKomf')}>
       {/* Dialog unmounts its children on close, so the search and mutation state
           restart fresh on every open */}
       <IdentifyContent series={series} onIdentified={onIdentified} close={() => onOpenChange(false)} />
@@ -83,6 +85,7 @@ function IdentifyContent({
   onIdentified: () => void
   close: () => void
 }) {
+  const { t } = useTranslation('metadata')
   const [text, setText] = useState(series.metadata.title || series.name)
   const [search, setSearch] = useState(text)
 
@@ -164,7 +167,7 @@ function IdentifyContent({
             type="search"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Search komf providers…"
+            placeholder={t('identify.searchPlaceholder')}
             autoFocus
             className="h-9 w-full rounded-lg border border-line bg-surface pr-3 pl-9 text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
           />
@@ -173,15 +176,15 @@ function IdentifyContent({
       {linkHits.length > 0 && (
         <div className="px-5 pt-3">
           <div className="rounded-lg border border-line">
-            <p className="border-b border-line px-3 py-2 text-xs font-medium text-ink-3">Provider links</p>
+            <p className="border-b border-line px-3 py-2 text-xs font-medium text-ink-3">{t('identify.providerLinks')}</p>
             <ul className="flex flex-col p-1">
               {linkHits.length > 1 &&
                 linkRow(
                   `${linkHits[0].provider}:${linkHits[0].providerSeriesId}`,
                   () => identify.mutate(linkHits[0]),
                   <Stack className="size-4" />,
-                  'Aggregate all providers',
-                  `Merge metadata from all ${linkHits.length} provider links`,
+                  t('identify.aggregateAll'),
+                  t('identify.aggregateHint', { count: linkHits.length }),
                   'aggregate',
                 )}
               {linkHits.map((hit) =>
@@ -199,7 +202,7 @@ function IdentifyContent({
       )}
       <div className="min-h-72 px-5 py-4">
         {!search ? (
-          <EmptyState title="Type a title to search komf" />
+          <EmptyState title={t('identify.typeToSearch')} />
         ) : q.isPending ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 5 }, (_, i) => (
@@ -214,16 +217,16 @@ function IdentifyContent({
           </div>
         ) : q.isError ? (
           <EmptyState
-            title="Could not search komf"
+            title={t('identify.searchFailed')}
             body={q.error.message}
             action={
               <Button variant="secondary" onClick={() => q.refetch()}>
-                Retry
+                {t('common:action.retry')}
               </Button>
             }
           />
         ) : results.length === 0 ? (
-          <EmptyState title="No results" body="Try a different title." />
+          <EmptyState title={t('identify.noResults')} body={t('identify.noResultsHint')} />
         ) : (
           <ul className="flex flex-col">
             {results.map((r) => {
@@ -279,7 +282,7 @@ function IdentifyContent({
       {identify.isError && (
         <div className="border-t border-line px-5 py-3">
           <p className="text-sm text-danger">
-            {identify.error instanceof Error ? identify.error.message : 'Could not queue the identify'}
+            {identify.error instanceof Error ? identify.error.message : t('identify.queueFailed')}
           </p>
         </div>
       )}

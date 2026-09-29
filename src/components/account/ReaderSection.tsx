@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { READER_BACKGROUNDS, useReaderSettings, type ReaderBackground, type ScaleType } from '@/lib/store/readerSettings'
 import type { ReadingDirection } from '@/lib/api/types'
 import type { PagedReaderLayout } from '@/lib/utils/spreads'
@@ -10,6 +11,7 @@ const directions: ReadingDirection[] = ['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT', 'VERTI
 const backgrounds = Object.keys(READER_BACKGROUNDS) as ReaderBackground[]
 
 export function ReaderSection() {
+  const { t } = useTranslation('account')
   const readingDirection = useReaderSettings((s) => s.readingDirection)
   const scale = useReaderSettings((s) => s.scale)
   const pageLayout = useReaderSettings((s) => s.pageLayout)
@@ -17,49 +19,49 @@ export function ReaderSection() {
   const update = useReaderSettings((s) => s.update)
 
   return (
-    <Section title="Reader defaults">
+    <Section title={t('reader.defaultsTitle')}>
       <div className="flex flex-col divide-y divide-line">
-        <SettingRow label="Reading direction">
+        <SettingRow label={t('reader.direction')}>
           <SegmentedControl<ReadingDirection>
             options={directions.map((d) => ({ value: d, label: readingDirectionLabel(d) }))}
             value={readingDirection}
             onChange={(readingDirection) => update({ readingDirection })}
           />
         </SettingRow>
-        <SettingRow label="Scale">
+        <SettingRow label={t('reader.scale')}>
           <div className="max-w-full overflow-x-auto">
             <SegmentedControl<ScaleType>
               options={[
-                { value: 'SCREEN', label: 'Fit screen' },
-                { value: 'WIDTH', label: 'Fit width' },
-                { value: 'WIDTH_SHRINK_ONLY', label: 'Shrink to width' },
-                { value: 'HEIGHT', label: 'Fit height' },
-                { value: 'ORIGINAL', label: 'Original' },
+                { value: 'SCREEN', label: t('reader.scaleScreen') },
+                { value: 'WIDTH', label: t('reader.scaleWidth') },
+                { value: 'WIDTH_SHRINK_ONLY', label: t('reader.scaleShrinkWidth') },
+                { value: 'HEIGHT', label: t('reader.scaleHeight') },
+                { value: 'ORIGINAL', label: t('reader.scaleOriginal') },
               ]}
               value={scale}
               onChange={(scale) => update({ scale })}
             />
           </div>
         </SettingRow>
-        <SettingRow label="Page layout">
+        <SettingRow label={t('reader.pageLayout')}>
           <SegmentedControl<PagedReaderLayout>
             options={[
-              { value: 'SINGLE_PAGE', label: 'Single' },
-              { value: 'DOUBLE_PAGES', label: 'Double' },
-              { value: 'DOUBLE_NO_COVER', label: 'Double no cover' },
+              { value: 'SINGLE_PAGE', label: t('reader.layoutSingle') },
+              { value: 'DOUBLE_PAGES', label: t('reader.layoutDouble') },
+              { value: 'DOUBLE_NO_COVER', label: t('reader.layoutDoubleNoCover') },
             ]}
             value={pageLayout}
             onChange={(pageLayout) => update({ pageLayout })}
           />
         </SettingRow>
-        <SettingRow label="Background">
+        <SettingRow label={t('reader.background')}>
           <div className="flex items-center gap-2.5">
             {backgrounds.map((bg) => (
               <button
                 key={bg}
                 type="button"
-                title={bg.toLowerCase()}
-                aria-label={`Background ${bg.toLowerCase()}`}
+                title={t(`reader.backgrounds.${bg.toLowerCase()}`)}
+                aria-label={t('reader.backgroundLabel', { color: t(`reader.backgrounds.${bg.toLowerCase()}`) })}
                 aria-pressed={background === bg}
                 onClick={() => update({ background: bg })}
                 style={{ backgroundColor: READER_BACKGROUNDS[bg] }}

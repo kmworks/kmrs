@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { BookBookmark, Books, CaretDown, Check, PushPin } from '@phosphor-icons/react'
 import { librariesApi } from '@/lib/api/libraries'
 import { usePinnedLibraries } from '@/lib/store/clientSettings'
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
 
 export function SearchScopeMenu() {
+  const { t } = useTranslation('search')
   const { data: libraries } = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
   const { pinned } = usePinnedLibraries()
   // on /search the ?scope= param wins (shareable, back/forward); everywhere
@@ -28,7 +30,7 @@ export function SearchScopeMenu() {
   const sorted = libraries?.slice().sort((a, b) => pinRank(a.id) - pinRank(b.id))
   const hasPinned = (pinned?.length ?? 0) > 0
   const current = value !== 'all' && value !== 'pinned' ? libraries?.find((l) => l.id === value) : undefined
-  const label = value === 'all' ? 'All libraries' : value === 'pinned' ? 'Pinned libraries' : (current?.name ?? 'Library')
+  const label = value === 'all' ? t('scope.all') : value === 'pinned' ? t('scope.pinned') : (current?.name ?? t('scope.library'))
 
   return (
     <Menu
@@ -38,7 +40,7 @@ export function SearchScopeMenu() {
           variant="secondary"
           size="sm"
           className="h-9 max-sm:px-2.5"
-          aria-label={`Search scope: ${label}`}
+          aria-label={t('scope.ariaLabel', { label })}
         >
           {value === 'pinned' ? (
             <PushPin weight="fill" className="size-4 shrink-0" />
@@ -53,13 +55,13 @@ export function SearchScopeMenu() {
       }
     >
       <MenuItem onSelect={() => onScopeChange('all')}>
-        <span className="flex-1">All libraries</span>
+        <span className="flex-1">{t('scope.all')}</span>
         {value === 'all' && <Check className="size-4 text-accent" />}
       </MenuItem>
       {hasPinned && (
         <MenuItem onSelect={() => onScopeChange('pinned')}>
           <PushPin weight="fill" className="size-3.5 text-ink-3" />
-          <span className="flex-1">Pinned libraries</span>
+          <span className="flex-1">{t('scope.pinned')}</span>
           {value === 'pinned' && <Check className="size-4 text-accent" />}
         </MenuItem>
       )}

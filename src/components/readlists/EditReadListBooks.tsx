@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Reorder, useDragControls } from 'motion/react'
 import { DotsSixVertical, X } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
 import type { BookDto, ReadListDto } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
-import { plural } from '@/lib/utils/format'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
@@ -20,6 +20,7 @@ interface EditReadListBooksProps {
 }
 
 export function EditReadListBooks({ readlist, onExit }: EditReadListBooksProps) {
+  const { t } = useTranslation('detail')
   const queryClient = useQueryClient()
   const [members, setMembers] = useState<BookDto[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -84,7 +85,7 @@ export function EditReadListBooks({ readlist, onExit }: EditReadListBooksProps) 
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-surface px-4 py-3">
         <p className="text-sm text-ink-2">
-          {selected.size > 0 ? `${selected.size} selected` : plural(members.length, 'book')}
+          {selected.size > 0 ? t('selectedCount', { count: selected.size }) : t('bookCount', { count: members.length })}
         </p>
         <button
           type="button"
@@ -92,22 +93,22 @@ export function EditReadListBooks({ readlist, onExit }: EditReadListBooksProps) 
           disabled={busy || members.length === 0}
           className="cursor-pointer text-sm text-accent-strong transition-colors hover:text-accent disabled:pointer-events-none disabled:opacity-50"
         >
-          {selected.size === members.length && members.length > 0 ? 'Clear selection' : 'Select all'}
+          {selected.size === members.length && members.length > 0 ? t('editBooks.clearSelection') : t('editBooks.selectAll')}
         </button>
         <Button variant="danger" size="sm" disabled={busy || selected.size === 0} onClick={() => removeIds(selected)}>
-          Remove selected
+          {t('editBooks.removeSelected')}
         </Button>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-ink-2">Manual ordering</span>
+          <span className="text-sm text-ink-2">{t('editBooks.manualOrdering')}</span>
           <Switch
             checked={readlist.ordered}
             onCheckedChange={(v) => orderedMutation.mutate(v)}
             disabled={busy}
-            label="Manual ordering"
+            label={t('editBooks.manualOrdering')}
           />
         </div>
         <Button variant="ghost" size="sm" disabled={busy} onClick={onExit}>
-          Cancel
+          {t('common:action.cancel')}
         </Button>
         <Button
           variant="primary"
@@ -116,11 +117,11 @@ export function EditReadListBooks({ readlist, onExit }: EditReadListBooksProps) 
           disabled={busy || members.length === 0 || !dirty}
           onClick={() => saveMutation.mutate()}
         >
-          Save
+          {t('common:action.save')}
         </Button>
       </div>
       {members.length === 0 && !membersQuery.isPending && (
-        <p className="mb-4 text-sm text-danger">A read list needs at least one book. Delete it instead of emptying it.</p>
+        <p className="mb-4 text-sm text-danger">{t('editBooks.emptyNotAllowed')}</p>
       )}
       {saveMutation.error && <p className="mb-4 text-sm text-danger">{saveMutation.error.message}</p>}
 
@@ -132,11 +133,11 @@ export function EditReadListBooks({ readlist, onExit }: EditReadListBooksProps) 
         </div>
       ) : membersQuery.error ? (
         <EmptyState
-          title="Could not load books"
+          title={t('empty.loadBooksFailed')}
           body={membersQuery.error.message}
           action={
             <Button variant="secondary" onClick={() => membersQuery.refetch()}>
-              Retry
+              {t('common:action.retry')}
             </Button>
           }
         />
@@ -211,6 +212,7 @@ interface RowFrameProps {
 }
 
 function RowFrame({ index, disabled, checked, onCheckedChange, onRemove, children, className, handle }: RowFrameProps) {
+  const { t } = useTranslation('detail')
   return (
     <div className={cn('flex items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2', className)}>
       {handle}
@@ -219,12 +221,12 @@ function RowFrame({ index, disabled, checked, onCheckedChange, onRemove, childre
         checked={checked}
         disabled={disabled}
         onChange={(e) => onCheckedChange(e.target.checked)}
-        aria-label="Select row"
+        aria-label={t('editBooks.selectRow')}
         className="size-4 shrink-0 cursor-pointer accent-accent disabled:opacity-40"
       />
       {index !== undefined && <span className="w-7 shrink-0 text-center font-mono text-xs text-ink-3">{index + 1}</span>}
       {children}
-      <IconButton label="Remove" disabled={disabled} onClick={onRemove} className="size-8">
+      <IconButton label={t('common:action.remove')} disabled={disabled} onClick={onRemove} className="size-8">
         <X className="size-4" />
       </IconButton>
     </div>
@@ -240,6 +242,7 @@ interface SortableRowProps extends Omit<RowFrameProps, 'className' | 'handle' | 
 }
 
 function SortableRow({ id, dragging, onDragStart, onDragEnd, ...rest }: SortableRowProps) {
+  const { t } = useTranslation('detail')
   const controls = useDragControls()
   return (
     <Reorder.Item
@@ -256,7 +259,7 @@ function SortableRow({ id, dragging, onDragStart, onDragEnd, ...rest }: Sortable
         handle={
           <button
             type="button"
-            aria-label="Drag to reorder"
+            aria-label={t('editBooks.dragToReorder')}
             onPointerDown={(e) => controls.start(e)}
             className={cn(
               '-ml-1 shrink-0 cursor-grab touch-none rounded-md p-1 text-ink-3 transition-colors hover:bg-raised hover:text-ink',

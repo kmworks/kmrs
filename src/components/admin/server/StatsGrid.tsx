@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Clock, Cpu, GitBranch, HardDrives, Memory } from '@phosphor-icons/react'
 import { actuatorApi } from '@/lib/api/settings'
 import { serverApi } from '@/lib/api/users'
@@ -8,6 +9,7 @@ import { formatDuration } from './format'
 import { metricStat, useMetric } from './useMetric'
 
 export function StatsGrid() {
+  const { t } = useTranslation('admin-settings')
   const info = useQuery({ queryKey: ['server-info'], queryFn: serverApi.info, staleTime: Infinity })
   const health = useQuery({ queryKey: ['admin', 'health'], queryFn: actuatorApi.health, refetchInterval: 30_000 })
   const uptime = useMetric('process.uptime')
@@ -26,30 +28,30 @@ export function StatsGrid() {
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
       <StatCard
         icon={<GitBranch className="size-3.5" />}
-        label="Version"
+        label={t('stats.version')}
         value={info.data?.build?.version ?? '—'}
         sub={git || undefined}
       />
       <StatCard
         icon={<Clock className="size-3.5" />}
-        label="Uptime"
+        label={t('stats.uptime')}
         value={uptimeSecs !== undefined ? formatDuration(uptimeSecs) : '—'}
       />
       <StatCard
         icon={<Cpu className="size-3.5" />}
-        label="CPU"
+        label={t('stats.cpu')}
         value={cpuPct !== undefined ? `${cpuPct >= 10 ? Math.round(cpuPct) : cpuPct.toFixed(1)}%` : '—'}
       />
       <StatCard
         icon={<Memory className="size-3.5" />}
-        label="Memory"
+        label={t('stats.memory')}
         value={memoryBytes !== undefined ? formatBytes(memoryBytes) : '—'}
       />
       <StatCard
         icon={<HardDrives className="size-3.5" />}
-        label="Disk free"
+        label={t('stats.diskFree')}
         value={disk?.free !== undefined ? formatBytes(disk.free) : '—'}
-        sub={disk?.total !== undefined ? `of ${formatBytes(disk.total)}` : undefined}
+        sub={disk?.total !== undefined ? t('stats.diskTotal', { total: formatBytes(disk.total) }) : undefined}
       />
     </div>
   )

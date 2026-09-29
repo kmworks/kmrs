@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { GroupCountDto } from '@/lib/api/types'
 import { LETTERS } from '@/components/filters/types'
 import { cn } from '@/lib/utils/cn'
@@ -12,6 +13,7 @@ interface AlphabetBarProps {
 
 /** A-Z jump bar; letters without any series are shown dimmed and disabled. */
 export function AlphabetBar({ groups, active, onSelect }: AlphabetBarProps) {
+  const { t } = useTranslation('browse')
   if (!groups || groups.length === 0) return null
   const counts = new Map(groups.map((g) => [g.group, g.count]))
   const others = groups.filter((g) => !/^[a-z]$/.test(g.group)).reduce((n, g) => n + g.count, 0)
@@ -24,7 +26,7 @@ export function AlphabetBar({ groups, active, onSelect }: AlphabetBarProps) {
         type="button"
         disabled={count === 0}
         aria-pressed={isActive}
-        title={count > 0 ? `${count} series` : undefined}
+        title={count > 0 ? t('seriesCount', { count }) : undefined}
         onClick={() => onSelect(key)}
         className={cn(
           'flex h-7 min-w-7 cursor-pointer items-center justify-center rounded-md px-1 font-mono text-xs transition-colors',
@@ -41,7 +43,7 @@ export function AlphabetBar({ groups, active, onSelect }: AlphabetBarProps) {
   }
 
   return (
-    <nav aria-label="Browse by first letter" className="mb-5 flex flex-wrap items-center gap-0.5">
+    <nav aria-label={t('alphabet.ariaLabel')} className="mb-5 flex flex-wrap items-center gap-0.5">
       {LETTERS.map((l) => button(l, l, counts.get(l.toLowerCase()) ?? 0))}
       {others > 0 && button('#', '#', others)}
     </nav>

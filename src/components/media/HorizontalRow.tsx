@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type UIEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils/cn'
@@ -16,6 +17,7 @@ interface HorizontalRowProps {
 }
 
 export function HorizontalRow({ title, to, children, className, onEndReached }: HorizontalRowProps) {
+  const { t } = useTranslation('media')
   const ref = useRef<HTMLDivElement>(null)
   const [canLeft, setCanLeft] = useState(false)
   const [canRight, setCanRight] = useState(false)
@@ -74,10 +76,10 @@ export function HorizontalRow({ title, to, children, className, onEndReached }: 
           <h2 className="font-display text-[22px] font-semibold tracking-tight text-ink">{title}</h2>
         )}
         <div className="hidden gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 md:flex">
-          <IconButton label="Scroll left" onClick={() => scrollBy(-1)} disabled={!canLeft}>
+          <IconButton label={t('row.scrollLeft')} onClick={() => scrollBy(-1)} disabled={!canLeft}>
             <CaretLeft className="size-4" />
           </IconButton>
-          <IconButton label="Scroll right" onClick={() => scrollBy(1)} disabled={!canRight}>
+          <IconButton label={t('row.scrollRight')} onClick={() => scrollBy(1)} disabled={!canRight}>
             <CaretRight className="size-4" />
           </IconButton>
         </div>

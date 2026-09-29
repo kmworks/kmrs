@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import i18n from '@/lib/i18n'
 
 export type BatchStatus = 'idle' | 'running' | 'success' | 'error'
 
@@ -10,9 +11,15 @@ export interface BatchRunState {
 
 const IDLE: BatchRunState = { status: 'idle', progress: null, message: null }
 
+export interface BatchMessage {
+  /** i18n key; resolved with count=total on success, count=total plus failed on failure */
+  key: string
+  context?: string
+}
+
 export interface BatchMessages {
-  success: (done: number) => string
-  failure: (failed: number, total: number) => string
+  success: BatchMessage
+  failure: BatchMessage
 }
 
 export function useBatchRun() {
@@ -35,8 +42,18 @@ export function useBatchRun() {
       setState({ status: 'running', progress: { done: i + 1, total }, message: null })
     }
     running.current = false
-    if (failed === 0) setState({ status: 'success', progress: null, message: messages.success(total) })
-    else setState({ status: 'error', progress: null, message: messages.failure(failed, total) })
+    if (failed === 0)
+      setState({
+        status: 'success',
+        progress: null,
+        message: i18n.t(messages.success.key, { count: total, context: messages.success.context }),
+      })
+    else
+      setState({
+        status: 'error',
+        progress: null,
+        message: i18n.t(messages.failure.key, { count: total, failed, total }),
+      })
     return failed
   }, [])
 

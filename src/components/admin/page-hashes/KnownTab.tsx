@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Check, DotsThreeVertical, Funnel, Images, WarningCircle } from '@phosphor-icons/react'
 import { pageHashesApi } from '@/lib/api/pageHashes'
 import type { PageHashAction, PageHashKnownDto } from '@/lib/api/types'
-import { plural, relativeTime } from '@/lib/utils/format'
+import { relativeTime } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { IconButton } from '@/components/ui/IconButton'
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '@/components/ui/Menu'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Sentinel } from '@/components/filters/Sentinel'
-import { ACTION_LABELS } from './actionMeta'
+import { ACTION_LABEL_KEYS } from './actionMeta'
 import { HashActionBadge } from './HashActionBadge'
 import { DeleteAllPagesDialog } from './DeleteAllPagesDialog'
 import { MatchesDialog } from './MatchesDialog'
@@ -26,6 +27,7 @@ function RowActions({
   onViewMatches: () => void
   onDeleteAll: () => void
 }) {
+  const { t } = useTranslation('admin-maintenance')
   const queryClient = useQueryClient()
 
   const setAction = useMutation({
@@ -37,31 +39,32 @@ function RowActions({
   return (
     <Menu
       trigger={
-        <IconButton label={`Actions for hash ${known.hash}`}>
+        <IconButton label={t('pageHashes.actionsForHash', { hash: known.hash })}>
           <DotsThreeVertical className="size-4" />
         </IconButton>
       }
     >
-      <MenuLabel>Set action</MenuLabel>
+      <MenuLabel>{t('pageHashes.setAction')}</MenuLabel>
       {ACTIONS.map((a) => (
         <MenuItem key={a} onSelect={() => setAction.mutate(a)} disabled={setAction.isPending}>
-          <span className="flex-1">{ACTION_LABELS[a]}</span>
+          <span className="flex-1">{t(ACTION_LABEL_KEYS[a])}</span>
           {a === known.action && <Check className="size-4 text-accent" />}
         </MenuItem>
       ))}
       <MenuSeparator />
       <MenuItem onSelect={onViewMatches}>
-        <Images className="size-4" /> View matches
+        <Images className="size-4" /> {t('pageHashes.viewMatches')}
       </MenuItem>
       <MenuSeparator />
       <MenuItem danger onSelect={onDeleteAll}>
-        Delete all matching pages
+        {t('pageHashes.deleteAllMatching')}
       </MenuItem>
     </Menu>
   )
 }
 
 export function KnownTab() {
+  const { t } = useTranslation('admin-maintenance')
   const [actionFilter, setActionFilter] = useState<PageHashAction | null>(null)
   const [matchesHash, setMatchesHash] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<PageHashKnownDto | null>(null)
@@ -82,23 +85,23 @@ export function KnownTab() {
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm text-ink-3">
-          {total !== undefined ? plural(total, 'known hash', 'known hashes') : 'Known hashes'}
+          {total !== undefined ? t('pageHashes.knownCount', { count: total }) : t('pageHashes.knownFallback')}
         </p>
         <Menu
           trigger={
             <Button variant="secondary" size="sm">
               <Funnel className="size-4" />
-              {actionFilter ? ACTION_LABELS[actionFilter] : 'All actions'}
+              {actionFilter ? t(ACTION_LABEL_KEYS[actionFilter]) : t('pageHashes.allActions')}
             </Button>
           }
         >
           <MenuItem onSelect={() => setActionFilter(null)}>
-            <span className="flex-1">All actions</span>
+            <span className="flex-1">{t('pageHashes.allActions')}</span>
             {actionFilter === null && <Check className="size-4 text-accent" />}
           </MenuItem>
           {ACTIONS.map((a) => (
             <MenuItem key={a} onSelect={() => setActionFilter(a)}>
-              <span className="flex-1">{ACTION_LABELS[a]}</span>
+              <span className="flex-1">{t(ACTION_LABEL_KEYS[a])}</span>
               {actionFilter === a && <Check className="size-4 text-accent" />}
             </MenuItem>
           ))}
@@ -114,15 +117,15 @@ export function KnownTab() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load known hashes"
-          body={q.error instanceof Error ? q.error.message : 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('pageHashes.loadKnownError')}
+          body={q.error instanceof Error ? q.error.message : t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<Images />}
-          title="No known hashes"
-          body="Hashes you act on in the Unknown tab show up here."
+          title={t('pageHashes.noKnown')}
+          body={t('pageHashes.noKnownBody')}
         />
       ) : (
         <>
@@ -139,14 +142,18 @@ export function KnownTab() {
                     {k.hash}
                   </code>
                   <p className="mt-1 text-xs text-ink-3">
-                    {plural(k.matchCount, 'match', 'matches')}
-                    {k.deleteCount > 0 && ` · ${plural(k.deleteCount, 'page')} deleted`} · added{' '}
-                    {relativeTime(k.created)}
+                    {k.deleteCount > 0
+                      ? t('pageHashes.rowMetaDeleted', {
+                          count: k.matchCount,
+                          deleted: t('pageHashes.pagesDeleted', { count: k.deleteCount }),
+                          added: relativeTime(k.created),
+                        })
+                      : t('pageHashes.rowMeta', { count: k.matchCount, added: relativeTime(k.created) })}
                   </p>
                 </div>
                 <HashActionBadge action={k.action} />
                 <Button size="sm" onClick={() => setMatchesHash(k.hash)}>
-                  Matches
+                  {t('pageHashes.matches')}
                 </Button>
                 <RowActions
                   known={k}

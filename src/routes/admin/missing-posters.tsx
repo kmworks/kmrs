@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ImageBroken, WarningCircle } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import type { BookSearch, SearchCondition } from '@/lib/api/types'
-import { plural } from '@/lib/utils/format'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -24,11 +25,10 @@ function searchFor(libraryId: string | null): BookSearch {
 }
 
 export function AdminMissingPostersPage() {
+  const { t } = useTranslation('admin-maintenance')
   const [libraryId, setLibraryId] = useState<string | null>(null)
 
-  useEffect(() => {
-    document.title = 'Missing posters · KMReader'
-  }, [])
+  useDocumentTitle(t('layout:nav.missingPosters'))
 
   const q = useInfiniteQuery({
     queryKey: ['admin', 'missing-posters', libraryId ?? 'all'],
@@ -45,8 +45,8 @@ export function AdminMissingPostersPage() {
   return (
     <div>
       <PageHeader
-        title="Missing posters"
-        subtitle="Books without a selected poster. Open a book and use Manage posters to pick or upload one."
+        title={t('layout:nav.missingPosters')}
+        subtitle={t('missingPosters.subtitle')}
         actions={<LibraryFilterMenu value={libraryId} onChange={setLibraryId} />}
       />
 
@@ -55,19 +55,19 @@ export function AdminMissingPostersPage() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load books"
-          body={q.error instanceof Error ? q.error.message : 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('browse:books.loadError')}
+          body={q.error instanceof Error ? q.error.message : t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<ImageBroken />}
-          title="Every book has a poster"
-          body="All books in this scope have a selected poster."
+          title={t('missingPosters.emptyTitle')}
+          body={t('missingPosters.emptyBody')}
         />
       ) : (
         <>
-          <p className="mb-4 text-sm text-ink-3">{plural(total ?? items.length, 'book')}</p>
+          <p className="mb-4 text-sm text-ink-3">{t('missingPosters.count', { count: total ?? items.length })}</p>
           <MediaGrid>
             {items.map((b) => (
               <BookCard key={b.id} book={b} showSeries />

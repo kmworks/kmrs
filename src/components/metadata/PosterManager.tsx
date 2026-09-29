@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, CircleNotch, ImageSquare, Trash, UploadSimple } from '@phosphor-icons/react'
 import { bookPostersApi, collectionPostersApi, readListPostersApi, seriesPostersApi } from '@/lib/api/posters'
@@ -47,17 +48,10 @@ const INVALIDATE: Record<PosterKind, string[][]> = {
   readlist: [['readlists'], ['dashboard']],
 }
 
-const TYPE_LABELS: Record<ThumbnailType, string> = {
-  GENERATED: 'Generated',
-  SIDECAR: 'Sidecar',
-  USER_UPLOADED: 'Uploaded',
-}
-
-const KIND_LABELS: Record<PosterKind, string> = {
-  series: 'series',
-  book: 'book',
-  collection: 'collection',
-  readlist: 'read list',
+const TYPE_KEYS: Record<ThumbnailType, string> = {
+  GENERATED: 'generated',
+  SIDECAR: 'sidecar',
+  USER_UPLOADED: 'uploaded',
 }
 
 export function PosterManager({
@@ -73,7 +67,9 @@ export function PosterManager({
   entityId: string
   title: string
 }) {
+  const { t } = useTranslation('metadata')
   const queryClient = useQueryClient()
+  const typeLabel = (type: ThumbnailType) => t(`poster.type.${TYPE_KEYS[type]}`)
   const api = APIS[kind]
   const bust = useBust(entityId)
   const bump = useThumbnailBust((s) => s.bump)
@@ -96,7 +92,7 @@ export function PosterManager({
     for (const key of INVALIDATE[kind]) queryClient.invalidateQueries({ queryKey: key })
     bump(entityId)
   }
-  const onError = (err: unknown) => setErrors([err instanceof Error ? err.message : 'The poster operation failed.'])
+  const onError = (err: unknown) => setErrors([err instanceof Error ? err.message : t('poster.operationFailed')])
 
   const selectMutation = useMutation({ mutationFn: (thumbId: string) => api.markSelected(entityId, thumbId), onSuccess: afterChange, onError })
   const deleteMutation = useMutation({ mutationFn: (thumbId: string) => api.delete(entityId, thumbId), onSuccess: afterChange, onError })
@@ -115,18 +111,18 @@ export function PosterManager({
       onOpenChange={(o) => {
         if (!o) onClose()
       }}
-      title="Manage posters"
+      title={t('detail:menu.managePosters')}
       size="lg"
     >
       <div className="flex flex-col gap-4 px-5 py-4">
         <FormErrorBanner messages={errors} />
         <div className="flex items-center justify-between gap-4">
           <p className="min-w-0 truncate text-sm text-ink-3">
-            {title} · {KIND_LABELS[kind]}
+            {title} · {t(`poster.kind.${kind}`)}
           </p>
           <Button size="sm" loading={uploadMutation.isPending} onClick={pickFile}>
             <UploadSimple className="size-4" />
-            Upload poster
+            {t('poster.upload')}
           </Button>
           <input
             ref={fileRef}
@@ -145,23 +141,23 @@ export function PosterManager({
           <GridSkeleton count={4} />
         ) : postersQuery.error ? (
           <EmptyState
-            title="Could not load posters"
+            title={t('poster.loadFailed')}
             body={postersQuery.error.message}
             action={
               <Button variant="secondary" onClick={() => postersQuery.refetch()}>
-                Retry
+                {t('common:action.retry')}
               </Button>
             }
           />
         ) : posters.length === 0 ? (
           <EmptyState
             icon={<ImageSquare weight="duotone" />}
-            title="No posters yet"
-            body="Upload an image to use it as the poster."
+            title={t('poster.empty')}
+            body={t('poster.emptyHint')}
             action={
               <Button variant="secondary" onClick={pickFile}>
                 <UploadSimple className="size-4" />
-                Upload poster
+                {t('poster.upload')}
               </Button>
             }
           />
@@ -183,12 +179,12 @@ export function PosterManager({
                     type="button"
                     disabled={p.selected || selectMutation.isPending}
                     onClick={() => selectMutation.mutate(p.id)}
-                    aria-label={p.selected ? 'Selected poster' : 'Set as the selected poster'}
+                    aria-label={p.selected ? t('poster.selected') : t('poster.setSelected')}
                     className="block w-full cursor-pointer disabled:cursor-default"
                   >
                     <img
                       src={`${api.thumbnailUrl(entityId, p.id)}${bust ? `?${bust}` : ''}`}
-                      alt={`${TYPE_LABELS[p.type]} poster`}
+                      alt={t('poster.alt', { type: typeLabel(p.type) })}
                       loading="lazy"
                       className="w-full object-cover"
                       style={p.width > 0 && p.height > 0 ? { aspectRatio: `${p.width} / ${p.height}` } : undefined}
@@ -198,7 +194,7 @@ export function PosterManager({
                   {p.selected && (
                     <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-ink">
                       <Check className="size-3" weight="bold" />
-                      Selected
+                      {t('poster.selectedBadge')}
                     </span>
                   )}
 
@@ -212,11 +208,11 @@ export function PosterManager({
                           className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg bg-danger px-2 text-[11px] font-medium text-white transition-colors hover:bg-danger/80 disabled:opacity-50"
                         >
                           {deleting ? <CircleNotch className="size-3 animate-spin" /> : <Trash className="size-3" />}
-                          Confirm
+                          {t('common:action.confirm')}
                         </button>
                       ) : (
                         <IconButton
-                          label="Delete poster"
+                          label={t('poster.delete')}
                           onClick={() => setArmedDelete(p.id)}
                           className="size-7 bg-black/60 text-white/85 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80 hover:text-white"
                         >
@@ -227,7 +223,7 @@ export function PosterManager({
                   )}
 
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/75 to-transparent px-2 pt-6 pb-1.5 text-[11px] text-white/85">
-                    <span>{TYPE_LABELS[p.type]}</span>
+                    <span>{typeLabel(p.type)}</span>
                     <span className="font-mono">
                       {p.width}×{p.height} · {formatBytes(p.fileSize)}
                     </span>
@@ -237,7 +233,7 @@ export function PosterManager({
             })}
           </div>
         )}
-        {busy && !postersQuery.isPending && <p className="text-xs text-ink-3">Refreshing…</p>}
+        {busy && !postersQuery.isPending && <p className="text-xs text-ink-3">{t('poster.refreshing')}</p>}
       </div>
     </Dialog>
   )

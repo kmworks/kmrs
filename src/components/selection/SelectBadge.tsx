@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Check } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils/cn'
 import type { CardSelection } from './useSelection'
@@ -9,10 +10,11 @@ interface SelectBadgeProps extends CardSelection {
 
 /** Corner checkbox overlaid on a media card cover; the parent Link is told not to navigate on click. */
 export function SelectBadge({ active, selected, onToggle, label }: SelectBadgeProps) {
+  const { t } = useTranslation('media')
   return (
     <button
       type="button"
-      aria-label={selected ? `Deselect ${label}` : `Select ${label}`}
+      aria-label={selected ? t('select.deselect', { title: label }) : t('select.select', { title: label })}
       aria-pressed={selected}
       onClick={(e) => {
         e.preventDefault()

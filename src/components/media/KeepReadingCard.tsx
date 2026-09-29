@@ -1,11 +1,12 @@
 import { useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { BookOpen, CheckCircle, DotsThree } from '@phosphor-icons/react'
 import type { BookDto } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
 import { bookDetailRoute, readRoute } from '@/lib/utils/nav'
 import { useBust } from '@/lib/store/thumbnails'
 import { useImageCrossfade } from '@/lib/hooks/useImageCrossfade'
-import { plural, relativeTime } from '@/lib/utils/format'
+import { relativeTime } from '@/lib/utils/format'
 import { cardStatusLabel } from '@/lib/utils/mediaStatus'
 import { useLibraryUnavailable } from '@/lib/utils/libraries'
 import { useCoverTint } from '@/lib/utils/coverTint'
@@ -19,6 +20,7 @@ import { BookCardMenu } from './BookCardMenu'
  * the left, title/series/progress lines on the right, trailing ellipsis menu.
  */
 export function KeepReadingCard({ book, className }: { book: BookDto; className?: string }) {
+  const { t } = useTranslation('media')
   const navigate = useNavigate()
   const bust = useBust(book.id)
   const cover = urls.bookThumbnail(book.id, bust || undefined)
@@ -45,7 +47,7 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
       {relativeTime(book.readProgress!.readDate)}
     </span>
   ) : (
-    `${Math.round(pct * 100)}% · ${plural(book.media.pagesCount, 'page')}`
+    `${Math.round(pct * 100)}% · ${t('card.pageCount', { count: book.media.pagesCount })}`
   )
 
   return (
@@ -60,7 +62,7 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
       <div aria-hidden className="pointer-events-none absolute inset-0 rounded-[inherit] inset-ring-1 inset-ring-line" />
 
       {/* cover + text form a single navigation target; the trailing menu stays a separate one */}
-      <Link to={to} aria-label={`Continue reading ${title}`} className="flex min-w-0 flex-1 items-center gap-3 self-stretch outline-none">
+      <Link to={to} aria-label={t('card.continueReading', { title })} className="flex min-w-0 flex-1 items-center gap-3 self-stretch outline-none">
         <div className="cover-aspect relative w-[45px] shrink-0 overflow-hidden rounded-md shadow-[0_2px_10px_rgb(0_0_0/0.5)] ring-1 ring-line">
           {xf.base && <img src={xf.base} alt="" aria-hidden draggable={false} className="absolute inset-0 size-full object-cover" />}
           <img
@@ -103,13 +105,13 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
         book={book}
         navItem={
           <MenuItem onSelect={() => navigate(bookDetailRoute(book))}>
-            <BookOpen className="size-4" /> Book details
+            <BookOpen className="size-4" /> {t('menu.bookDetails')}
           </MenuItem>
         }
         trigger={
           <button
             type="button"
-            aria-label={`Actions for ${title}`}
+            aria-label={t('card.actionsFor', { title })}
             className={cn(
               'inline-flex size-9 shrink-0 cursor-pointer items-center justify-center self-center rounded-full transition-colors',
               metaColor,

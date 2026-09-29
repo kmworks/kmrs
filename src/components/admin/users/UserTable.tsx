@@ -1,7 +1,7 @@
+import { useTranslation } from 'react-i18next'
 import { DotsThreeVertical, Key, PencilSimple, Trash, Users } from '@phosphor-icons/react'
 import type { UserDto } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
-import { plural } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -32,6 +32,7 @@ function Avatar({ email }: { email: string }) {
 }
 
 function RoleChips({ user }: { user: UserDto }) {
+  const { t } = useTranslation('admin-users')
   const present = ASSIGNABLE_ROLES.filter((r) => user.roles.includes(r.value))
   if (present.length === 0) return <span className="text-ink-3">—</span>
   return (
@@ -41,28 +42,25 @@ function RoleChips({ user }: { user: UserDto }) {
           key={r.value}
           className={cn('px-2 py-0.5', r.value === 'ADMIN' && 'border-accent/40 bg-accent-soft text-accent-strong')}
         >
-          {r.label}
+          {t(r.labelKey)}
         </Chip>
       ))}
     </div>
   )
 }
 
-function librariesText(user: UserDto): string {
-  return user.sharedAllLibraries ? 'All libraries' : plural(user.sharedLibrariesIds.length, 'library')
-}
-
 function Restrictions({ user }: { user: UserDto }) {
+  const { t } = useTranslation('admin-users')
   const lines: string[] = []
   if (user.ageRestriction)
     lines.push(
       user.ageRestriction.restriction === 'ALLOW_ONLY'
-        ? `Age ≤ ${user.ageRestriction.age}`
-        : `Age > ${user.ageRestriction.age} excluded`,
+        ? t('restrictions.ageAllow', { age: user.ageRestriction.age })
+        : t('restrictions.ageExclude', { age: user.ageRestriction.age }),
     )
   const labelParts: string[] = []
-  if (user.labelsAllow.length > 0) labelParts.push(`${plural(user.labelsAllow.length, 'label')} allowed`)
-  if (user.labelsExclude.length > 0) labelParts.push(`${plural(user.labelsExclude.length, 'label')} excluded`)
+  if (user.labelsAllow.length > 0) labelParts.push(t('restrictions.labelsAllowed', { count: user.labelsAllow.length }))
+  if (user.labelsExclude.length > 0) labelParts.push(t('restrictions.labelsExcluded', { count: user.labelsExclude.length }))
   if (lines.length === 0 && labelParts.length === 0) return <span className="text-ink-3">—</span>
   return (
     <div className="flex flex-col gap-0.5">
@@ -107,10 +105,11 @@ function RowActions({
   onChangePassword: (user: UserDto) => void
   onDelete: (user: UserDto) => void
 }) {
+  const { t } = useTranslation('admin-users')
   return (
     <Menu
       trigger={
-        <IconButton label={`Actions for ${user.email}`}>
+        <IconButton label={t('rowActions', { email: user.email })}>
           <DotsThreeVertical className="size-4" />
         </IconButton>
       }
@@ -118,28 +117,28 @@ function RowActions({
       {isSelf ? (
         <DisabledAction
           icon={<PencilSimple className="size-4" />}
-          label="Edit"
-          hint="You can't edit your own account here"
+          label={t('common:action.edit')}
+          hint={t('selfEditHint')}
         />
       ) : (
         <MenuItem onSelect={() => onEdit(user)}>
-          <PencilSimple className="size-4" /> Edit
+          <PencilSimple className="size-4" /> {t('common:action.edit')}
         </MenuItem>
       )}
       <MenuItem onSelect={() => onChangePassword(user)}>
-        <Key className="size-4" /> Change password
+        <Key className="size-4" /> {t('account:security.password.title')}
       </MenuItem>
       <MenuSeparator />
       {isSelf ? (
         <DisabledAction
           icon={<Trash className="size-4" />}
-          label="Delete"
-          hint="You can't delete your own account"
+          label={t('common:action.delete')}
+          hint={t('selfDeleteHint')}
           danger
         />
       ) : (
         <MenuItem danger onSelect={() => onDelete(user)}>
-          <Trash className="size-4" /> Delete
+          <Trash className="size-4" /> {t('common:action.delete')}
         </MenuItem>
       )}
     </Menu>
@@ -157,6 +156,8 @@ export function UserTable({
   onChangePassword,
   onDelete,
 }: UserTableProps) {
+  const { t } = useTranslation('admin-users')
+
   if (isLoading)
     return (
       <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-4">
@@ -173,9 +174,9 @@ export function UserTable({
   if (isError)
     return (
       <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-6">
-        <p className="text-sm text-danger">{error instanceof Error ? error.message : 'Could not load users.'}</p>
+        <p className="text-sm text-danger">{error instanceof Error ? error.message : t('loadFailed')}</p>
         <Button size="sm" onClick={onRetry}>
-          Try again
+          {t('common:action.retry')}
         </Button>
       </div>
     )
@@ -183,12 +184,16 @@ export function UserTable({
   if (!users || users.length === 0)
     return (
       <div className="rounded-xl border border-line bg-surface">
-        <EmptyState icon={<Users />} title="No users yet" body="Add a user to give someone access to this server." />
+        <EmptyState icon={<Users />} title={t('emptyTitle')} body={t('emptyBody')} />
       </div>
     )
 
   const sorted = [...users].sort((a, b) => a.email.localeCompare(b.email))
   const actionProps = { onEdit, onChangePassword, onDelete }
+  const librariesText = (u: UserDto) =>
+    u.sharedAllLibraries
+      ? t('account:profile.allLibraries')
+      : t('account:profile.sharedLibraries', { count: u.sharedLibrariesIds.length })
 
   return (
     <>
@@ -196,12 +201,12 @@ export function UserTable({
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs text-ink-3">
-              <th className="px-4 py-3 font-medium">User</th>
-              <th className="px-4 py-3 font-medium">Roles</th>
-              <th className="px-4 py-3 font-medium">Libraries</th>
-              <th className="px-4 py-3 font-medium">Restrictions</th>
+              <th className="px-4 py-3 font-medium">{t('user')}</th>
+              <th className="px-4 py-3 font-medium">{t('account:profile.roles')}</th>
+              <th className="px-4 py-3 font-medium">{t('account:profile.libraries')}</th>
+              <th className="px-4 py-3 font-medium">{t('table.restrictions')}</th>
               <th className="px-4 py-3">
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{t('table.actions')}</span>
               </th>
             </tr>
           </thead>
@@ -214,7 +219,7 @@ export function UserTable({
                     <div className="flex items-center gap-3">
                       <Avatar email={u.email} />
                       <span className="truncate text-ink">{u.email}</span>
-                      {isSelf && <Chip className="px-2 py-0.5 text-[11px]">you</Chip>}
+                      {isSelf && <Chip className="px-2 py-0.5 text-[11px]">{t('you')}</Chip>}
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -244,7 +249,7 @@ export function UserTable({
                   <Avatar email={u.email} />
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate text-sm font-medium text-ink">{u.email}</span>
-                    {isSelf && <Chip className="shrink-0 px-2 py-0.5 text-[11px]">you</Chip>}
+                    {isSelf && <Chip className="shrink-0 px-2 py-0.5 text-[11px]">{t('you')}</Chip>}
                   </div>
                 </div>
                 <RowActions user={u} isSelf={isSelf} {...actionProps} />
@@ -253,9 +258,9 @@ export function UserTable({
                 <RoleChips user={u} />
               </div>
               <dl className="mt-3 grid grid-cols-[92px_1fr] gap-x-3 gap-y-1.5 text-[13px]">
-                <dt className="text-ink-3">Libraries</dt>
+                <dt className="text-ink-3">{t('account:profile.libraries')}</dt>
                 <dd className="text-ink-2">{librariesText(u)}</dd>
-                <dt className="text-ink-3">Restrictions</dt>
+                <dt className="text-ink-3">{t('table.restrictions')}</dt>
                 <dd>
                   <Restrictions user={u} />
                 </dd>

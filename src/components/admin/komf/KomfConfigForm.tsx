@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
 import { komfApi } from '@/lib/api/komf'
 import type { KomfConfig, KomfConfigPatch, KomfNameMatchingMode, LibraryDto } from '@/lib/api/types'
-import { plural } from '@/lib/utils/format'
 import { Section } from '@/components/account/Section'
 import { Button } from '@/components/ui/Button'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
@@ -33,20 +33,20 @@ import { ProvidersFields } from './ProvidersFields'
 import { TabBar } from './TabBar'
 import { FormRow } from './FormRow'
 
-const NAME_MATCHING_OPTIONS: Array<{ value: KomfNameMatchingMode; label: string }> = [
-  { value: 'CLOSEST_MATCH', label: 'Closest match' },
-  { value: 'EXACT', label: 'Exact' },
+const NAME_MATCHING_OPTIONS: Array<{ value: KomfNameMatchingMode; labelKey: string }> = [
+  { value: 'CLOSEST_MATCH', labelKey: 'nameMatching.closestMatch' },
+  { value: 'EXACT', labelKey: 'nameMatching.exact' },
 ]
 
 const KOMF_TAB_IDS = ['providers', 'metadata', 'listener', 'notifications', 'overrides'] as const
 type KomfTabId = (typeof KOMF_TAB_IDS)[number]
 
-const KOMF_TABS: ReadonlyArray<{ id: KomfTabId; label: string }> = [
-  { id: 'providers', label: 'Providers' },
-  { id: 'metadata', label: 'Metadata update' },
-  { id: 'listener', label: 'Listener' },
-  { id: 'notifications', label: 'Notifications' },
-  { id: 'overrides', label: 'Overrides' },
+const KOMF_TABS: ReadonlyArray<{ id: KomfTabId; labelKey: string }> = [
+  { id: 'providers', labelKey: 'tabs.providers' },
+  { id: 'metadata', labelKey: 'tabs.metadata' },
+  { id: 'listener', labelKey: 'tabs.listener' },
+  { id: 'notifications', labelKey: 'tabs.notifications' },
+  { id: 'overrides', labelKey: 'tabs.overrides' },
 ]
 
 function tabFromParam(param: string | null): KomfTabId {
@@ -54,6 +54,7 @@ function tabFromParam(param: string | null): KomfTabId {
 }
 
 export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libraries: LibraryDto[] }) {
+  const { t, i18n } = useTranslation('admin-komf')
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<KomfConfigDraft>(() => draftFromConfig(config))
 
@@ -77,7 +78,10 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
     save.reset()
   }
 
-  const sortedLibraries = useMemo(() => libraries.slice().sort((a, b) => a.name.localeCompare(b.name)), [libraries])
+  const sortedLibraries = useMemo(
+    () => libraries.slice().sort((a, b) => a.name.localeCompare(b.name, i18n.language)),
+    [libraries, i18n.language],
+  )
 
   const patch = (p: Partial<KomfConfigDraft>) => setDraft((d) => ({ ...d, ...p }))
 
@@ -139,26 +143,30 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
   return (
     <div className="space-y-6">
       <div ref={tabBarRef} className="sticky top-15 z-10 bg-bg/80 backdrop-blur-md">
-        <TabBar tabs={KOMF_TABS.map((t) => ({ ...t, hasError: tabErrors[t.id] }))} active={tab} onChange={setTab} />
+        <TabBar
+          tabs={KOMF_TABS.map((tab) => ({ id: tab.id, label: t(tab.labelKey), hasError: tabErrors[tab.id] }))}
+          active={tab}
+          onChange={setTab}
+        />
       </div>
 
       {tab === 'providers' && (
         <>
-          <Section title="Providers">
+          <Section title={t('tabs.providers')}>
             <ProvidersFields
               value={draft.defaultProviders}
               onChange={(v) => patch({ defaultProviders: v })}
               errors={errors.defaultProviders}
             />
-            <FormRow label="Name matching">
+            <FormRow label={t('nameMatching.label')}>
               <SegmentedControl
-                options={NAME_MATCHING_OPTIONS}
+                options={NAME_MATCHING_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
                 value={draft.nameMatchingMode}
                 onChange={(v) => patch({ nameMatchingMode: v })}
               />
             </FormRow>
           </Section>
-          <Section title="Provider credentials">
+          <Section title={t('section.providerCredentials')}>
             <ProviderCredentialsFields value={draft} onChange={patch} searchLimitError={errors.comicVineSearchLimit} />
           </Section>
         </>
@@ -166,27 +174,27 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
 
       {tab === 'metadata' && (
         <>
-          <Section title="General">
+          <Section title={t('metadata:tabs.general')}>
             <div>
               <ProcessingGeneralFields value={draft.defaultProcessing} onChange={setProcessing} />
             </div>
           </Section>
-          <Section title="Post-processing">
+          <Section title={t('section.postProcessing')}>
             <div>
               <PostProcessingFields value={draft.defaultProcessing} onChange={setProcessing} />
             </div>
           </Section>
-          <Section title="Search title extraction">
+          <Section title={t('section.searchTitleExtraction')}>
             <div>
               <SearchTitleExtractionFields value={draft.defaultProcessing} onChange={setProcessing} />
             </div>
           </Section>
-          <Section title="Chinese conversion">
+          <Section title={t('section.chineseConversion')}>
             <div>
               <ChineseConversionFields value={draft.defaultProcessing} onChange={setProcessing} />
             </div>
           </Section>
-          <Section title="Mylar">
+          <Section title={t('section.mylar')}>
             <div>
               <MylarFields value={draft.defaultProcessing} onChange={setProcessing} />
             </div>
@@ -195,19 +203,17 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
       )}
 
       {tab === 'listener' && (
-        <Section title="Event listener">
+        <Section title={t('section.eventListener')}>
           <EventListenerFields value={draft} libraries={sortedLibraries} onChange={patch} />
         </Section>
       )}
 
       {tab === 'notifications' && (
-        <Section title="Notifications">
+        <Section title={t('tabs.notifications')}>
           <NotificationsFields value={draft.notifications} onChange={(v) => patch({ notifications: v })} />
           <div className="pt-3">
-            <p className="text-sm text-ink-2">Notify for libraries</p>
-            <p className="mt-0.5 text-xs text-ink-3">
-              Only send notifications for selected libraries. Select none to notify for all.
-            </p>
+            <p className="text-sm text-ink-2">{t('notifications.notifyLibraries')}</p>
+            <p className="mt-0.5 text-xs text-ink-3">{t('notifications.notifyLibrariesHelper')}</p>
             <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
               {sortedLibraries.map((lib) => (
                 <label key={lib.id} className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
@@ -226,7 +232,7 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
       )}
 
       {tab === 'overrides' && (
-        <Section title="Library overrides">
+        <Section title={t('section.libraryOverrides')}>
           <LibraryOverrides
             libraries={sortedLibraries}
             config={config}
@@ -252,9 +258,9 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
               className="pointer-events-auto flex w-full max-w-lg flex-col gap-1.5 rounded-xl border border-line bg-overlay px-4 py-3 shadow-pop"
             >
               <div className="flex items-center gap-3">
-                <span className="flex-1 text-sm text-ink-2">{plural(dirtyCount, 'unsaved change')}</span>
+                <span className="flex-1 text-sm text-ink-2">{t('saveBar.unsavedChanges', { count: dirtyCount })}</span>
                 <Button size="sm" variant="ghost" onClick={discard} disabled={save.isPending}>
-                  Discard
+                  {t('saveBar.discard')}
                 </Button>
                 <Button
                   size="sm"
@@ -263,18 +269,18 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
                   disabled={invalid}
                   onClick={() => save.mutate(changes)}
                 >
-                  Save
+                  {t('common:action.save')}
                 </Button>
               </div>
-              {invalid && <p className="text-xs text-ink-3">Fix the invalid fields above to save.</p>}
+              {invalid && <p className="text-xs text-ink-3">{t('saveBar.invalidHint')}</p>}
               {errors.messages.map((m) => (
                 <p key={m} className="text-xs text-danger">
-                  {m}
+                  {t(m)}
                 </p>
               ))}
               {save.isError && (
                 <p className="text-xs text-danger">
-                  {save.error instanceof Error ? save.error.message : 'Could not save configuration.'}
+                  {save.error instanceof Error ? save.error.message : t('saveBar.saveFailed')}
                 </p>
               )}
             </motion.div>

@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { CaretDown, CaretUp, WarningCircle, X } from '@phosphor-icons/react'
 import { librariesApi } from '@/lib/api/libraries'
 import type { LibraryDto, ScanInterval, SeriesCover } from '@/lib/api/types'
@@ -34,6 +35,7 @@ interface LibraryDialogProps {
 }
 
 export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProps) {
+  const { t } = useTranslation('admin-maintenance')
   const queryClient = useQueryClient()
   const isEdit = !!library
   const [form, setForm] = useState<LibraryFormState>(DEFAULTS)
@@ -75,7 +77,7 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
     save.error && violations.length === 0
       ? save.error instanceof Error
         ? save.error.message
-        : 'Something went wrong.'
+        : t('errorFallback')
       : null
 
   const canSubmit = !!form.name.trim() && !!form.root.trim() && (!isEdit || hasChanges)
@@ -86,38 +88,38 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange} title={isEdit ? 'Edit library' : 'Add library'} size="lg">
+      <Dialog open={open} onOpenChange={onOpenChange} title={isEdit ? t('libraries.editTitle') : t('libraries.add')} size="lg">
         <form onSubmit={onSubmit} className="flex h-full min-h-0 flex-col">
           <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-4">
-            <FormSection title="General" hint={isEdit ? undefined : 'Everything else uses the server defaults.'}>
+            <FormSection title={t('libraries.general')} hint={isEdit ? undefined : t('libraries.generalHint')}>
               <div className="flex flex-col gap-4">
                 <TextField
-                  label="Name"
+                  label={t('metadata:field.name')}
                   value={form.name}
                   onChange={(e) => set('name', e.target.value)}
                   error={violationFor('name')}
-                  placeholder="e.g. Comics"
+                  placeholder={t('libraries.namePlaceholder')}
                   autoFocus
                   required
                 />
                 <PathField
-                  label="Root folder"
+                  label={t('libraries.rootFolder')}
                   value={form.root}
                   onChange={(v) => set('root', v)}
                   onBrowse={() => setBrowsingRoot(true)}
                   error={violationFor('root')}
-                  helper="Absolute path on the machine running kmrs."
+                  helper={t('libraries.rootHelper')}
                 />
                 <TextField
-                  label="Oneshots directory"
+                  label={t('libraries.oneshotsDirectory')}
                   value={form.oneshotsDirectory}
                   onChange={(e) => set('oneshotsDirectory', e.target.value)}
                   error={violationFor('oneshotsDirectory')}
-                  helper="Books in folders whose path contains this value become oneshots. Leave empty to disable."
-                  placeholder="e.g. @oneshot"
+                  helper={t('libraries.oneshotsHelper')}
+                  placeholder={t('libraries.oneshotsPlaceholder')}
                   spellCheck={false}
                 />
-                {!isEdit && <p className="text-[13px] text-ink-3">The library is scanned automatically right after creation.</p>}
+                {!isEdit && <p className="text-[13px] text-ink-3">{t('libraries.autoScanNote')}</p>}
               </div>
             </FormSection>
 
@@ -128,52 +130,52 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
                 className="flex cursor-pointer items-center gap-1.5 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink"
               >
                 {advancedOpen ? <CaretUp className="size-3.5" /> : <CaretDown className="size-3.5" />}
-                Advanced options
+                {t('libraries.advanced')}
               </button>
             )}
 
             {(isEdit || advancedOpen) && (
               <>
-                <FormSection title="Scanning">
+                <FormSection title={t('libraries.scanning')}>
                   <div className="flex flex-col gap-1">
                     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-1.5">
-                      <span className="text-sm text-ink-2">Scan interval</span>
+                      <span className="text-sm text-ink-2">{t('libraries.scanIntervalLabel')}</span>
                       <SegmentedControl<ScanInterval>
                         size="sm"
-                        options={SCAN_INTERVAL_OPTIONS}
+                        options={SCAN_INTERVAL_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
                         value={form.scanInterval}
                         onChange={(v) => set('scanInterval', v)}
                       />
                     </div>
                     <div className="grid gap-x-8 sm:grid-cols-2">
-                      {SCAN_SWITCH_FIELDS.map(({ key, label }) => (
-                        <SwitchRow key={key} label={label} checked={form[key]} onChange={(v) => set(key, v)} />
+                      {SCAN_SWITCH_FIELDS.map(({ key, labelKey }) => (
+                        <SwitchRow key={key} label={t(labelKey)} checked={form[key]} onChange={(v) => set(key, v)} />
                       ))}
                     </div>
                     <ExclusionsEditor value={form.scanDirectoryExclusions} onChange={(v) => set('scanDirectoryExclusions', v)} />
                   </div>
                 </FormSection>
 
-                <FormSection title="Import sources" hint="Metadata pulled into the library during scans.">
+                <FormSection title={t('libraries.importSources')} hint={t('libraries.importSourcesHint')}>
                   <div className="grid gap-x-8 sm:grid-cols-2">
-                    {IMPORT_FIELDS.map(({ key, label }) => (
-                      <SwitchRow key={key} label={label} checked={form[key]} onChange={(v) => set(key, v)} />
+                    {IMPORT_FIELDS.map(({ key, labelKey }) => (
+                      <SwitchRow key={key} label={t(labelKey)} checked={form[key]} onChange={(v) => set(key, v)} />
                     ))}
                   </div>
                 </FormSection>
 
-                <FormSection title="Analysis & maintenance">
+                <FormSection title={t('libraries.analysisMaintenance')}>
                   <div className="grid gap-x-8 sm:grid-cols-2">
-                    {ANALYSIS_FIELDS.map(({ key, label }) => (
-                      <SwitchRow key={key} label={label} checked={form[key]} onChange={(v) => set(key, v)} />
+                    {ANALYSIS_FIELDS.map(({ key, labelKey }) => (
+                      <SwitchRow key={key} label={t(labelKey)} checked={form[key]} onChange={(v) => set(key, v)} />
                     ))}
                   </div>
                 </FormSection>
 
-                <FormSection title="Series cover">
+                <FormSection title={t('libraries.seriesCover')}>
                   <SegmentedControl<SeriesCover>
                     size="sm"
-                    options={SERIES_COVER_OPTIONS}
+                    options={SERIES_COVER_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
                     value={form.seriesCover}
                     onChange={(v) => set('seriesCover', v)}
                   />
@@ -187,8 +189,8 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
               <div className="flex items-start gap-2 rounded-lg border border-accent/25 bg-accent-soft px-3 py-2 text-[13px] text-accent-strong">
                 <WarningCircle className="mt-0.5 size-4 shrink-0" />
                 <div className="space-y-0.5">
-                  {triggersRescan && <p>Changes to root, oneshots, file types or exclusions will trigger a rescan.</p>}
-                  {triggersBatch && <p>Newly enabled hash, repair or convert options will queue background tasks for existing books.</p>}
+                  {triggersRescan && <p>{t('libraries.rescanWarning')}</p>}
+                  {triggersBatch && <p>{t('libraries.batchWarning')}</p>}
                 </div>
               </div>
             )}
@@ -204,10 +206,10 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
             {generalError && <p className="text-[13px] text-danger">{generalError}</p>}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                Cancel
+                {t('common:action.cancel')}
               </Button>
               <Button type="submit" variant="primary" loading={save.isPending} disabled={!canSubmit}>
-                {isEdit ? 'Save changes' : 'Add library'}
+                {isEdit ? t('metadata:action.saveChanges') : t('libraries.add')}
               </Button>
             </div>
           </div>
@@ -252,6 +254,7 @@ function PathField({
   helper?: string
   error?: string
 }) {
+  const { t } = useTranslation('admin-maintenance')
   const id = useId()
   return (
     <div className="flex flex-col gap-2">
@@ -273,7 +276,7 @@ function PathField({
           )}
         />
         <Button type="button" onClick={onBrowse}>
-          Browse…
+          {t('libraries.browse')}
         </Button>
       </div>
       {error ? <p className="text-[13px] text-danger">{error}</p> : helper ? <p className="text-[13px] text-ink-3">{helper}</p> : null}
@@ -291,6 +294,7 @@ function SwitchRow({ label, checked, onChange }: { label: string; checked: boole
 }
 
 function ExclusionsEditor({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useTranslation('admin-maintenance')
   const [text, setText] = useState('')
   const add = () => {
     const v = text.trim()
@@ -300,7 +304,7 @@ function ExclusionsEditor({ value, onChange }: { value: string[]; onChange: (v: 
   }
   return (
     <div className="flex flex-col gap-2 pt-2">
-      <span className="text-[13px] font-medium text-ink-2">Directory exclusions</span>
+      <span className="text-[13px] font-medium text-ink-2">{t('libraries.exclusions')}</span>
       <div className="flex gap-2">
         <input
           value={text}
@@ -312,11 +316,11 @@ function ExclusionsEditor({ value, onChange }: { value: string[]; onChange: (v: 
             }
           }}
           spellCheck={false}
-          placeholder="e.g. @eaDir"
+          placeholder={t('libraries.exclusionPlaceholder')}
           className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 font-mono text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
         />
         <Button type="button" onClick={add} disabled={!text.trim()}>
-          Add
+          {t('common:action.add')}
         </Button>
       </div>
       {value.length > 0 && (
@@ -330,7 +334,7 @@ function ExclusionsEditor({ value, onChange }: { value: string[]; onChange: (v: 
               <button
                 type="button"
                 onClick={() => onChange(value.filter((v) => v !== ex))}
-                aria-label={`Remove ${ex}`}
+                aria-label={t('libraries.removeExclusion', { name: ex })}
                 className="cursor-pointer rounded-full p-0.5 text-ink-3 transition-colors hover:text-danger"
               >
                 <X className="size-3" />
@@ -339,7 +343,7 @@ function ExclusionsEditor({ value, onChange }: { value: string[]; onChange: (v: 
           ))}
         </div>
       )}
-      <p className="text-[13px] text-ink-3">Directory names skipped during scans.</p>
+      <p className="text-[13px] text-ink-3">{t('libraries.exclusionsHelper')}</p>
     </div>
   )
 }

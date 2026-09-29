@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowsClockwise,
   ChartBar,
@@ -18,7 +19,7 @@ import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
 import { Tooltip } from '@/components/ui/Tooltip'
-import { scanIntervalBadge } from './model'
+import { scanIntervalBadgeKey } from './model'
 
 interface LibraryCardProps {
   library: LibraryDto
@@ -27,13 +28,14 @@ interface LibraryCardProps {
 }
 
 export function LibraryCard({ library, onEdit, onDelete }: LibraryCardProps) {
+  const { t } = useTranslation('admin-maintenance')
   const queryClient = useQueryClient()
   const [actionError, setActionError] = useState<string | null>(null)
 
   const handlers = {
     onMutate: () => setActionError(null),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['libraries'] }),
-    onError: (err: unknown) => setActionError(err instanceof Error ? err.message : 'Action failed.'),
+    onError: (err: unknown) => setActionError(err instanceof Error ? err.message : t('libraries.actionFailed')),
   }
 
   const scan = useMutation({ mutationFn: (deep: boolean) => librariesApi.scan(library.id, deep), ...handlers })
@@ -42,15 +44,15 @@ export function LibraryCard({ library, onEdit, onDelete }: LibraryCardProps) {
   const emptyTrash = useMutation({ mutationFn: () => librariesApi.emptyTrash(library.id), ...handlers })
   const busy = scan.isPending || analyze.isPending || refresh.isPending || emptyTrash.isPending
 
-  const interval = scanIntervalBadge(library.scanInterval)
+  const intervalKey = scanIntervalBadgeKey(library.scanInterval)
 
   return (
     <div className="flex flex-col rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
       <div className="flex items-center justify-between gap-2">
         <h3 className="min-w-0 truncate text-[15px] font-semibold text-ink">{library.name}</h3>
         <div className="flex shrink-0 items-center gap-1.5">
-          {library.unavailable && <Badge danger>Unavailable</Badge>}
-          {interval && <Badge>{interval}</Badge>}
+          {library.unavailable && <Badge danger>{t('common:state.unavailable')}</Badge>}
+          {intervalKey && <Badge>{t(intervalKey)}</Badge>}
         </div>
       </div>
       <Tooltip content={library.root}>
@@ -62,39 +64,39 @@ export function LibraryCard({ library, onEdit, onDelete }: LibraryCardProps) {
       <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
         <Button size="sm" loading={scan.isPending} disabled={busy} onClick={() => scan.mutate(false)}>
           <Scan className="size-4" />
-          Scan
+          {t('layout:libraryMenu.scan')}
         </Button>
         <Menu
           trigger={
-            <IconButton label="Library actions">
+            <IconButton label={t('libraries.actions')}>
               <DotsThreeVertical className="size-4" />
             </IconButton>
           }
         >
           <MenuItem disabled={busy} onSelect={() => scan.mutate(true)}>
             <MagnifyingGlassPlus className="size-4" />
-            Scan (deep)
+            {t('layout:libraryMenu.scanDeep')}
           </MenuItem>
           <MenuItem disabled={busy} onSelect={() => analyze.mutate()}>
             <ChartBar className="size-4" />
-            Analyze
+            {t('layout:libraryMenu.analyze')}
           </MenuItem>
           <MenuItem disabled={busy} onSelect={() => refresh.mutate()}>
             <ArrowsClockwise className="size-4" />
-            Refresh metadata
+            {t('layout:libraryMenu.refreshMetadata')}
           </MenuItem>
           <MenuItem disabled={busy} onSelect={() => emptyTrash.mutate()}>
             <TrashSimple className="size-4" />
-            Empty trash
+            {t('layout:libraryMenu.emptyTrash')}
           </MenuItem>
           <MenuSeparator />
           <MenuItem onSelect={() => onEdit(library)}>
             <PencilSimple className="size-4" />
-            Edit
+            {t('common:action.edit')}
           </MenuItem>
           <MenuItem danger onSelect={() => onDelete(library)}>
             <Trash className="size-4" />
-            Delete
+            {t('common:action.delete')}
           </MenuItem>
         </Menu>
       </div>

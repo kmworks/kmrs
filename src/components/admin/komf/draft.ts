@@ -578,8 +578,9 @@ function nonNegativeInt(v: string): boolean {
   return /^\d+$/.test(v)
 }
 
-const PRIORITY_ERROR = 'Must be a positive whole number.'
-const NUMBER_ERROR = 'Must be a whole number.'
+// validation results are admin-komf message keys, translated at render
+const PRIORITY_ERROR = 'validation.positiveInt'
+const NUMBER_ERROR = 'validation.wholeNumber'
 
 function validateProvider(key: KomfProviderKey, d: ProviderDraft): string | undefined {
   if (!positiveInt(d.priority.trim())) return PRIORITY_ERROR
@@ -626,10 +627,10 @@ export function validateDraft(d: KomfConfigDraft): KomfDraftErrors {
       if (!msgs.includes(msg)) msgs.push(msg)
     }
     for (const t of p.publisherTagNames) {
-      if (!t.tagName.trim() !== !t.language.trim()) add('Publisher tag names need both a tag name and a language.')
+      if (!t.tagName.trim() !== !t.language.trim()) add('validation.publisherTagPair')
     }
     for (const m of p.searchTitleExtraction.charMappings) {
-      if (!m.from.trim() !== !m.to.trim()) add('Character mappings need both a source and a replacement.')
+      if (!m.from.trim() !== !m.to.trim()) add('validation.charMappingPair')
     }
     return msgs
   }

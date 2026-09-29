@@ -1,8 +1,9 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Books, WarningCircle } from '@phosphor-icons/react'
-import { plural } from '@/lib/utils/format'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { usePinnedLibraries } from '@/lib/store/clientSettings'
 import { BackButton } from '@/components/ui/BackButton'
 import { Button } from '@/components/ui/Button'
@@ -17,6 +18,7 @@ import { PinnedLibrariesEmpty } from '@/components/dashboard/PinnedLibrariesEmpt
 import { PinLibrariesDialog } from '@/components/layout/PinLibrariesDialog'
 
 export function DashboardSectionPage() {
+  const { t } = useTranslation('dashboard')
   const { libraryId, sectionKey = '' } = useParams()
   const section = Object.hasOwn(DASHBOARD_SECTIONS, sectionKey)
     ? DASHBOARD_SECTIONS[sectionKey as DashboardSectionKey]
@@ -30,9 +32,7 @@ export function DashboardSectionPage() {
   const pinnedEmpty = !libraryId && pinned !== undefined && pinned.length === 0
   const [pinDialogOpen, setPinDialogOpen] = useState(false)
 
-  useEffect(() => {
-    document.title = section ? `${section.title} · KMReader` : 'KMReader'
-  }, [section])
+  useDocumentTitle(section ? t(section.titleKey) : undefined)
 
   // same key+queryFn as the dashboard row, so the first pages come straight from cache
   const query = useInfiniteQuery({
@@ -55,8 +55,8 @@ export function DashboardSectionPage() {
     <div>
       <BackButton to={homeTo} className="mb-2 -ml-2" />
       <PageHeader
-        title={section.title}
-        subtitle={total != null ? (section.kind === 'book' ? plural(total, 'book') : plural(total, 'series', 'series')) : undefined}
+        title={t(section.titleKey)}
+        subtitle={total != null ? t(section.kind === 'book' ? 'bookCount' : 'seriesCount', { count: total }) : undefined}
       />
       {pinnedEmpty ? (
         <PinnedLibrariesEmpty onManage={() => setPinDialogOpen(true)} />
@@ -65,12 +65,12 @@ export function DashboardSectionPage() {
       ) : query.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load"
+          title={t('loadError')}
           body={query.error.message}
-          action={<Button onClick={() => query.refetch()}>Retry</Button>}
+          action={<Button onClick={() => query.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : items.length === 0 ? (
-        <EmptyState icon={<Books />} title="Nothing here yet" />
+        <EmptyState icon={<Books />} title={t('empty.title')} />
       ) : (
         <>
           <MediaGrid>

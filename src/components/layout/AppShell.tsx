@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   BookBookmark,
   BookmarkSimple,
@@ -42,7 +43,6 @@ import {
 } from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '@/lib/utils/cn'
-import { plural } from '@/lib/utils/format'
 import { librariesApi } from '@/lib/api/libraries'
 import { usersApi } from '@/lib/api/users'
 import { serverApi } from '@/lib/api/users'
@@ -151,6 +151,7 @@ function NavGroup({
 }
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const { t } = useTranslation('layout')
   const { data: libraries, isLoading } = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
   const preferredTab = useLibraryPrefs((s) => s.tab)
   const user = useAuthStore((s) => s.user)
@@ -171,10 +172,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-3">
         <NavItem to="/dashboard" icon={<House />} onClick={onNavigate}>
-          Dashboard
+          {t('nav.dashboard')}
         </NavItem>
         <NavItem to="/search" icon={<MagnifyingGlass />} onClick={onNavigate}>
-          Search
+          {t('common:action.search')}
         </NavItem>
 
         <div className="mt-5 mb-1.5 flex items-center justify-between px-3">
@@ -183,14 +184,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             onClick={() => setLibrariesCollapsed(!librariesCollapsed)}
             className="flex cursor-pointer items-center gap-1 text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase transition-colors hover:text-ink-2"
           >
-            Libraries
+            {t('nav.libraries')}
             <CaretRight
               className={cn('size-3 transition-transform duration-150', !librariesCollapsed && 'rotate-90')}
             />
           </button>
           {libraries && libraries.length > 0 && (
             <IconButton
-              label="Manage pinned libraries"
+              label={t('nav.managePinned')}
               className="-my-1 -mr-[5px] size-6 rounded-md [&_svg]:size-3.5"
               onClick={() => setPinDialogOpen(true)}
             >
@@ -214,7 +215,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={onNavigate}
                 trailing={
                   pinnedIndex.has(lib.id) ? (
-                    <PushPin weight="fill" className="size-3 shrink-0 text-ink-3" aria-label="Pinned" />
+                    <PushPin weight="fill" className="size-3 shrink-0 text-ink-3" aria-label={t('nav.pinned')} />
                   ) : undefined
                 }
                 actions={isAdmin(user) ? <SidebarLibraryMenu library={lib} /> : undefined}
@@ -222,99 +223,99 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 {lib.name}
               </NavItem>
             ))}
-            {libraries?.length === 0 && <p className="px-3 text-[13px] text-ink-3">No libraries yet</p>}
+            {libraries?.length === 0 && <p className="px-3 text-[13px] text-ink-3">{t('nav.noLibraries')}</p>}
           </>
         )}
 
         <div className="mt-5 mb-1.5 px-3 text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase">
-          Curated
+          {t('nav.curated')}
         </div>
         <NavItem to="/collections" icon={<Books />} onClick={onNavigate}>
-          Collections
+          {t('nav.collections')}
         </NavItem>
         <NavItem to="/readlists" icon={<BookmarkSimple />} onClick={onNavigate}>
-          Read lists
+          {t('nav.readLists')}
         </NavItem>
 
         {isAdmin(user) && (
           <>
             <div className="mt-5 mb-1.5 px-3 text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase">
-              Import
+              {t('nav.import')}
             </div>
             <NavItem to="/import/books" icon={<TrayArrowDown />} onClick={onNavigate}>
-              Import books
+              {t('nav.importBooks')}
             </NavItem>
             <NavItem to="/import/readlist" icon={<Playlist />} onClick={onNavigate}>
-              Import readlist
+              {t('nav.importReadlist')}
             </NavItem>
 
             <div className="mt-5 mb-1.5 px-3 text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase">
-              Administration
+              {t('nav.administration')}
             </div>
             <NavGroup
               icon={<Database />}
-              label="Server"
+              label={t('nav.server')}
               match={['/admin/libraries', '/admin/users', '/admin/settings', '/admin/integrations', '/admin/server', '/admin/updates', '/admin/ui']}
             >
               <NavItem to="/admin/libraries" icon={<HardDrives />} onClick={onNavigate}>
-                Libraries
+                {t('nav.libraries')}
               </NavItem>
               <NavItem to="/admin/users" icon={<Users />} onClick={onNavigate}>
-                Users
+                {t('nav.users')}
               </NavItem>
               <NavItem to="/admin/settings" icon={<GearSix />} onClick={onNavigate}>
-                Settings
+                {t('nav.settings')}
               </NavItem>
               <NavItem to="/admin/integrations" icon={<PlugsConnected />} onClick={onNavigate}>
-                Integrations
+                {t('nav.integrations')}
               </NavItem>
               <NavItem to="/admin/server" icon={<Gauge />} onClick={onNavigate}>
-                Server
+                {t('nav.server')}
               </NavItem>
               <NavItem to="/admin/updates" icon={<Rocket />} onClick={onNavigate}>
-                Updates
+                {t('nav.updates')}
               </NavItem>
               <NavItem to="/admin/ui" icon={<Palette />} onClick={onNavigate}>
-                UI settings
+                {t('nav.uiSettings')}
               </NavItem>
             </NavGroup>
             <NavGroup
               icon={<Wrench />}
-              label="Maintenance"
+              label={t('nav.maintenance')}
               match={['/admin/duplicates', '/admin/duplicate-pages', '/admin/media-analysis', '/admin/missing-posters', '/admin/history']}
             >
               <NavItem to="/admin/duplicates" icon={<Copy />} onClick={onNavigate}>
-                Duplicates
+                {t('nav.duplicates')}
               </NavItem>
               <NavItem to="/admin/duplicate-pages" icon={<Images />} onClick={onNavigate}>
-                Duplicate pages
+                {t('nav.duplicatePages')}
               </NavItem>
               <NavItem to="/admin/media-analysis" icon={<FileMagnifyingGlass />} onClick={onNavigate}>
-                Media analysis
+                {t('nav.mediaAnalysis')}
               </NavItem>
               <NavItem to="/admin/missing-posters" icon={<ImageBroken />} onClick={onNavigate}>
-                Missing posters
+                {t('nav.missingPosters')}
               </NavItem>
               <NavItem to="/admin/history" icon={<ClockCounterClockwise />} onClick={onNavigate}>
-                History
+                {t('nav.history')}
               </NavItem>
             </NavGroup>
           </>
         )}
 
         <div className="mt-3">
-          <NavGroup icon={<UserCircle />} label="Account" match={['/account']}>
+          <NavGroup icon={<UserCircle />} label={t('nav.account')} match={['/account']}>
             <NavItem to="/account/profile" icon={<User />} onClick={onNavigate}>
-              Profile
+              {t('nav.profile')}
             </NavItem>
             <NavItem to="/account/security" icon={<ShieldCheck />} onClick={onNavigate}>
-              Security
+              {t('nav.security')}
             </NavItem>
             <NavItem to="/account/api-keys" icon={<Key />} onClick={onNavigate}>
-              API keys
+              {t('nav.apiKeys')}
             </NavItem>
             <NavItem to="/account/reader" icon={<BookOpen />} onClick={onNavigate}>
-              Reader
+              {t('nav.reader')}
             </NavItem>
           </NavGroup>
         </div>
@@ -327,6 +328,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function SidebarFooter() {
+  const { t } = useTranslation('layout')
   const user = useAuthStore((s) => s.user)
   const clear = useAuthStore((s) => s.clear)
   const navigate = useNavigate()
@@ -360,7 +362,7 @@ function SidebarFooter() {
       >
         <MenuLabel>{user?.email}</MenuLabel>
         <MenuItem onSelect={logout}>
-          <SignOut className="size-4" /> Sign out
+          <SignOut className="size-4" /> {t('nav.signOut')}
         </MenuItem>
         {info?.build?.version && (
           <>
@@ -387,6 +389,7 @@ function useSlashFocus(ref: React.RefObject<HTMLInputElement | null>) {
 }
 
 function TopSearchBox() {
+  const { t } = useTranslation('search')
   const navigate = useNavigate()
   const { value: scope } = useSearchScopeDefault()
   const [q, setQ] = useState('')
@@ -411,7 +414,7 @@ function TopSearchBox() {
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search series, books, authors…"
+        placeholder={t('placeholderTop')}
         className="h-9 w-full rounded-lg border border-line bg-surface pr-12 pl-9 text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
       />
       <kbd className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 rounded border border-line bg-raised px-1.5 text-[11px] text-ink-3">
@@ -424,6 +427,7 @@ function TopSearchBox() {
 // on /search the header box is the page's only search input: it edits the ?q=
 // param live so page and box can never diverge
 function SyncedSearchBox() {
+  const { t } = useTranslation('search')
   const [searchParams, setSearchParams] = useSearchParams()
   const qRaw = searchParams.get('q') ?? ''
   const [input, setInput] = useState(qRaw)
@@ -443,7 +447,7 @@ function SyncedSearchBox() {
   useEffect(() => {
     const v = input.trim()
     if (v === lastPushed.current.trim()) return
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       lastPushed.current = v
       setSearchParams(
         (prev) => {
@@ -455,7 +459,7 @@ function SyncedSearchBox() {
         { replace: true },
       )
     }, 400)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   }, [input, setSearchParams])
 
   return (
@@ -467,14 +471,14 @@ function SyncedSearchBox() {
         autoFocus
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        placeholder="Search series, books, collections, read lists…"
-        aria-label="Search"
+        placeholder={t('placeholderPage')}
+        aria-label={t('common:action.search')}
         className="h-9 w-full rounded-lg border border-line bg-surface pr-12 pl-9 text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
       />
       {input ? (
         <button
           type="button"
-          aria-label="Clear search"
+          aria-label={t('clear')}
           onClick={() => setInput('')}
           className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-ink-3 transition-colors hover:text-ink"
         >
@@ -492,11 +496,12 @@ function SyncedSearchBox() {
 // TaskQueueStatus is only pushed on the admin stream, so non-admins keep a
 // zero count and the badge never renders for them.
 function TaskQueueBadge() {
+  const { t } = useTranslation('layout')
   const status = useTaskQueue((s) => s.status)
   const count = status?.count ?? 0
   if (count === 0) return null
   const entries = Object.entries(status?.countByType ?? {}).sort((a, b) => b[1] - a[1])
-  const label = plural(count, 'queued task')
+  const label = t('queuedTasks', { count })
   return (
     <Tooltip
       side="bottom"
@@ -525,18 +530,19 @@ function TaskQueueBadge() {
 }
 
 function ThemeButton() {
+  const { t } = useTranslation('layout')
   const theme = useUiStore((s) => s.theme)
   const setTheme = useUiStore((s) => s.setTheme)
   const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light'
-  const label = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System'
   return (
-    <IconButton label={`Theme: ${label}`} onClick={() => setTheme(next)}>
+    <IconButton label={t('theme.current', { name: t(`theme.${theme}`) })} onClick={() => setTheme(next)}>
       {theme === 'light' ? <Sun className="size-5" /> : theme === 'dark' ? <Moon className="size-5" /> : <Monitor className="size-5" />}
     </IconButton>
   )
 }
 
 function AppearanceMenu() {
+  const { t } = useTranslation('layout')
   const cardStyle = useUiStore((s) => s.cardStyle)
   const gridDensity = useUiStore((s) => s.gridDensity)
   const blurUnreadCovers = useUiStore((s) => s.blurUnreadCovers)
@@ -547,46 +553,46 @@ function AppearanceMenu() {
   return (
     <Menu
       trigger={
-        <IconButton label="Appearance">
+        <IconButton label={t('appearance.label')}>
           <PaintBrush className="size-5" />
         </IconButton>
       }
     >
       <div className="w-64 space-y-3 p-2.5">
         <div>
-          <MenuLabel>Card style</MenuLabel>
+          <MenuLabel>{t('appearance.cardStyle')}</MenuLabel>
           <SegmentedControl
             size="sm"
             className="w-full [&>button]:flex-1"
             options={[
-              { value: 'standard', label: 'Standard' },
-              { value: 'overlay', label: 'Overlay' },
-              { value: 'cover', label: 'Cover only' },
+              { value: 'standard', label: t('appearance.cardStyleStandard') },
+              { value: 'overlay', label: t('appearance.cardStyleOverlay') },
+              { value: 'cover', label: t('appearance.cardStyleCoverOnly') },
             ]}
             value={cardStyle}
             onChange={setCardStyle}
           />
         </div>
         <div>
-          <MenuLabel>Grid density</MenuLabel>
+          <MenuLabel>{t('appearance.gridDensity')}</MenuLabel>
           <SegmentedControl
             size="sm"
             className="w-full [&>button]:flex-1"
             options={[
-              { value: 'compact', label: 'Compact' },
-              { value: 'standard', label: 'Standard' },
-              { value: 'cozy', label: 'Cozy' },
+              { value: 'compact', label: t('appearance.densityCompact') },
+              { value: 'standard', label: t('appearance.densityStandard') },
+              { value: 'cozy', label: t('appearance.densityCozy') },
             ]}
             value={gridDensity}
             onChange={setGridDensity}
           />
         </div>
         <div className="flex items-center justify-between gap-3 px-2.5 pt-1 pb-1">
-          <span className="text-[13px] text-ink-2">Blur unread covers</span>
+          <span className="text-[13px] text-ink-2">{t('appearance.blurUnread')}</span>
           <Switch
             checked={blurUnreadCovers}
             onCheckedChange={setBlurUnreadCovers}
-            label="Blur covers of unread series and books"
+            label={t('appearance.blurUnreadLabel')}
           />
         </div>
       </div>
@@ -595,6 +601,7 @@ function AppearanceMenu() {
 }
 
 export function AppShell() {
+  const { t } = useTranslation('layout')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const navigate = useNavigate()
   const onSearchPage = useLocation().pathname.startsWith('/search')
@@ -643,7 +650,7 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-15 shrink-0 items-center gap-3 border-b border-line bg-bg/80 px-4 backdrop-blur-md md:px-8">
-          <IconButton label="Menu" className="lg:hidden" onClick={() => setDrawerOpen(true)}>
+          <IconButton label={t('menu')} className="lg:hidden" onClick={() => setDrawerOpen(true)}>
             <List className="size-5" />
           </IconButton>
           {onSearchPage ? (
@@ -658,7 +665,7 @@ export function AppShell() {
                 <SearchScopeMenu />
               </div>
               <div className="flex-1 md:hidden" />
-              <IconButton label="Search" className="md:hidden" onClick={() => navigate('/search')}>
+              <IconButton label={t('common:action.search')} className="md:hidden" onClick={() => navigate('/search')}>
                 <MagnifyingGlass className="size-5" />
               </IconButton>
             </>

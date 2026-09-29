@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { LibraryDto } from '@/lib/api/types'
 import type { KomfConfigDraft } from './draft'
 import { Switch } from '@/components/ui/Switch'
@@ -11,6 +12,7 @@ interface EventListenerFieldsProps {
 }
 
 export function EventListenerFields({ value, libraries, onChange }: EventListenerFieldsProps) {
+  const { t } = useTranslation('admin-komf')
   const toggleLibrary = (id: string, on: boolean) =>
     onChange({
       eventListenerLibraryFilter: on
@@ -20,16 +22,16 @@ export function EventListenerFields({ value, libraries, onChange }: EventListene
 
   return (
     <div>
-      <FormRow label="Enabled">
+      <FormRow label={t('enabled')}>
         <Switch
           checked={value.eventListenerEnabled}
           onCheckedChange={(v) => onChange({ eventListenerEnabled: v })}
-          label="Event listener"
+          label={t('section.eventListener')}
         />
       </FormRow>
       <div className="pt-3">
-        <p className="text-sm text-ink-2">Libraries</p>
-        <p className="mt-0.5 text-xs text-ink-3">Only listen to selected libraries. Select none to listen to all.</p>
+        <p className="text-sm text-ink-2">{t('listener.libraries')}</p>
+        <p className="mt-0.5 text-xs text-ink-3">{t('listener.librariesHelper')}</p>
         <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
           {libraries.map((lib) => (
             <label key={lib.id} className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
@@ -45,13 +47,11 @@ export function EventListenerFields({ value, libraries, onChange }: EventListene
         </div>
       </div>
       <div className="pt-3">
-        <p className="text-sm text-ink-2">Excluded series</p>
-        <p className="mt-0.5 text-xs text-ink-3">
-          Series IDs to skip during automatic metadata updates, one per line.
-        </p>
+        <p className="text-sm text-ink-2">{t('listener.excludedSeries')}</p>
+        <p className="mt-0.5 text-xs text-ink-3">{t('listener.excludedSeriesHelper')}</p>
         <div className="mt-2">
           <StringListInput
-            aria-label="Excluded series"
+            aria-label={t('listener.excludedSeries')}
             value={value.eventListenerSeriesExcludeFilter}
             onChange={(v) => onChange({ eventListenerSeriesExcludeFilter: v })}
           />

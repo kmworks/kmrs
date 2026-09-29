@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,6 +21,7 @@ import {
 import { booksApi } from '@/lib/api/books'
 import { librariesApi } from '@/lib/api/libraries'
 import { canDownload, isAdmin, useAuthStore } from '@/lib/store/auth'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { useBust } from '@/lib/store/thumbnails'
 import { urls } from '@/lib/utils/urls'
 import { readRoute } from '@/lib/utils/nav'
@@ -59,6 +61,7 @@ function Field({ term, mono, children }: { term: string; mono?: boolean; childre
 }
 
 export function BookDetailPage() {
+  const { t } = useTranslation('detail')
   const { bookId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -103,13 +106,13 @@ export function BookDetailPage() {
 
   const analyzeMutation = useMutation({
     mutationFn: () => booksApi.analyze(bookId),
-    onSuccess: () => showToast('Analysis queued'),
-    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the analysis'),
+    onSuccess: () => showToast(t('toast.analysisQueued')),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('toast.queueAnalysisFailed')),
   })
   const refreshMutation = useMutation({
     mutationFn: () => booksApi.refreshMetadata(bookId),
-    onSuccess: () => showToast('Metadata refresh queued'),
-    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not queue the refresh'),
+    onSuccess: () => showToast(t('toast.refreshQueued')),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('toast.queueRefreshFailed')),
   })
   const deleteMutation = useMutation({
     mutationFn: () => booksApi.deleteFile(bookId),
@@ -120,13 +123,11 @@ export function BookDetailPage() {
       if (book?.oneshot) navigate('/series')
       else navigate(`/series/${book?.seriesId ?? ''}`)
     },
-    onError: (e) => showToast(e instanceof Error ? e.message : 'Could not delete the file'),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('toast.deleteFileFailed')),
   })
 
   const title = book ? book.metadata.title || book.name : ''
-  useEffect(() => {
-    document.title = title ? `${title} · KMReader` : 'KMReader'
-  }, [title])
+  useDocumentTitle(title || undefined)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -134,7 +135,7 @@ export function BookDetailPage() {
 
   if (bookQuery.isPending) return <DetailSkeleton />
   if (bookQuery.error)
-    return <DetailError error={bookQuery.error} notFoundTitle="Book not found" onRetry={() => bookQuery.refetch()} />
+    return <DetailError error={bookQuery.error} notFoundTitle={t('notFound.book')} onRetry={() => bookQuery.refetch()} />
   if (!book) return null
   if (book.oneshot) return <Navigate to={`/oneshot/${book.seriesId}`} replace />
 
@@ -178,31 +179,31 @@ export function BookDetailPage() {
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button variant="primary" disabled={!route} onClick={() => route && navigate(route)}>
               <BookOpen className="size-4" />
-              {progress && !progress.completed ? `Continue · page ${progress.page}` : 'Read'}
+              {progress && !progress.completed ? t('continueWithPage', { page: progress.page }) : t('read')}
             </Button>
-            <Tooltip content="Read without saving progress">
+            <Tooltip content={t('peekTooltip')}>
               <Button variant="secondary" disabled={!route} onClick={() => route && navigate(`${route}?incognito=true`)}>
                 <EyeSlash className="size-4" />
-                Peek
+                {t('peek')}
               </Button>
             </Tooltip>
             {!completed && (
               <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(true)}>
                 <Checks className="size-4" />
-                Mark as read
+                {t('markAsRead')}
               </Button>
             )}
             {progress && (
               <Button variant="secondary" loading={markMutation.isPending} onClick={() => markMutation.mutate(false)}>
                 <Circle className="size-4" />
-                Mark as unread
+                {t('markAsUnread')}
               </Button>
             )}
             {canDownload(user) && <DownloadLink href={urls.bookFile(book.id)} disabled={unavailable} />}
             {(isAdmin(user) || prev || next) && (
               <Menu
                 trigger={
-                  <IconButton label="More actions">
+                  <IconButton label={t('moreActions')}>
                     <DotsThreeVertical className="size-5" />
                   </IconButton>
                 }
@@ -210,37 +211,37 @@ export function BookDetailPage() {
                 {isAdmin(user) && (
                   <>
                     <MenuItem onSelect={() => setEditOpen(true)}>
-                      <PencilSimple className="size-4" /> Edit metadata
+                      <PencilSimple className="size-4" /> {t('menu.editMetadata')}
                     </MenuItem>
                     <MenuItem onSelect={() => setPostersOpen(true)}>
-                      <ImageSquare className="size-4" /> Manage posters
+                      <ImageSquare className="size-4" /> {t('menu.managePosters')}
                     </MenuItem>
                     <MenuItem onSelect={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending}>
-                      <FileMagnifyingGlass className="size-4" /> Analyze
+                      <FileMagnifyingGlass className="size-4" /> {t('menu.analyze')}
                     </MenuItem>
                     <MenuItem onSelect={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
-                      <ArrowsClockwise className="size-4" /> Refresh metadata
+                      <ArrowsClockwise className="size-4" /> {t('menu.refreshMetadata')}
                     </MenuItem>
                     <MenuItem onSelect={() => setAddToListOpen(true)}>
-                      <BookmarkSimple className="size-4" /> Add to read list
+                      <BookmarkSimple className="size-4" /> {t('addToReadList')}
                     </MenuItem>
                   </>
                 )}
                 {isAdmin(user) && (prev || next) && <MenuSeparator />}
                 {prev && (
                   <MenuItem onSelect={() => navigate(`/book/${prev.id}`)}>
-                    <ArrowLeft className="size-4" /> Previous book
+                    <ArrowLeft className="size-4" /> {t('menu.previousBook')}
                   </MenuItem>
                 )}
                 {next && (
                   <MenuItem onSelect={() => navigate(`/book/${next.id}`)}>
-                    <ArrowRight className="size-4" /> Next book
+                    <ArrowRight className="size-4" /> {t('menu.nextBook')}
                   </MenuItem>
                 )}
                 {isAdmin(user) && <MenuSeparator />}
                 {isAdmin(user) && (
                   <MenuItem danger onSelect={() => setDeleteOpen(true)}>
-                    <Trash className="size-4" /> Delete file
+                    <Trash className="size-4" /> {t('menu.deleteFile')}
                   </MenuItem>
                 )}
               </Menu>
@@ -287,27 +288,27 @@ export function BookDetailPage() {
 
       <section className="mt-8 rounded-xl border border-line bg-surface p-5">
         <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-          <Field term="Pages" mono>
+          <Field term={t('field.pages')} mono>
             {book.media.pagesCount}
           </Field>
-          <Field term="Size" mono>
+          <Field term={t('field.size')} mono>
             {formatBytes(book.sizeBytes)}
           </Field>
-          <Field term="Format">{book.media.mediaType}</Field>
-          <Field term="Profile">{book.media.mediaProfile}</Field>
-          {md.releaseDate && <Field term="Release date">{formatDate(md.releaseDate)}</Field>}
+          <Field term={t('field.format')}>{book.media.mediaType}</Field>
+          <Field term={t('field.profile')}>{book.media.mediaProfile}</Field>
+          {md.releaseDate && <Field term={t('field.releaseDate')}>{formatDate(md.releaseDate)}</Field>}
           {md.isbn && (
             <Field term="ISBN" mono>
               {md.isbn}
             </Field>
           )}
-          <Field term="Added">{formatDate(book.created)}</Field>
+          <Field term={t('field.added')}>{formatDate(book.created)}</Field>
         </dl>
 
         {progress && (
           <div className="mt-5 border-t border-line pt-4">
             <p className="text-sm text-ink-2">
-              {completed ? 'Completed' : `Page ${progress.page} of ${book.media.pagesCount}`}
+              {completed ? t('progress.completed') : t('progress.pageOf', { page: progress.page, total: book.media.pagesCount })}
               {progress.readDate && <span className="text-ink-3"> · {relativeTime(progress.readDate)}</span>}
             </p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-overlay">
@@ -318,7 +319,7 @@ export function BookDetailPage() {
       </section>
 
       {readlists.length > 0 && (
-        <HorizontalRow title="In read lists" className="mt-10">
+        <HorizontalRow title={t('inReadLists')} className="mt-10">
           {readlists.map((l) => (
             <div key={l.id} className="shrink-0" style={{ width: rowCardWidth }}>
               <ReadListCard id={l.id} name={l.name} count={l.bookIds.length} />
@@ -333,7 +334,7 @@ export function BookDetailPage() {
             {prev && (
               <Link to={`/book/${prev.id}`} className="group inline-block max-w-full">
                 <span className="flex items-center gap-1 text-xs tracking-wide text-ink-3 uppercase">
-                  <ArrowLeft className="size-3.5" /> Previous
+                  <ArrowLeft className="size-3.5" /> {t('previous')}
                 </span>
                 <span className="mt-1 block truncate text-sm text-ink transition-colors group-hover:text-accent-strong">
                   #{prev.metadata.number} {prev.metadata.title || prev.name}
@@ -345,7 +346,7 @@ export function BookDetailPage() {
             {next && (
               <Link to={`/book/${next.id}`} className="group inline-block max-w-full">
                 <span className="flex items-center justify-end gap-1 text-xs tracking-wide text-ink-3 uppercase">
-                  Next <ArrowRight className="size-3.5" />
+                  {t('next')} <ArrowRight className="size-3.5" />
                 </span>
                 <span className="mt-1 block truncate text-sm text-ink transition-colors group-hover:text-accent-strong">
                   #{next.metadata.number} {next.metadata.title || next.name}
@@ -362,8 +363,8 @@ export function BookDetailPage() {
       <ConfirmDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete book file"
-        name={`the file of ${title}`}
+        title={t('deleteDialog.bookFileTitle')}
+        name={t('deleteDialog.bookFileName', { name: title })}
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
       />

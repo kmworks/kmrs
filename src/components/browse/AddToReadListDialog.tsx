@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Plus } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
-import { plural } from '@/lib/utils/format'
 import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
 import { Button } from '@/components/ui/Button'
@@ -17,6 +17,7 @@ interface AddToReadListDialogProps {
 }
 
 export function AddToReadListDialog({ open, onOpenChange, bookIds, onDone }: AddToReadListDialogProps) {
+  const { t } = useTranslation('browse')
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [newName, setNewName] = useState('')
@@ -51,18 +52,18 @@ export function AddToReadListDialog({ open, onOpenChange, bookIds, onDone }: Add
     },
     onSuccess: (name) => {
       queryClient.invalidateQueries({ queryKey: ['readlists'] })
-      finish(true, `Added to "${name}"`)
+      finish(true, t('addToReadList.added', { name }))
     },
-    onError: (e) => finish(false, e instanceof Error ? e.message : 'Could not add to read list'),
+    onError: (e) => finish(false, e instanceof Error ? e.message : t('addToReadList.addFailed')),
   })
 
   const createMutation = useMutation({
     mutationFn: () => readlistsApi.create({ name: newName.trim(), summary: '', ordered: false, bookIds }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['readlists'] })
-      finish(true, `Created "${created.name}"`)
+      finish(true, t('addToReadList.created', { name: created.name }))
     },
-    onError: (e) => finish(false, e instanceof Error ? e.message : 'Could not create read list'),
+    onError: (e) => finish(false, e instanceof Error ? e.message : t('addToReadList.createFailed')),
   })
 
   const lists = useMemo(() => listQuery.data?.content ?? [], [listQuery.data])
@@ -75,13 +76,13 @@ export function AddToReadListDialog({ open, onOpenChange, bookIds, onDone }: Add
   const creatingOpen = creating || (listQuery.isSuccess && lists.length === 0)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={`Add ${plural(bookIds.length, 'book')} to read list`} size="sm">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('addToReadList.title', { count: bookIds.length })} size="sm">
       <div className="px-5 pt-4">
         <input
           type="search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter read lists…"
+          placeholder={t('addToReadList.filterPlaceholder')}
           className="h-9 w-full rounded-lg border border-line bg-surface px-3 text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
         />
       </div>
@@ -94,13 +95,13 @@ export function AddToReadListDialog({ open, onOpenChange, bookIds, onDone }: Add
           </div>
         ) : listQuery.isError ? (
           <p className="px-5 py-3 text-sm text-ink-3">
-            Couldn't load read lists.{' '}
+            {t('readlists.loadError')}{' '}
             <button type="button" onClick={() => listQuery.refetch()} className="cursor-pointer text-accent-strong hover:underline">
-              Retry
+              {t('common:action.retry')}
             </button>
           </p>
         ) : visible.length === 0 ? (
-          <p className="px-5 py-3 text-sm text-ink-3">{lists.length === 0 ? 'No read lists yet' : 'No matching read lists'}</p>
+          <p className="px-5 py-3 text-sm text-ink-3">{lists.length === 0 ? t('readlists.empty') : t('addToReadList.noMatch')}</p>
         ) : (
           visible.map((l) => (
             <button
@@ -112,7 +113,7 @@ export function AddToReadListDialog({ open, onOpenChange, bookIds, onDone }: Add
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm text-ink">{l.name}</span>
-                <span className="block text-xs text-ink-3">{plural(l.bookIds.length, 'book')}</span>
+                <span className="block text-xs text-ink-3">{t('bookCount', { count: l.bookIds.length })}</span>
               </span>
               <Plus className="size-4 shrink-0 text-ink-3" />
             </button>
@@ -129,19 +130,19 @@ export function AddToReadListDialog({ open, onOpenChange, bookIds, onDone }: Add
             className="flex items-end gap-2"
           >
             <TextField
-              label="New read list"
+              label={t('addToReadList.newLabel')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Name"
+              placeholder={t('namePlaceholder')}
               className="flex-1"
               autoFocus
             />
             <Button type="submit" variant="primary" loading={createMutation.isPending} disabled={!newName.trim() || pending}>
-              Create
+              {t('common:action.create')}
             </Button>
             {lists.length > 0 && (
               <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
-                Cancel
+                {t('common:action.cancel')}
               </Button>
             )}
           </form>
@@ -152,7 +153,7 @@ export function AddToReadListDialog({ open, onOpenChange, bookIds, onDone }: Add
             className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-2 transition-colors hover:bg-raised hover:text-ink"
           >
             <Plus className="size-4" />
-            New read list
+            {t('addToReadList.newLabel')}
           </button>
         )}
       </div>

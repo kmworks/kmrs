@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { CircleNotch, DotsThreeVertical, Image, ListChecks, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { collectionsApi } from '@/lib/api/collections'
 import { seriesApi } from '@/lib/api/series'
 import type { CollectionDto } from '@/lib/api/types'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
-import { plural } from '@/lib/utils/format'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { BackButton } from '@/components/ui/BackButton'
 import { Dialog } from '@/components/ui/Dialog'
@@ -50,6 +51,7 @@ function RenameCollectionDialog({
 }) {
   const [name, setName] = useState(collection.name)
   const queryClient = useQueryClient()
+  const { t } = useTranslation('detail')
 
   useEffect(() => {
     if (open) setName(collection.name)
@@ -64,7 +66,7 @@ function RenameCollectionDialog({
   })
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Rename collection" size="sm">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('collection.renameTitle')} size="sm">
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -72,13 +74,13 @@ function RenameCollectionDialog({
         }}
         className="px-5 py-4"
       >
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <TextField label={t('nameLabel')} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         <div className="mt-5 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common:action.cancel')}
           </Button>
           <Button type="submit" variant="primary" loading={mutation.isPending} disabled={!name.trim()}>
-            Save
+            {t('common:action.save')}
           </Button>
         </div>
       </form>
@@ -87,6 +89,7 @@ function RenameCollectionDialog({
 }
 
 export function CollectionDetailPage() {
+  const { t } = useTranslation('detail')
   const { collectionId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -144,9 +147,7 @@ export function CollectionDetailPage() {
     },
   })
 
-  useEffect(() => {
-    document.title = collection ? `${collection.name} · KMReader` : 'KMReader'
-  }, [collection])
+  useDocumentTitle(collection?.name)
 
   const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = seriesQuery
   const loadMore = useCallback(() => {
@@ -164,7 +165,11 @@ export function CollectionDetailPage() {
     )
   if (collectionQuery.error)
     return (
-      <DetailError error={collectionQuery.error} notFoundTitle="Collection not found" onRetry={() => collectionQuery.refetch()} />
+      <DetailError
+        error={collectionQuery.error}
+        notFoundTitle={t('notFound.collection')}
+        onRetry={() => collectionQuery.refetch()}
+      />
     )
   if (!collection) return null
 
@@ -178,33 +183,33 @@ export function CollectionDetailPage() {
       <BackButton to="/collections" className="mb-2 -ml-2" />
       <PageHeader
         title={collection.name}
-        subtitle={plural(collection.seriesIds.length, 'series', 'series')}
+        subtitle={t('seriesCount', { count: collection.seriesIds.length })}
         actions={
           admin &&
           !editing && (
             <>
               <Button variant="secondary" size="sm" onClick={() => setAddSeriesOpen(true)}>
-                <Plus className="size-4" /> Add series
+                <Plus className="size-4" /> {t('addSeries')}
               </Button>
               <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
-                <ListChecks className="size-4" /> Edit
+                <ListChecks className="size-4" /> {t('common:action.edit')}
               </Button>
               <Menu
                 trigger={
-                  <IconButton label="More actions" className="size-8">
+                  <IconButton label={t('moreActions')} className="size-8">
                     <DotsThreeVertical className="size-5" />
                   </IconButton>
                 }
               >
                 <MenuItem onSelect={() => setPostersOpen(true)}>
-                  <Image className="size-4" /> Manage posters
+                  <Image className="size-4" /> {t('menu.managePosters')}
                 </MenuItem>
                 <MenuItem onSelect={() => setRenameOpen(true)}>
-                  <PencilSimple className="size-4" /> Rename
+                  <PencilSimple className="size-4" /> {t('rename')}
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem danger onSelect={() => setDeleteOpen(true)}>
-                  <Trash className="size-4" /> Delete
+                  <Trash className="size-4" /> {t('common:action.delete')}
                 </MenuItem>
               </Menu>
             </>
@@ -235,16 +240,19 @@ export function CollectionDetailPage() {
             <GridSkeleton />
           ) : seriesQuery.error ? (
             <EmptyState
-              title="Could not load series"
+              title={t('empty.loadSeriesFailed')}
               body={seriesQuery.error.message}
               action={
                 <Button variant="secondary" onClick={() => seriesQuery.refetch()}>
-                  Retry
+                  {t('common:action.retry')}
                 </Button>
               }
             />
           ) : allSeries.length === 0 ? (
-            <EmptyState title="No series" body={hasFilters ? 'No series match the filters.' : 'This collection is empty.'} />
+            <EmptyState
+              title={t('empty.noSeries')}
+              body={hasFilters ? t('empty.noSeriesFiltered') : t('empty.collectionEmpty')}
+            />
           ) : (
             <>
               <MediaGrid>
@@ -284,7 +292,7 @@ export function CollectionDetailPage() {
       <ConfirmDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete collection"
+        title={t('collection.deleteTitle')}
         name={collection.name}
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
@@ -292,8 +300,8 @@ export function CollectionDetailPage() {
       <SeriesPickerDialog
         open={addSeriesOpen}
         onOpenChange={setAddSeriesOpen}
-        title="Add series"
-        confirmLabel="Add to collection"
+        title={t('addSeries')}
+        confirmLabel={t('addToCollection')}
         mode="multi"
         excludeIds={new Set(collection.seriesIds)}
         onConfirm={(selected) => addSeriesMutation.mutate(selected.map((s) => s.id))}

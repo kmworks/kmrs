@@ -1,4 +1,5 @@
 import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { LockSimple, LockSimpleOpen, Plus, X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
@@ -17,13 +18,15 @@ export function LockToggle({
   label: string
   className?: string
 }) {
+  const { t } = useTranslation('metadata')
+  const action = locked ? t('lockToggle.unlock', { label }) : t('lockToggle.lock', { label })
   return (
     <button
       type="button"
       onClick={() => onChange(!locked)}
       aria-pressed={locked}
-      aria-label={locked ? `Unlock ${label}` : `Lock ${label}`}
-      title={locked ? `Unlock ${label}` : `Lock ${label}`}
+      aria-label={action}
+      title={action}
       className={cn(
         'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1 transition-colors hover:bg-overlay',
         locked ? 'text-accent' : 'text-ink-3',
@@ -131,13 +134,14 @@ export function BatchField({
   onLockedChange?: (v: boolean) => void
   children: ReactNode
 }) {
+  const { t } = useTranslation('metadata')
   return (
     <div className={cn('rounded-lg border border-line p-3.5 transition-colors', enabled && 'border-accent/40')}>
       <div className="flex items-center justify-between gap-4">
         <span className="text-[13px] font-medium text-ink-2">{label}</span>
         <div className="flex items-center gap-1">
           {enabled && locked !== undefined && onLockedChange && <LockToggle locked={locked} onChange={onLockedChange} label={label} />}
-          <Switch checked={enabled} onCheckedChange={onEnabledChange} label={`Change ${label}`} />
+          <Switch checked={enabled} onCheckedChange={onEnabledChange} label={t('batch.change', { label })} />
         </div>
       </div>
       {enabled && (
@@ -173,6 +177,7 @@ interface PairListEditorProps {
 
 /** Two-column list editor (label/title, label/url, name/role) with per-row errors. */
 export function PairListEditor({ label, pairs, onChange, aLabel, bLabel, aPlaceholder, bPlaceholder, addLabel, errors, trailing }: PairListEditorProps) {
+  const { t } = useTranslation('metadata')
   const update = (i: number, key: 'a' | 'b', v: string) => onChange(pairs.map((p, j) => (j === i ? { ...p, [key]: v } : p)))
   return (
     <div className="flex flex-col gap-2">
@@ -214,7 +219,7 @@ export function PairListEditor({ label, pairs, onChange, aLabel, bLabel, aPlaceh
                   {errors?.[i]?.b && <p className="mt-1 text-[13px] text-danger">{errors[i].b}</p>}
                 </div>
               </div>
-              <IconButton label="Remove row" className="mt-6" onClick={() => onChange(pairs.filter((_, j) => j !== i))}>
+              <IconButton label={t('pairs.removeRow')} className="mt-6" onClick={() => onChange(pairs.filter((_, j) => j !== i))}>
                 <X className="size-4" />
               </IconButton>
             </div>

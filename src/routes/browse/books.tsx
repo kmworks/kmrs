@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { BookOpen, WarningCircle } from '@phosphor-icons/react'
 import { librariesApi } from '@/lib/api/libraries'
 import { booksApi } from '@/lib/api/books'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HistoryBackButton } from '@/components/ui/BackButton'
@@ -22,14 +24,13 @@ import { cardSelection, useSelection } from '@/components/selection/useSelection
 import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
 
 export function BrowseBooksPage() {
+  const { t } = useTranslation('browse')
   const { libraryId } = useParams()
   const { data: libraries } = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
   const library = libraries?.find((l) => l.id === libraryId)
-  const title = libraryId ? (library?.name ?? 'Library') : 'All books'
+  const title = libraryId ? (library?.name ?? t('libraryFallback')) : t('books.all')
 
-  useEffect(() => {
-    document.title = `${title} · KMReader`
-  }, [title])
+  useDocumentTitle(title)
 
   const filters = useBrowseFilters()
   const sort = useSortState(`books:${libraryId ?? 'all'}`, BOOK_DEFAULT_SORT)
@@ -85,12 +86,12 @@ export function BrowseBooksPage() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load books"
-          body={q.error?.message || 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('books.loadError')}
+          body={q.error?.message || t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : items.length === 0 ? (
-        <EmptyState icon={<BookOpen />} title="No books found" body="Try adjusting your filters." />
+        <EmptyState icon={<BookOpen />} title={t('books.empty')} body={t('emptyFilterHint')} />
       ) : (
         <>
           <MediaGrid>

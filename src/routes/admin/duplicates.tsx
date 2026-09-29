@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Copy, WarningCircle } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import { librariesApi } from '@/lib/api/libraries'
 import type { BookDto } from '@/lib/api/types'
-import { plural } from '@/lib/utils/format'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -13,11 +14,10 @@ import { DeleteBookFileDialog } from '@/components/admin/duplicates/DeleteBookFi
 import { DuplicateGroup } from '@/components/admin/duplicates/DuplicateGroup'
 
 export function AdminDuplicatesPage() {
+  const { t } = useTranslation('admin-maintenance')
   const [deleting, setDeleting] = useState<BookDto | null>(null)
 
-  useEffect(() => {
-    document.title = 'Duplicates · KMReader'
-  }, [])
+  useDocumentTitle(t('layout:nav.duplicates'))
 
   // unpaged: groups can span pages, so grouping must happen on the full set
   const q = useQuery({
@@ -43,11 +43,11 @@ export function AdminDuplicatesPage() {
   return (
     <div className="max-w-5xl">
       <PageHeader
-        title="Duplicates"
+        title={t('layout:nav.duplicates')}
         subtitle={
           q.data
-            ? `${plural(groups.length, 'group')} · ${plural(bookCount, 'book')} sharing identical files`
-            : 'Books sharing identical files'
+            ? `${t('duplicates.groupCount', { count: groups.length })} · ${t('duplicates.sharingIdentical', { count: bookCount })}`
+            : t('duplicates.subtitleFallback')
         }
       />
 
@@ -60,15 +60,15 @@ export function AdminDuplicatesPage() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load duplicates"
-          body={q.error instanceof Error ? q.error.message : 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('duplicates.loadError')}
+          body={q.error instanceof Error ? q.error.message : t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : groups.length === 0 ? (
         <EmptyState
           icon={<Copy />}
-          title="No duplicate books"
-          body="Every file in your libraries is unique."
+          title={t('duplicates.emptyTitle')}
+          body={t('duplicates.emptyBody')}
         />
       ) : (
         <div className="flex flex-col gap-4">

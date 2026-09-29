@@ -62,9 +62,10 @@ export type ReferentialKind =
 
 export interface FilterGroupDef {
   key: GroupKey
-  label: string
+  /** translation key, resolved with t() at render sites */
+  labelKey: string
   kind: 'enum' | 'referential' | 'authors' | 'letters'
-  options?: { value: string; label: string }[]
+  options?: { value: string; labelKey: string }[]
   referential?: ReferentialKind
   /** hidden from non-admin users */
   adminOnly?: boolean
@@ -73,7 +74,8 @@ export interface FilterGroupDef {
 }
 
 export interface SortOption {
-  label: string
+  /** translation key, resolved with t() at render sites */
+  labelKey: string
   property: string
 }
 
@@ -83,106 +85,106 @@ export interface SortState {
 }
 
 const READ_STATUS_OPTIONS = [
-  { value: 'READ', label: 'Read' },
-  { value: 'UNREAD', label: 'Unread' },
-  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'READ', labelKey: 'filters:option.readStatus.read' },
+  { value: 'UNREAD', labelKey: 'filters:option.readStatus.unread' },
+  { value: 'IN_PROGRESS', labelKey: 'filters:option.readStatus.inProgress' },
 ]
 
 const YES_NO_OPTIONS = [
-  { value: 'true', label: 'Yes' },
-  { value: 'false', label: 'No' },
+  { value: 'true', labelKey: 'filters:option.yesNo.yes' },
+  { value: 'false', labelKey: 'filters:option.yesNo.no' },
 ]
 
 /** First-letter navigation values; '#' stands for titles not starting with a letter. */
 export const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
 
 export const SERIES_FILTER_GROUPS: FilterGroupDef[] = [
-  { key: 'readStatus', label: 'Read status', kind: 'enum', options: READ_STATUS_OPTIONS, negatable: true },
+  { key: 'readStatus', labelKey: 'filters:group.readStatus', kind: 'enum', options: READ_STATUS_OPTIONS, negatable: true },
   {
     key: 'seriesStatus',
-    label: 'Series status',
+    labelKey: 'filters:group.seriesStatus',
     kind: 'enum',
     options: [
-      { value: 'ONGOING', label: 'Ongoing' },
-      { value: 'ENDED', label: 'Ended' },
-      { value: 'ABANDONED', label: 'Abandoned' },
-      { value: 'HIATUS', label: 'Hiatus' },
+      { value: 'ONGOING', labelKey: 'common:seriesStatus.ongoing' },
+      { value: 'ENDED', labelKey: 'common:seriesStatus.ended' },
+      { value: 'ABANDONED', labelKey: 'common:seriesStatus.abandoned' },
+      { value: 'HIATUS', labelKey: 'common:seriesStatus.hiatus' },
     ],
   },
-  { key: 'letter', label: 'First letter', kind: 'letters' },
-  { key: 'complete', label: 'Complete', kind: 'enum', options: YES_NO_OPTIONS },
-  { key: 'oneshot', label: 'Oneshot', kind: 'enum', options: YES_NO_OPTIONS },
-  { key: 'deleted', label: 'Deleted', kind: 'enum', options: YES_NO_OPTIONS, adminOnly: true },
-  { key: 'publishers', label: 'Publishers', kind: 'referential', referential: 'publishers' },
-  { key: 'genres', label: 'Genres', kind: 'referential', referential: 'genres' },
-  { key: 'tags', label: 'Tags', kind: 'referential', referential: 'seriesTags' },
-  { key: 'sharingLabels', label: 'Sharing labels', kind: 'referential', referential: 'sharingLabels' },
-  { key: 'ageRatings', label: 'Age rating', kind: 'referential', referential: 'ageRatings' },
-  { key: 'languages', label: 'Languages', kind: 'referential', referential: 'languages' },
-  { key: 'releaseYears', label: 'Release years', kind: 'referential', referential: 'releaseDates' },
-  { key: 'authors', label: 'Authors', kind: 'authors' },
+  { key: 'letter', labelKey: 'filters:group.letter', kind: 'letters' },
+  { key: 'complete', labelKey: 'filters:group.complete', kind: 'enum', options: YES_NO_OPTIONS },
+  { key: 'oneshot', labelKey: 'common:oneshot', kind: 'enum', options: YES_NO_OPTIONS },
+  { key: 'deleted', labelKey: 'filters:group.deleted', kind: 'enum', options: YES_NO_OPTIONS, adminOnly: true },
+  { key: 'publishers', labelKey: 'filters:group.publishers', kind: 'referential', referential: 'publishers' },
+  { key: 'genres', labelKey: 'filters:group.genres', kind: 'referential', referential: 'genres' },
+  { key: 'tags', labelKey: 'filters:group.tags', kind: 'referential', referential: 'seriesTags' },
+  { key: 'sharingLabels', labelKey: 'filters:group.sharingLabels', kind: 'referential', referential: 'sharingLabels' },
+  { key: 'ageRatings', labelKey: 'filters:group.ageRatings', kind: 'referential', referential: 'ageRatings' },
+  { key: 'languages', labelKey: 'filters:group.languages', kind: 'referential', referential: 'languages' },
+  { key: 'releaseYears', labelKey: 'filters:group.releaseYears', kind: 'referential', referential: 'releaseDates' },
+  { key: 'authors', labelKey: 'filters:group.authors', kind: 'authors' },
 ]
 
 export const BOOK_FILTER_GROUPS: FilterGroupDef[] = [
-  { key: 'readStatus', label: 'Read status', kind: 'enum', options: READ_STATUS_OPTIONS, negatable: true },
-  { key: 'tags', label: 'Tags', kind: 'referential', referential: 'bookTags' },
+  { key: 'readStatus', labelKey: 'filters:group.readStatus', kind: 'enum', options: READ_STATUS_OPTIONS, negatable: true },
+  { key: 'tags', labelKey: 'filters:group.tags', kind: 'referential', referential: 'bookTags' },
   {
     key: 'mediaProfiles',
-    label: 'Media profile',
+    labelKey: 'filters:group.mediaProfiles',
     kind: 'enum',
     options: [
-      { value: 'DIVINA', label: 'Divina' },
-      { value: 'PDF', label: 'PDF' },
-      { value: 'EPUB', label: 'EPUB' },
+      { value: 'DIVINA', labelKey: 'filters:option.mediaProfile.divina' },
+      { value: 'PDF', labelKey: 'filters:option.mediaProfile.pdf' },
+      { value: 'EPUB', labelKey: 'filters:option.mediaProfile.epub' },
     ],
   },
   {
     key: 'mediaStatuses',
-    label: 'Media status',
+    labelKey: 'filters:group.mediaStatuses',
     kind: 'enum',
     options: [
-      { value: 'READY', label: 'Ready' },
-      { value: 'ERROR', label: 'Error' },
-      { value: 'UNKNOWN', label: 'Unknown' },
-      { value: 'UNSUPPORTED', label: 'Unsupported' },
-      { value: 'OUTDATED', label: 'Outdated' },
+      { value: 'READY', labelKey: 'filters:option.mediaStatus.ready' },
+      { value: 'ERROR', labelKey: 'common:cardStatus.error' },
+      { value: 'UNKNOWN', labelKey: 'common:state.unknown' },
+      { value: 'UNSUPPORTED', labelKey: 'common:cardStatus.unsupported' },
+      { value: 'OUTDATED', labelKey: 'filters:option.mediaStatus.outdated' },
     ],
   },
   {
     key: 'poster',
-    label: 'Poster',
+    labelKey: 'filters:group.poster',
     kind: 'enum',
     options: [
-      { value: 'selected', label: 'Has poster' },
-      { value: 'missing', label: 'No poster' },
+      { value: 'selected', labelKey: 'filters:option.poster.selected' },
+      { value: 'missing', labelKey: 'filters:option.poster.missing' },
     ],
   },
-  { key: 'releaseYears', label: 'Release years', kind: 'referential', referential: 'releaseDates' },
-  { key: 'authors', label: 'Authors', kind: 'authors' },
+  { key: 'releaseYears', labelKey: 'filters:group.releaseYears', kind: 'referential', referential: 'releaseDates' },
+  { key: 'authors', labelKey: 'filters:group.authors', kind: 'authors' },
 ]
 
 export const SERIES_SORT_OPTIONS: SortOption[] = [
-  { label: 'Title', property: 'metadata.titleSort' },
-  { label: 'Date added', property: 'createdDate' },
-  { label: 'Date updated', property: 'lastModifiedDate' },
-  { label: 'Release date', property: 'booksMetadata.releaseDate' },
-  { label: 'Last read', property: 'readDate' },
-  { label: 'Folder name', property: 'name' },
-  { label: 'Books count', property: 'booksCount' },
-  { label: 'Random', property: 'random' },
+  { labelKey: 'filters:sort.title', property: 'metadata.titleSort' },
+  { labelKey: 'filters:sort.dateAdded', property: 'createdDate' },
+  { labelKey: 'filters:sort.dateUpdated', property: 'lastModifiedDate' },
+  { labelKey: 'filters:sort.releaseDate', property: 'booksMetadata.releaseDate' },
+  { labelKey: 'filters:sort.lastRead', property: 'readDate' },
+  { labelKey: 'filters:sort.folderName', property: 'name' },
+  { labelKey: 'filters:sort.booksCount', property: 'booksCount' },
+  { labelKey: 'filters:sort.random', property: 'random' },
 ]
 
 export const BOOK_SORT_OPTIONS: SortOption[] = [
-  { label: 'Title', property: 'metadata.titleSort' },
-  { label: 'Series', property: 'series' },
-  { label: 'Number', property: 'metadata.numberSort' },
-  { label: 'Date added', property: 'createdDate' },
-  { label: 'Date updated', property: 'lastModifiedDate' },
-  { label: 'Release date', property: 'metadata.releaseDate' },
-  { label: 'Last read', property: 'readProgress.readDate' },
-  { label: 'File name', property: 'url' },
-  { label: 'File size', property: 'fileSize' },
-  { label: 'Pages', property: 'media.pagesCount' },
+  { labelKey: 'filters:sort.title', property: 'metadata.titleSort' },
+  { labelKey: 'filters:sort.series', property: 'series' },
+  { labelKey: 'filters:sort.number', property: 'metadata.numberSort' },
+  { labelKey: 'filters:sort.dateAdded', property: 'createdDate' },
+  { labelKey: 'filters:sort.dateUpdated', property: 'lastModifiedDate' },
+  { labelKey: 'filters:sort.releaseDate', property: 'metadata.releaseDate' },
+  { labelKey: 'filters:sort.lastRead', property: 'readProgress.readDate' },
+  { labelKey: 'filters:sort.fileName', property: 'url' },
+  { labelKey: 'filters:sort.fileSize', property: 'fileSize' },
+  { labelKey: 'filters:sort.pages', property: 'media.pagesCount' },
 ]
 
 /** sorting by series is meaningless inside a single series' book list */
@@ -190,12 +192,12 @@ export const SERIES_BOOK_SORT_OPTIONS = BOOK_SORT_OPTIONS.filter((o) => o.proper
 
 // the list-order properties only exist when the search condition joins the list (readListId/collectionId leaf)
 export const READLIST_BOOK_SORT_OPTIONS: SortOption[] = [
-  { label: 'List order', property: 'readList.number' },
+  { labelKey: 'filters:sort.listOrder', property: 'readList.number' },
   ...SERIES_BOOK_SORT_OPTIONS,
 ]
 
 export const COLLECTION_SERIES_SORT_OPTIONS: SortOption[] = [
-  { label: 'List order', property: 'collection.number' },
+  { labelKey: 'filters:sort.listOrder', property: 'collection.number' },
   ...SERIES_SORT_OPTIONS,
 ]
 

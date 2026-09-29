@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { PushPin } from '@phosphor-icons/react'
 import { librariesApi } from '@/lib/api/libraries'
 import { cn } from '@/lib/utils/cn'
@@ -14,6 +15,7 @@ interface PinLibrariesDialogProps {
 }
 
 export function PinLibrariesDialog({ open, onOpenChange }: PinLibrariesDialogProps) {
+  const { t } = useTranslation('layout')
   const { data: libraries, isLoading } = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
   const { pinned } = usePinnedLibraries()
   const { setPinned, resetPinned, isPending } = useSetPinnedLibraries()
@@ -38,7 +40,7 @@ export function PinLibrariesDialog({ open, onOpenChange }: PinLibrariesDialogPro
   )
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Pinned libraries" size="sm">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('pinDialog.title')} size="sm">
       <div className="py-2">
         {isLoading ? (
           <div className="space-y-3 px-5 py-2">
@@ -50,30 +52,30 @@ export function PinLibrariesDialog({ open, onOpenChange }: PinLibrariesDialogPro
           <>
             {pinnedLibs.length > 0 && (
               <>
-                <p className="px-5 pt-1.5 pb-1 text-[11px] font-medium tracking-wide text-ink-3 uppercase">Pinned</p>
+                <p className="px-5 pt-1.5 pb-1 text-[11px] font-medium tracking-wide text-ink-3 uppercase">
+                  {t('nav.pinned')}
+                </p>
                 {pinnedLibs.map((lib) => renderRow(lib, true))}
               </>
             )}
             {otherLibs.length > 0 && (
               <>
                 <p className="px-5 pt-1.5 pb-1 text-[11px] font-medium tracking-wide text-ink-3 uppercase">
-                  Libraries
+                  {t('nav.libraries')}
                 </p>
                 {otherLibs.map((lib) => renderRow(lib, false))}
               </>
             )}
           </>
         ) : (
-          <p className="px-5 py-3 text-sm text-ink-3">No libraries yet</p>
+          <p className="px-5 py-3 text-sm text-ink-3">{t('nav.noLibraries')}</p>
         )}
       </div>
       <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3.5">
-        <p className="text-xs leading-relaxed text-ink-3">
-          Pinned libraries sit at the top of the sidebar, and the All dashboard only shows their content.
-        </p>
+        <p className="text-xs leading-relaxed text-ink-3">{t('pinDialog.hint')}</p>
         {pinned !== undefined && (
           <Button variant="ghost" size="sm" onClick={() => resetPinned()} disabled={isPending}>
-            Reset
+            {t('pinDialog.reset')}
           </Button>
         )}
       </div>

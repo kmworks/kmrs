@@ -1,8 +1,10 @@
 import { DownloadSimple } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils/cn'
 
 /** Anchor version of the secondary Button: a real <a download> is needed for file downloads. */
 export function DownloadLink({ href, className, disabled }: { href: string; className?: string; disabled?: boolean }) {
+  const { t } = useTranslation()
   return (
     <a
       href={disabled ? undefined : href}
@@ -16,7 +18,7 @@ export function DownloadLink({ href, className, disabled }: { href: string; clas
       )}
     >
       <DownloadSimple className="size-4" />
-      Download
+      {t('action.download')}
     </a>
   )
 }

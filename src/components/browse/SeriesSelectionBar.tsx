@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Checks, DotsThreeVertical, FolderPlus, PencilSimple, Trash } from '@phosphor-icons/react'
 import { seriesApi } from '@/lib/api/series'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
-import { plural } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
@@ -21,6 +21,7 @@ interface SeriesSelectionBarProps {
 }
 
 export function SeriesSelectionBar({ selection, loadedIds }: SeriesSelectionBarProps) {
+  const { t } = useTranslation('browse')
   const queryClient = useQueryClient()
   const admin = isAdmin(useAuthStore((s) => s.user))
   const { state, run, setResult, reset } = useBatchRun()
@@ -48,10 +49,9 @@ export function SeriesSelectionBar({ selection, loadedIds }: SeriesSelectionBarP
   }, [state.status, selection, reset])
 
   const mark = (read: boolean) => {
-    const noun = plural(ids.length, 'series', 'series')
     void run(ids, (id) => (read ? seriesApi.markRead(id) : seriesApi.markUnread(id)), {
-      success: (n) => `Marked ${plural(n, 'series', 'series')} as ${read ? 'read' : 'unread'}`,
-      failure: (f) => `${f} of ${noun} failed`,
+      success: { key: 'browse:selection.markSeriesAs', context: read ? 'read' : 'unread' },
+      failure: { key: 'browse:selection.markSeriesFailed' },
     }).then((failed) => {
       if (failed < ids.length) invalidate()
     })
@@ -60,8 +60,8 @@ export function SeriesSelectionBar({ selection, loadedIds }: SeriesSelectionBarP
   const deleteFiles = () => {
     setDeleteOpen(false)
     void run(ids, (id) => seriesApi.deleteFile(id), {
-      success: (n) => `Deleted files for ${plural(n, 'series', 'series')}`,
-      failure: (f, n) => `${f} of ${n} failed`,
+      success: { key: 'browse:selection.deleteSeriesFiles' },
+      failure: { key: 'browse:selection.deleteFilesFailed' },
     }).then((failed) => {
       if (failed < ids.length) invalidate()
     })
@@ -82,30 +82,30 @@ export function SeriesSelectionBar({ selection, loadedIds }: SeriesSelectionBarP
       >
         <Button variant="ghost" size="sm" disabled={busy} onClick={() => mark(true)}>
           <Checks className="size-4" />
-          Mark read
+          {t('selection.markRead')}
         </Button>
         <Button variant="ghost" size="sm" disabled={busy} onClick={() => mark(false)}>
-          Mark unread
+          {t('selection.markUnread')}
         </Button>
         <Menu
           side="top"
           trigger={
-            <IconButton label="More actions" className="size-8">
+            <IconButton label={t('selection.moreActions')} className="size-8">
               <DotsThreeVertical className="size-4.5" />
             </IconButton>
           }
         >
           <MenuItem onSelect={() => setAddOpen(true)}>
-            <FolderPlus className="size-4" /> Add to collection
+            <FolderPlus className="size-4" /> {t('selection.addToCollection')}
           </MenuItem>
           <MenuItem onSelect={() => setEditOpen(true)}>
-            <PencilSimple className="size-4" /> Edit metadata
+            <PencilSimple className="size-4" /> {t('selection.editMetadata')}
           </MenuItem>
           {admin && (
             <>
               <MenuSeparator />
               <MenuItem danger onSelect={() => setDeleteOpen(true)}>
-                <Trash className="size-4" /> Delete files
+                <Trash className="size-4" /> {t('selection.deleteFiles')}
               </MenuItem>
             </>
           )}
@@ -123,7 +123,7 @@ export function SeriesSelectionBar({ selection, loadedIds }: SeriesSelectionBarP
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         count={ids.length}
-        noun={plural(ids.length, 'series', 'series')}
+        kind="series"
         loading={busy}
         onConfirm={deleteFiles}
       />

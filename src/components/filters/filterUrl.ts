@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import i18n from '@/lib/i18n'
 import type { AuthorFilter, FilterGroupDef, FilterState, GroupKey, GroupMode } from './types'
 
 /** multi-value URL params, one key per filter group (values repeat the key) */
@@ -100,7 +101,7 @@ export function describeActiveFilters(state: FilterState, groups: FilterGroupDef
       for (const a of state.authors) {
         items.push({
           key: `authors:${serializeAuthor(a)}`,
-          label: `Author: ${a.role ? `${a.name} (${a.role})` : a.name}`,
+          label: i18n.t('filters:chip.author', { name: a.role ? `${a.name} (${a.role})` : a.name }),
           group: 'authors',
           value: serializeAuthor(a),
         })
@@ -110,11 +111,20 @@ export function describeActiveFilters(state: FilterState, groups: FilterGroupDef
     const negated = state.exclude.includes(def.key)
     const values = state[def.key] as string[]
     for (const v of values) {
-      const label = def.options?.find((o) => o.value === v)?.label ?? v
-      items.push({ key: `${def.key}:${v}`, label: `${def.label}: ${negated ? 'not ' : ''}${label}`, group: def.key, value: v })
+      const labelKey = def.options?.find((o) => o.value === v)?.labelKey
+      items.push({
+        key: `${def.key}:${v}`,
+        label: i18n.t('filters:chip.value', {
+          context: negated ? 'negated' : undefined,
+          group: i18n.t(def.labelKey),
+          value: labelKey ? i18n.t(labelKey) : v,
+        }),
+        group: def.key,
+        value: v,
+      })
     }
   }
-  if (state.q.trim()) items.push({ key: 'q', label: `Search: ${state.q}`, group: 'q', value: state.q })
+  if (state.q.trim()) items.push({ key: 'q', label: i18n.t('filters:chip.search', { q: state.q }), group: 'q', value: state.q })
   return items
 }
 

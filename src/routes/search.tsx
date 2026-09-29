@@ -1,12 +1,14 @@
 import { Fragment, useEffect, useRef, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { CaretRight, CircleNotch, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react'
 import { motion, useReducedMotion } from 'motion/react'
 import { booksApi } from '@/lib/api/books'
 import { collectionsApi, readlistsApi } from '@/lib/api/collections'
 import { seriesApi } from '@/lib/api/series'
 import type { Page } from '@/lib/api/types'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { useDensityCardWidth } from '@/lib/store/ui'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -23,18 +25,12 @@ import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
 import { libraryScopeCondition } from '@/components/filters/builders'
 import { scopeKey, scopeLibraryIds, useSearchScope, type SearchScope } from '@/components/search/scope'
 
-const TABS = [
-  { value: 'all', label: 'All' },
-  { value: 'series', label: 'Series' },
-  { value: 'books', label: 'Books' },
-  { value: 'collections', label: 'Collections' },
-  { value: 'readlists', label: 'Read lists' },
-] as const
+const TABS = ['all', 'series', 'books', 'collections', 'readlists'] as const
 
-type SearchTab = (typeof TABS)[number]['value']
+type SearchTab = (typeof TABS)[number]
 
 function parseTab(raw: string | null): SearchTab {
-  return TABS.some((t) => t.value === raw) ? (raw as SearchTab) : 'all'
+  return TABS.some((tab) => tab === raw) ? (raw as SearchTab) : 'all'
 }
 
 function scopedSearch(q: string, libraryIds: string[] | undefined) {
@@ -43,6 +39,7 @@ function scopedSearch(q: string, libraryIds: string[] | undefined) {
 }
 
 export function SearchPage() {
+  const { t } = useTranslation('search')
   const [searchParams, setSearchParams] = useSearchParams()
   const qRaw = searchParams.get('q') ?? ''
   const q = qRaw.trim()
@@ -51,9 +48,7 @@ export function SearchPage() {
   const libraryIds = scopeLibraryIds(scope)
   const sk = scopeKey(scope)
 
-  useEffect(() => {
-    document.title = q ? `Search: ${q} · KMReader` : 'Search · KMReader'
-  }, [q])
+  useDocumentTitle(q ? t('titleWithQuery', { q }) : t('title'))
 
   const seriesSel = useSelection()
   const booksSel = useSelection()
@@ -80,14 +75,18 @@ export function SearchPage() {
     <div>
       <HistoryBackButton to="/dashboard" className="mb-2 -ml-2" />
       <div className="mb-7 overflow-x-auto pb-1">
-        <SegmentedControl<SearchTab> options={[...TABS]} value={tab} onChange={onTabChange} />
+        <SegmentedControl<SearchTab>
+          options={TABS.map((value) => ({ value, label: t(`tabs.${value}`) }))}
+          value={tab}
+          onChange={onTabChange}
+        />
       </div>
 
       {!q ? (
         <EmptyState
           icon={<MagnifyingGlass />}
-          title="Search your library"
-          body="Find series, books, collections and read lists. Field queries like title:berserk AND tag:seinen work too."
+          title={t('emptyTitle')}
+          body={t('emptyBody')}
         />
       ) : tab === 'all' ? (
         <AllResults q={q} scope={scope} />
@@ -127,6 +126,7 @@ export function SearchPage() {
 }
 
 function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
+  const { t } = useTranslation('search')
   const libraryIds = scopeLibraryIds(scope)
   const sk = scopeKey(scope)
   const scopeParam = scope.kind === 'all' ? '' : `&scope=${scope.kind === 'pinned' ? 'pinned' : scope.id}`
@@ -167,7 +167,7 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
       transition={{ duration: 0.3, ease: 'easeOut' }}
     >
       <PreviewRow
-        title="Series"
+        title={t('tabs.series')}
         tab="series"
         q={q}
         scopeParam={scopeParam}
@@ -175,7 +175,7 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
         renderCard={(s) => <SeriesCard series={s} />}
       />
       <PreviewRow
-        title="Books"
+        title={t('tabs.books')}
         tab="books"
         q={q}
         scopeParam={scopeParam}
@@ -183,7 +183,7 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
         renderCard={(b) => <BookCard book={b} showSeries />}
       />
       <PreviewRow
-        title="Collections"
+        title={t('tabs.collections')}
         tab="collections"
         q={q}
         scopeParam={scopeParam}
@@ -191,7 +191,7 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
         renderCard={(c) => <CollectionCard id={c.id} name={c.name} count={c.seriesIds.length} />}
       />
       <PreviewRow
-        title="Read lists"
+        title={t('tabs.readlists')}
         tab="readlists"
         q={q}
         scopeParam={scopeParam}
@@ -217,6 +217,7 @@ function PreviewRow<T extends { id: string }>({
   page?: Page<T>
   renderCard: (item: T) => ReactNode
 }) {
+  const { t } = useTranslation('search')
   const width = useDensityCardWidth()
   if (!page || page.totalElements === 0) return null
   return (
@@ -232,7 +233,7 @@ function PreviewRow<T extends { id: string }>({
           style={{ width }}
           className="cover-aspect flex shrink-0 snap-start flex-col items-center justify-center gap-1.5 self-start rounded-lg border border-line text-[13px] font-medium text-ink-3 transition-colors hover:border-accent/50 hover:text-accent-strong"
         >
-          View all
+          {t('viewAll')}
           <CaretRight className="size-4" />
         </Link>
       )}
@@ -301,22 +302,24 @@ function CategoryGrid<T extends { id: string }>({
 }
 
 function NoResults({ q }: { q: string }) {
+  const { t } = useTranslation('search')
   return (
     <EmptyState
       icon={<MagnifyingGlass />}
-      title={`No results for "${q}"`}
-      body="Try different keywords, or search in a single category."
+      title={t('noResultsTitle', { q })}
+      body={t('noResultsBody')}
     />
   )
 }
 
 function SearchError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const { t } = useTranslation('search')
   return (
     <EmptyState
       icon={<WarningCircle />}
-      title="Search failed"
-      body={error instanceof Error ? error.message : 'Something went wrong.'}
-      action={<Button onClick={onRetry}>Try again</Button>}
+      title={t('failedTitle')}
+      body={error instanceof Error ? error.message : t('failedBody')}
+      action={<Button onClick={onRetry}>{t('common:action.retry')}</Button>}
     />
   )
 }

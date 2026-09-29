@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { BookOpen, CircleNotch, DotsThreeVertical, EyeSlash, Image, ListChecks, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
 import { booksApi } from '@/lib/api/books'
 import type { ReadListDto } from '@/lib/api/types'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { readRoute } from '@/lib/utils/nav'
-import { plural } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { BackButton } from '@/components/ui/BackButton'
 import { Tooltip } from '@/components/ui/Tooltip'
@@ -48,6 +49,7 @@ function EditReadListDialog({
   const [name, setName] = useState(readlist.name)
   const [summary, setSummary] = useState(readlist.summary)
   const queryClient = useQueryClient()
+  const { t } = useTranslation('detail')
 
   useEffect(() => {
     if (open) {
@@ -65,7 +67,7 @@ function EditReadListDialog({
   })
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Edit read list" size="sm">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('readList.editTitle')} size="sm">
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -73,10 +75,10 @@ function EditReadListDialog({
         }}
         className="space-y-4 px-5 py-4"
       >
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <TextField label={t('nameLabel')} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         <div className="flex flex-col gap-2">
           <label htmlFor="readlist-summary" className="text-[13px] font-medium text-ink-2">
-            Summary
+            {t('summaryLabel')}
           </label>
           <textarea
             id="readlist-summary"
@@ -88,10 +90,10 @@ function EditReadListDialog({
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common:action.cancel')}
           </Button>
           <Button type="submit" variant="primary" loading={mutation.isPending} disabled={!name.trim()}>
-            Save
+            {t('common:action.save')}
           </Button>
         </div>
       </form>
@@ -100,6 +102,7 @@ function EditReadListDialog({
 }
 
 export function ReadListDetailPage() {
+  const { t } = useTranslation('detail')
   const { readListId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -165,9 +168,7 @@ export function ReadListDetailPage() {
     },
   })
 
-  useEffect(() => {
-    document.title = readlist ? `${readlist.name} · KMReader` : 'KMReader'
-  }, [readlist])
+  useDocumentTitle(readlist?.name)
 
   const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = booksQuery
   const loadMore = useCallback(() => {
@@ -185,7 +186,7 @@ export function ReadListDetailPage() {
     )
   if (readlistQuery.error)
     return (
-      <DetailError error={readlistQuery.error} notFoundTitle="Read list not found" onRetry={() => readlistQuery.refetch()} />
+      <DetailError error={readlistQuery.error} notFoundTitle={t('notFound.readList')} onRetry={() => readlistQuery.refetch()} />
     )
   if (!readlist) return null
 
@@ -201,7 +202,7 @@ export function ReadListDetailPage() {
       <BackButton to="/readlists" className="mb-2 -ml-2" />
       <PageHeader
         title={readlist.name}
-        subtitle={plural(readlist.bookIds.length, 'book')}
+        subtitle={t('bookCount', { count: readlist.bookIds.length })}
         actions={
           <>
             {!editing && (
@@ -215,9 +216,9 @@ export function ReadListDetailPage() {
                     continueRoute && navigate(`${continueRoute}?context=READLIST&contextId=${readlist.id}`)
                   }
                 >
-                  <BookOpen className="size-4" /> Continue
+                  <BookOpen className="size-4" /> {t('continue')}
                 </Button>
-                <Tooltip content="Read without saving progress">
+                <Tooltip content={t('peekTooltip')}>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -226,7 +227,7 @@ export function ReadListDetailPage() {
                       continueRoute && navigate(`${continueRoute}?context=READLIST&contextId=${readlist.id}&incognito=true`)
                     }
                   >
-                    <EyeSlash className="size-4" /> Peek
+                    <EyeSlash className="size-4" /> {t('peek')}
                   </Button>
                 </Tooltip>
               </>
@@ -234,27 +235,27 @@ export function ReadListDetailPage() {
             {admin && !editing && (
               <>
                 <Button variant="secondary" size="sm" onClick={() => setAddBooksOpen(true)}>
-                  <Plus className="size-4" /> Add books
+                  <Plus className="size-4" /> {t('addBooks')}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
-                  <ListChecks className="size-4" /> Edit
+                  <ListChecks className="size-4" /> {t('common:action.edit')}
                 </Button>
                 <Menu
                   trigger={
-                    <IconButton label="More actions" className="size-8">
+                    <IconButton label={t('moreActions')} className="size-8">
                       <DotsThreeVertical className="size-5" />
                     </IconButton>
                   }
                 >
                   <MenuItem onSelect={() => setPostersOpen(true)}>
-                    <Image className="size-4" /> Manage posters
+                    <Image className="size-4" /> {t('menu.managePosters')}
                   </MenuItem>
                   <MenuItem onSelect={() => setEditOpen(true)}>
-                    <PencilSimple className="size-4" /> Edit details
+                    <PencilSimple className="size-4" /> {t('menu.editDetails')}
                   </MenuItem>
                   <MenuSeparator />
                   <MenuItem danger onSelect={() => setDeleteOpen(true)}>
-                    <Trash className="size-4" /> Delete
+                    <Trash className="size-4" /> {t('common:action.delete')}
                   </MenuItem>
                 </Menu>
               </>
@@ -288,16 +289,19 @@ export function ReadListDetailPage() {
             <GridSkeleton />
           ) : booksQuery.error ? (
             <EmptyState
-              title="Could not load books"
+              title={t('empty.loadBooksFailed')}
               body={booksQuery.error.message}
               action={
                 <Button variant="secondary" onClick={() => booksQuery.refetch()}>
-                  Retry
+                  {t('common:action.retry')}
                 </Button>
               }
             />
           ) : books.length === 0 ? (
-            <EmptyState title="No books" body={hasFilters ? 'No books match the filters.' : 'This read list is empty.'} />
+            <EmptyState
+              title={t('empty.noBooks')}
+              body={hasFilters ? t('empty.noBooksFiltered') : t('empty.readListEmpty')}
+            />
           ) : (
             <>
               <MediaGrid>
@@ -337,7 +341,7 @@ export function ReadListDetailPage() {
       <ConfirmDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete read list"
+        title={t('readList.deleteTitle')}
         name={readlist.name}
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
@@ -345,8 +349,8 @@ export function ReadListDetailPage() {
       <BookPickerDialog
         open={addBooksOpen}
         onOpenChange={setAddBooksOpen}
-        title="Add books"
-        confirmLabel="Add to read list"
+        title={t('addBooks')}
+        confirmLabel={t('addToReadList')}
         mode="multi"
         excludeIds={new Set(readlist.bookIds)}
         onConfirm={(selected) => addBooksMutation.mutate(selected.map((b) => b.id))}

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowsClockwise,
   ChartBar,
@@ -15,6 +16,7 @@ import { Menu, MenuItem } from '@/components/ui/Menu'
 
 /** Per-library admin actions (scan family) attached to each sidebar library row. */
 export function SidebarLibraryMenu({ library }: { library: LibraryDto }) {
+  const { t } = useTranslation('layout')
   const queryClient = useQueryClient()
 
   const handlers = (queued: string, failed: string) => ({
@@ -27,19 +29,19 @@ export function SidebarLibraryMenu({ library }: { library: LibraryDto }) {
 
   const scan = useMutation({
     mutationFn: (deep: boolean) => librariesApi.scan(library.id, deep),
-    ...handlers('Scan queued', 'Could not queue the scan'),
+    ...handlers(t('libraryMenu.scanQueued'), t('libraryMenu.scanFailed')),
   })
   const analyze = useMutation({
     mutationFn: () => librariesApi.analyze(library.id),
-    ...handlers('Analysis queued', 'Could not queue the analysis'),
+    ...handlers(t('libraryMenu.analyzeQueued'), t('libraryMenu.analyzeFailed')),
   })
   const refresh = useMutation({
     mutationFn: () => librariesApi.refreshMetadata(library.id),
-    ...handlers('Metadata refresh queued', 'Could not queue the metadata refresh'),
+    ...handlers(t('libraryMenu.refreshQueued'), t('libraryMenu.refreshFailed')),
   })
   const emptyTrash = useMutation({
     mutationFn: () => librariesApi.emptyTrash(library.id),
-    ...handlers('Empty trash queued', 'Could not empty the trash'),
+    ...handlers(t('libraryMenu.emptyTrashQueued'), t('libraryMenu.emptyTrashFailed')),
   })
   const busy = scan.isPending || analyze.isPending || refresh.isPending || emptyTrash.isPending
 
@@ -49,7 +51,7 @@ export function SidebarLibraryMenu({ library }: { library: LibraryDto }) {
       align="start"
       trigger={
         <IconButton
-          label={`${library.name} actions`}
+          label={t('libraryMenu.actions', { name: library.name })}
           className="size-6 rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(pointer:coarse)]:opacity-60 [&_svg]:size-3.5"
         >
           <DotsThreeVertical />
@@ -58,23 +60,23 @@ export function SidebarLibraryMenu({ library }: { library: LibraryDto }) {
     >
       <MenuItem disabled={busy} onSelect={() => scan.mutate(false)}>
         <Scan className="size-4" />
-        Scan
+        {t('libraryMenu.scan')}
       </MenuItem>
       <MenuItem disabled={busy} onSelect={() => scan.mutate(true)}>
         <MagnifyingGlassPlus className="size-4" />
-        Scan (deep)
+        {t('libraryMenu.scanDeep')}
       </MenuItem>
       <MenuItem disabled={busy} onSelect={() => analyze.mutate()}>
         <ChartBar className="size-4" />
-        Analyze
+        {t('libraryMenu.analyze')}
       </MenuItem>
       <MenuItem disabled={busy} onSelect={() => refresh.mutate()}>
         <ArrowsClockwise className="size-4" />
-        Refresh metadata
+        {t('libraryMenu.refreshMetadata')}
       </MenuItem>
       <MenuItem disabled={busy} onSelect={() => emptyTrash.mutate()}>
         <TrashSimple className="size-4" />
-        Empty trash
+        {t('libraryMenu.emptyTrash')}
       </MenuItem>
     </Menu>
   )

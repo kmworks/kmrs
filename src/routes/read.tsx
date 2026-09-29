@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { BookOpen, CircleNotch, Images, Warning } from '@phosphor-icons/react'
+import i18n from '@/lib/i18n'
 import { booksApi } from '@/lib/api/books'
 import { readlistsApi } from '@/lib/api/collections'
 import { bookPostersApi, readListPostersApi, seriesPostersApi } from '@/lib/api/posters'
@@ -22,6 +24,7 @@ import { urls } from '@/lib/utils/urls'
 import type { PagedReaderLayout, SpreadPage } from '@/lib/utils/spreads'
 import { readingDirectionLabel } from '@/lib/utils/format'
 import { convertErrorCodes, mediaIssue } from '@/lib/utils/mediaStatus'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ContinuousReader } from '@/components/reader/ContinuousReader'
@@ -33,20 +36,19 @@ import { ThumbnailExplorer } from '@/components/reader/ThumbnailExplorer'
 import { useWindowKeys } from '@/components/reader/keys'
 
 const SCALE_CYCLE: ScaleType[] = ['SCREEN', 'WIDTH', 'WIDTH_SHRINK_ONLY', 'HEIGHT', 'ORIGINAL']
-const SCALE_LABELS: Record<ScaleType, string> = {
-  SCREEN: 'Fit screen',
-  WIDTH: 'Fit width',
-  WIDTH_SHRINK_ONLY: 'Shrink to width',
-  HEIGHT: 'Fit height',
-  ORIGINAL: 'Original',
-}
 const CONTINUOUS_SCALE_CYCLE: ContinuousScaleType[] = ['WIDTH', 'ORIGINAL']
-const CONTINUOUS_SCALE_LABELS: Record<ContinuousScaleType, string> = { WIDTH: 'Fit width', ORIGINAL: 'Original' }
 const LAYOUT_CYCLE: PagedReaderLayout[] = ['SINGLE_PAGE', 'DOUBLE_PAGES', 'DOUBLE_NO_COVER']
-const LAYOUT_LABELS: Record<PagedReaderLayout, string> = {
-  SINGLE_PAGE: 'Single page',
-  DOUBLE_PAGES: 'Double pages',
-  DOUBLE_NO_COVER: 'Double pages (no cover)',
+const SCALE_LABEL_KEYS: Record<ScaleType, string> = {
+  SCREEN: 'scale.screen',
+  WIDTH: 'scale.width',
+  WIDTH_SHRINK_ONLY: 'scale.shrink',
+  HEIGHT: 'scale.height',
+  ORIGINAL: 'scale.original',
+}
+const LAYOUT_LABEL_KEYS: Record<PagedReaderLayout, string> = {
+  SINGLE_PAGE: 'layout.single',
+  DOUBLE_PAGES: 'layout.double',
+  DOUBLE_NO_COVER: 'layout.doubleNoCover',
 }
 const DIRECTION_BY_KEY: Record<string, ReadingDirection> = {
   l: 'LEFT_TO_RIGHT',
@@ -61,9 +63,9 @@ function loadErrorReason(error: unknown): string {
     return msg.startsWith(String(error.status)) ? msg : `HTTP ${error.status} · ${msg}`
   }
   // network failures surface as bare TypeError from fetch, with no useful message
-  if (error instanceof TypeError) return 'Could not reach the server. Check your connection and try again.'
+  if (error instanceof TypeError) return i18n.t('reader:error.network')
   if (error instanceof Error) return error.message
-  return 'Unknown error'
+  return i18n.t('reader:error.unknown')
 }
 
 export function ReaderPage() {
@@ -73,6 +75,7 @@ export function ReaderPage() {
 }
 
 function Reader({ bookId }: { bookId: string }) {
+  const { t } = useTranslation('reader')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -192,16 +195,13 @@ function Reader({ bookId }: { bookId: string }) {
     const meta = series.metadata.readingDirection
     if (meta && meta !== settingsDirection) {
       setSessionDirection(meta)
-      showToast('Reading direction from series metadata')
+      showToast(t('toast.directionFromMetadata'))
     }
-  }, [seriesQuery.data, settingsDirection])
+  }, [seriesQuery.data, settingsDirection, t])
 
-  useEffect(() => {
-    if (book) document.title = `${book.metadata.title || book.name} · KMReader`
-  }, [book])
+  useDocumentTitle(book ? book.metadata.title || book.name : undefined)
   useEffect(
     () => () => {
-      document.title = 'KMReader'
       window.clearTimeout(jumpTimer.current)
     },
     [],
@@ -239,7 +239,8 @@ function Reader({ bookId }: { bookId: string }) {
     else navigate(`/book/${bookId}`)
   }, [navigate, bookId])
 
-  const goToBook = useCallback(() => navigate(`/book/${bookId}`), [navigate, bookId])
+  // replace keeps the reading session a single history entry, so back from the book page never loops into the reader
+  const goToBook = useCallback(() => navigate(`/book/${bookId}`, { replace: true }), [navigate, bookId])
 
   const contextQuery = useCallback(() => {
     const q = new URLSearchParams()
@@ -274,17 +275,19 @@ function Reader({ bookId }: { bookId: string }) {
       jumpArmed.current = dir
       const hasSibling = dir === 'next' ? !!siblingNext : !!siblingPrevious
       showToast(
-        dir === 'next'
-          ? hasSibling
-            ? 'Last page. Turn again for the next book.'
-            : 'Last page. Turn again to exit.'
-          : hasSibling
-            ? 'First page. Turn again for the previous book.'
-            : 'First page. Turn again to exit.',
+        t(
+          dir === 'next'
+            ? hasSibling
+              ? 'toast.boundary.lastNext'
+              : 'toast.boundary.lastExit'
+            : hasSibling
+              ? 'toast.boundary.firstPrevious'
+              : 'toast.boundary.firstExit',
+        ),
       )
       jumpTimer.current = window.setTimeout(() => (jumpArmed.current = null), 3000)
     },
-    [siblingNext, siblingPrevious, goBook],
+    [siblingNext, siblingPrevious, goBook, t],
   )
 
   const goTo = useCallback(
@@ -298,9 +301,9 @@ function Reader({ bookId }: { bookId: string }) {
     (d: ReadingDirection) => {
       useReaderSettings.getState().update({ readingDirection: d })
       setSessionDirection(null)
-      showToast(`Reading direction: ${readingDirectionLabel(d)}`)
+      showToast(t('toast.direction', { direction: readingDirectionLabel(d) }))
     },
-    [],
+    [t],
   )
 
   const cycleScale = useCallback(() => {
@@ -308,34 +311,34 @@ function Reader({ bookId }: { bookId: string }) {
     if (direction === 'WEBTOON') {
       const v = CONTINUOUS_SCALE_CYCLE[(CONTINUOUS_SCALE_CYCLE.indexOf(s.continuousScale) + 1) % CONTINUOUS_SCALE_CYCLE.length]
       s.update({ continuousScale: v })
-      showToast(`Scale: ${CONTINUOUS_SCALE_LABELS[v]}`)
+      showToast(t('toast.scale', { scale: t(SCALE_LABEL_KEYS[v]) }))
     } else {
       const v = SCALE_CYCLE[(SCALE_CYCLE.indexOf(s.scale) + 1) % SCALE_CYCLE.length]
       s.update({ scale: v })
-      showToast(`Scale: ${SCALE_LABELS[v]}`)
+      showToast(t('toast.scale', { scale: t(SCALE_LABEL_KEYS[v]) }))
     }
-  }, [direction])
+  }, [direction, t])
 
   const cycleLayout = useCallback(() => {
     const s = useReaderSettings.getState()
     const v = LAYOUT_CYCLE[(LAYOUT_CYCLE.indexOf(s.pageLayout) + 1) % LAYOUT_CYCLE.length]
     s.update({ pageLayout: v })
-    showToast(`Page layout: ${LAYOUT_LABELS[v]}`)
-  }, [])
+    showToast(t('toast.layout', { layout: t(LAYOUT_LABEL_KEYS[v]) }))
+  }, [t])
 
   const cyclePadding = useCallback(() => {
     const s = useReaderSettings.getState()
     const v = (s.continuousPadding + 5) % 45
     s.update({ continuousPadding: v })
-    showToast(v === 0 ? 'Side padding: none' : `Side padding: ${v}%`)
-  }, [])
+    showToast(t('toast.padding', { context: v === 0 ? 'none' : undefined, value: v }))
+  }, [t])
 
   const cycleMargin = useCallback(() => {
     const s = useReaderSettings.getState()
     const v = (s.continuousMargin + 5) % 20
     s.update({ continuousMargin: v })
-    showToast(v === 0 ? 'Page gap: none' : `Page gap: ${v}px`)
-  }, [])
+    showToast(t('toast.margin', { context: v === 0 ? 'none' : undefined, value: v }))
+  }, [t])
 
   useWindowKeys((e) => {
     if (e.key === 'Escape') {
@@ -395,16 +398,16 @@ function Reader({ bookId }: { bookId: string }) {
       <div className="fixed inset-0 flex items-center justify-center bg-bg">
         <EmptyState
           icon={notFound ? <BookOpen weight="duotone" /> : <Warning weight="duotone" />}
-          title={notFound ? 'Book not found' : 'Failed to load book'}
-          body={notFound ? 'It may have been deleted, or you do not have access to it.' : loadErrorReason(bookQuery.error)}
+          title={notFound ? t('error.bookNotFound') : t('error.loadBookFailed')}
+          body={notFound ? t('error.bookNotFoundBody') : loadErrorReason(bookQuery.error)}
           action={
             <div className="flex items-center gap-2">
               {!notFound && (
                 <Button variant="primary" loading={bookQuery.isFetching} onClick={() => bookQuery.refetch()}>
-                  Retry
+                  {t('common:action.retry')}
                 </Button>
               )}
-              <Button onClick={() => navigate('/dashboard')}>Back to dashboard</Button>
+              <Button onClick={() => navigate('/dashboard')}>{t('common:notFound.back')}</Button>
             </div>
           }
         />
@@ -421,7 +424,7 @@ function Reader({ bookId }: { bookId: string }) {
             icon={issue.severity === 'danger' ? <Warning weight="duotone" /> : <BookOpen weight="duotone" />}
             title={issue.title}
             body={issue.detail}
-            action={<Button onClick={() => navigate(`/book/${bookId}`)}>Back to book</Button>}
+            action={<Button onClick={() => navigate(`/book/${bookId}`)}>{t('error.backToBook')}</Button>}
           />
         </div>
       )
@@ -433,14 +436,14 @@ function Reader({ bookId }: { bookId: string }) {
       <div className="fixed inset-0 flex items-center justify-center bg-bg">
         <EmptyState
           icon={<Warning weight="duotone" />}
-          title="Failed to load pages"
+          title={t('error.loadPagesFailed')}
           body={loadErrorReason(pagesQuery.error)}
           action={
             <div className="flex items-center gap-2">
               <Button variant="primary" loading={pagesQuery.isFetching} onClick={() => pagesQuery.refetch()}>
-                Retry
+                {t('common:action.retry')}
               </Button>
-              <Button onClick={() => navigate(`/book/${bookId}`)}>Back to book</Button>
+              <Button onClick={() => navigate(`/book/${bookId}`)}>{t('error.backToBook')}</Button>
             </div>
           }
         />
@@ -453,8 +456,8 @@ function Reader({ bookId }: { bookId: string }) {
       <div className="fixed inset-0 flex items-center justify-center bg-bg">
         <EmptyState
           icon={<Images weight="duotone" />}
-          title="No pages"
-          action={<Button onClick={() => navigate(`/book/${bookId}`)}>Back to book</Button>}
+          title={t('error.noPages')}
+          action={<Button onClick={() => navigate(`/book/${bookId}`)}>{t('error.backToBook')}</Button>}
         />
       </div>
     )
@@ -501,9 +504,9 @@ function Reader({ bookId }: { bookId: string }) {
       queryClient.invalidateQueries({ queryKey: ['series'] })
       queryClient.invalidateQueries({ queryKey: ['readlists'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      showToast(`Page ${page} set as ${target === 'readlist' ? 'read list' : target} poster`)
+      showToast(t('toast.posterSet', { context: target, page }))
     } catch {
-      showToast('Could not set the poster')
+      showToast(t('toast.posterFailed'))
     } finally {
       setPosterBusy(false)
     }
@@ -520,7 +523,7 @@ function Reader({ bookId }: { bookId: string }) {
       a.click()
       URL.revokeObjectURL(a.href)
     } catch {
-      showToast('Could not download the page')
+      showToast(t('toast.downloadFailed'))
     }
   }
 

@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { CircleNotch, X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import { useKomfJobs } from '@/lib/store/komfJobs'
 import { IconButton } from '@/components/ui/IconButton'
 
 export function KomfJobsPanel() {
+  const { t } = useTranslation()
   const jobs = useKomfJobs((s) => s.jobs)
   const dismiss = useKomfJobs((s) => s.dismiss)
   const list = Object.values(jobs)
@@ -28,7 +30,7 @@ export function KomfJobsPanel() {
               </div>
             </div>
             {job.failed && (
-              <IconButton label="Dismiss" className="-mr-1 size-7" onClick={() => dismiss(job.id)}>
+              <IconButton label={t('action.dismiss')} className="-mr-1 size-7" onClick={() => dismiss(job.id)}>
                 <X className="size-4" />
               </IconButton>
             )}

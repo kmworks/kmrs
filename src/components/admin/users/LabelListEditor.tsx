@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
 
@@ -12,6 +13,7 @@ interface LabelListEditorProps {
 }
 
 export function LabelListEditor({ label, values, onChange, placeholder, trailing }: LabelListEditorProps) {
+  const { t } = useTranslation('admin-users')
   const inputId = useId()
   const [draft, setDraft] = useState('')
 
@@ -46,7 +48,7 @@ export function LabelListEditor({ label, values, onChange, placeholder, trailing
         />
         <Button type="button" onClick={add} disabled={!draft.trim()}>
           <Plus className="size-4" />
-          Add
+          {t('common:action.add')}
         </Button>
       </div>
       {values.length > 0 && (
@@ -60,7 +62,7 @@ export function LabelListEditor({ label, values, onChange, placeholder, trailing
               <button
                 type="button"
                 onClick={() => onChange(values.filter((x) => x !== v))}
-                aria-label={`Remove ${v}`}
+                aria-label={t('labelList.remove', { label: v })}
                 className="cursor-pointer rounded-full p-0.5 text-ink-3 transition-colors hover:bg-overlay hover:text-ink"
               >
                 <X className="size-3" />

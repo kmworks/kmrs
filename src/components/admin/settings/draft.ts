@@ -1,3 +1,4 @@
+import i18n from '@/lib/i18n'
 import type { SettingsDto, SettingsUpdateDto, ThumbnailSize } from '@/lib/api/types'
 
 /** Editable form mirror of SettingsDto: inputs are strings, '' means "no value / no override". */
@@ -38,12 +39,14 @@ function positiveInt(v: string): boolean {
 
 export function validateDraft(d: SettingsDraft): Partial<Record<keyof SettingsDraft, string>> {
   const errors: Partial<Record<keyof SettingsDraft, string>> = {}
-  if (!positiveInt(d.rememberMeDurationDays.trim())) errors.rememberMeDurationDays = 'Must be a positive whole number of days.'
-  if (!positiveInt(d.taskPoolSize.trim())) errors.taskPoolSize = 'Must be a positive whole number.'
-  if (d.serverPort.trim() && !positiveInt(d.serverPort.trim())) errors.serverPort = 'Must be a positive whole number.'
+  if (!positiveInt(d.rememberMeDurationDays.trim()))
+    errors.rememberMeDurationDays = i18n.t('admin-settings:validation.positiveDays')
+  if (!positiveInt(d.taskPoolSize.trim())) errors.taskPoolSize = i18n.t('admin-settings:validation.positiveInt')
+  if (d.serverPort.trim() && !positiveInt(d.serverPort.trim()))
+    errors.serverPort = i18n.t('admin-settings:validation.positiveInt')
   if (d.serverContextPath.trim() && !CONTEXT_PATH_RE.test(d.serverContextPath.trim()))
-    errors.serverContextPath = 'Must start with / and end with a letter or digit, e.g. /kmrs.'
-  if (d.koboPort.trim() && !positiveInt(d.koboPort.trim())) errors.koboPort = 'Must be a positive whole number.'
+    errors.serverContextPath = i18n.t('admin-settings:validation.contextPath')
+  if (d.koboPort.trim() && !positiveInt(d.koboPort.trim())) errors.koboPort = i18n.t('admin-settings:validation.positiveInt')
   return errors
 }
 

@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import type { SeriesDto } from '@/lib/api/types'
 import { CheckCircle } from '@phosphor-icons/react'
 import { urls } from '@/lib/utils/urls'
@@ -14,7 +16,7 @@ import { SelectBadge } from '@/components/selection/SelectBadge'
 import type { CardSelection } from '@/components/selection/useSelection'
 import { cn } from '@/lib/utils/cn'
 
-function secondaryLine(series: SeriesDto): ReactNode {
+function secondaryLine(series: SeriesDto, t: TFunction): ReactNode {
   const { booksCount, booksUnreadCount, booksInProgressCount, booksReadCount } = series
   // oneshot series show the OneshotLine (checkmark when read) instead of a meaningless "1 books"
   if (series.oneshot) {
@@ -26,10 +28,10 @@ function secondaryLine(series: SeriesDto): ReactNode {
     )
   }
   if (booksInProgressCount > 0 && booksCount > 0) {
-    return `${Math.round((booksReadCount / booksCount) * 100)}% · ${booksCount} books`
+    return t('series.progressSummary', { pct: Math.round((booksReadCount / booksCount) * 100), count: booksCount })
   }
-  if (booksUnreadCount > 0) return `${booksUnreadCount} of ${booksCount} unread`
-  return `${booksCount} books`
+  if (booksUnreadCount > 0) return t('series.unreadSummary', { unread: booksUnreadCount, total: booksCount })
+  return t('series.booksCount', { count: booksCount })
 }
 
 interface SeriesCardProps {
@@ -41,6 +43,7 @@ interface SeriesCardProps {
 }
 
 export function SeriesCard({ series, className, eager, selection }: SeriesCardProps) {
+  const { t } = useTranslation('media')
   const bust = useBust(series.id)
   const blurUnread = useUiStore((s) => s.blurUnreadCovers)
   const title = series.metadata.title || series.name
@@ -48,7 +51,7 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
   // like komga: an unavailable series replaces its status line
   const libraryUnavailable = useLibraryUnavailable(series.libraryId)
   const statusLabel = cardStatusLabel({ deleted: series.deleted || libraryUnavailable })
-  const secondary = statusLabel ? <span className={statusLabel.className}>{statusLabel.text}</span> : secondaryLine(series)
+  const secondary = statusLabel ? <span className={statusLabel.className}>{statusLabel.text}</span> : secondaryLine(series, t)
 
   const frame = (
     <CardFrame
@@ -60,7 +63,7 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
           <SeriesCardMenu
             series={series}
             onSelect={selection?.onToggle}
-            trigger={<CardMenuButton aria-label={`Actions for ${title}`} />}
+            trigger={<CardMenuButton aria-label={t('card.actionsFor', { title })} />}
           />
         )
       }
@@ -112,14 +115,16 @@ export function CollectionCard({
   count: number
   className?: string
 }) {
+  const { t } = useTranslation('media')
   const bust = useBust(id)
+  const secondary = t('collection.seriesCount', { count })
   return (
     <CardFrame to={`/collections/${id}`} label={name} className={className}>
       <div className={cn('relative')}>
         <CoverImage src={urls.collectionThumbnail(id, bust || undefined)} alt={name} />
-        <CardOverlayText title={name} secondary={`${count} series`} />
+        <CardOverlayText title={name} secondary={secondary} />
       </div>
-      <CardText title={name} secondary={`${count} series`} />
+      <CardText title={name} secondary={secondary} />
     </CardFrame>
   )
 }
@@ -135,14 +140,16 @@ export function ReadListCard({
   count: number
   className?: string
 }) {
+  const { t } = useTranslation('media')
   const bust = useBust(id)
+  const secondary = t('readList.bookCount', { count })
   return (
     <CardFrame to={`/readlists/${id}`} label={name} className={className}>
       <div className="relative">
         <CoverImage src={urls.readlistThumbnail(id, bust || undefined)} alt={name} />
-        <CardOverlayText title={name} secondary={`${count} books`} />
+        <CardOverlayText title={name} secondary={secondary} />
       </div>
-      <CardText title={name} secondary={`${count} books`} />
+      <CardText title={name} secondary={secondary} />
     </CardFrame>
   )
 }

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/api/client'
 import { Compass, Warning } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
@@ -10,13 +11,14 @@ interface DetailErrorProps {
 }
 
 export function DetailError({ error, notFoundTitle, onRetry }: DetailErrorProps) {
+  const { t } = useTranslation('detail')
   if (error instanceof ApiError && error.status === 404) {
     return (
       <EmptyState
         className="py-32"
         icon={<Compass />}
         title={notFoundTitle}
-        body="It may have been deleted, or you do not have access to it."
+        body={t('error.notFoundBody')}
       />
     )
   }
@@ -24,11 +26,11 @@ export function DetailError({ error, notFoundTitle, onRetry }: DetailErrorProps)
     <EmptyState
       className="py-32"
       icon={<Warning />}
-      title="Something went wrong"
-      body={error instanceof Error ? error.message : 'Unknown error'}
+      title={t('error.title')}
+      body={error instanceof Error ? error.message : t('error.unknown')}
       action={
         <Button variant="secondary" onClick={onRetry}>
-          Retry
+          {t('common:action.retry')}
         </Button>
       }
     />

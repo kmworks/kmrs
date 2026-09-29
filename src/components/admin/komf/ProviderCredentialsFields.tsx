@@ -1,12 +1,13 @@
+import { useTranslation } from 'react-i18next'
 import type { KomfConfigDraft } from './draft'
 import { TextField } from '@/components/ui/TextField'
 import { SelectInput } from './fields'
 
-const COMICVINE_ID_FORMAT_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'No override' },
-  { value: 'SERIES', label: 'Series' },
-  { value: 'VOLUME', label: 'Volume' },
-  { value: 'ISSUE', label: 'Issue' },
+const COMICVINE_ID_FORMAT_OPTIONS: Array<{ value: string; labelKey: string }> = [
+  { value: '', labelKey: 'noOverride' },
+  { value: 'SERIES', labelKey: 'credentials.idFormatValue.series' },
+  { value: 'VOLUME', labelKey: 'credentials.idFormatValue.volume' },
+  { value: 'ISSUE', labelKey: 'credentials.idFormatValue.issue' },
 ]
 
 interface ProviderCredentialsFieldsProps {
@@ -16,47 +17,48 @@ interface ProviderCredentialsFieldsProps {
 }
 
 export function ProviderCredentialsFields({ value, onChange, searchLimitError }: ProviderCredentialsFieldsProps) {
+  const { t } = useTranslation('admin-komf')
   return (
     <div className="flex flex-col gap-4">
       <TextField
-        label="MAL client ID"
-        helper="Empty clears the configured value."
+        label={t('credentials.malClientId')}
+        helper={t('credentials.emptyClears')}
         value={value.malClientId}
         onChange={(e) => onChange({ malClientId: e.target.value })}
       />
       <TextField
-        label="ComicVine API key"
-        helper="Empty clears the configured value."
+        label={t('credentials.comicVineApiKey')}
+        helper={t('credentials.emptyClears')}
         value={value.comicVineApiKey}
         onChange={(e) => onChange({ comicVineApiKey: e.target.value })}
       />
       <TextField
-        label="ComicVine search limit"
-        helper="Maximum number of ComicVine search results. Empty clears the configured value."
+        label={t('credentials.comicVineSearchLimit')}
+        helper={t('credentials.comicVineSearchLimitHelper')}
         inputMode="numeric"
         value={value.comicVineSearchLimit}
         onChange={(e) => onChange({ comicVineSearchLimit: e.target.value })}
-        error={searchLimitError}
+        error={searchLimitError ? t(searchLimitError) : undefined}
       />
       <TextField
-        label="ComicVine issue name"
-        helper="Empty clears the configured value."
+        label={t('credentials.comicVineIssueName')}
+        helper={t('credentials.emptyClears')}
         value={value.comicVineIssueName}
         onChange={(e) => onChange({ comicVineIssueName: e.target.value })}
       />
       <div className="flex flex-col gap-2">
-        <p className="text-[13px] font-medium text-ink-2">ComicVine ID format</p>
+        <p className="text-[13px] font-medium text-ink-2">{t('credentials.comicVineIdFormat')}</p>
         <SelectInput
-          aria-label="ComicVine ID format"
+          aria-label={t('credentials.comicVineIdFormat')}
           className="h-10 w-full"
-          options={COMICVINE_ID_FORMAT_OPTIONS}
+          options={COMICVINE_ID_FORMAT_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           value={value.comicVineIdFormat}
           onChange={(v) => onChange({ comicVineIdFormat: v })}
         />
       </div>
       <TextField
-        label="Bangumi token"
-        helper="Empty clears the configured value."
+        label={t('credentials.bangumiToken')}
+        helper={t('credentials.emptyClears')}
         value={value.bangumiToken}
         onChange={(e) => onChange({ bangumiToken: e.target.value })}
       />

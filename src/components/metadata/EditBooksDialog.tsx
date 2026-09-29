@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Copy, LockSimple, LockSimpleOpen, Minus, Plus } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
@@ -26,11 +27,11 @@ const TAB_OF_FIELD: Record<string, Tab> = {
   links: 'links',
 }
 
-function validatePairs(pairs: Pair[], bCheck: (v: string) => string | undefined): PairErrors {
+function validatePairs(pairs: Pair[], bCheck: (v: string) => string | undefined, blankMessage: string): PairErrors {
   const out: PairErrors = {}
   pairs.forEach((p, i) => {
     const row: { a?: string; b?: string } = {}
-    if (!p.a.trim()) row.a = 'Must not be blank'
+    if (!p.a.trim()) row.a = blankMessage
     const bError = bCheck(p.b)
     if (bError) row.b = bError
     if (row.a || row.b) out[i] = row
@@ -38,10 +39,8 @@ function validatePairs(pairs: Pair[], bCheck: (v: string) => string | undefined)
   return out
 }
 
-const authorCheck = (v: string) => (v.trim() ? undefined : 'Must not be blank')
-const urlCheck = (v: string) => (isValidUrl(v.trim()) ? undefined : 'Must be a valid URL')
-
 export function EditBooksDialog({ open, onClose, bookIds }: { open: boolean; onClose: () => void; bookIds: string[] }) {
+  const { t } = useTranslation('metadata')
   const singleId = bookIds.length === 1 ? bookIds[0] : null
   const bookQuery = useQuery({
     queryKey: ['books', singleId],
@@ -55,7 +54,7 @@ export function EditBooksDialog({ open, onClose, bookIds }: { open: boolean; onC
       onOpenChange={(o) => {
         if (!o) onClose()
       }}
-      title={singleId ? 'Edit book metadata' : `Edit metadata of ${bookIds.length} books`}
+      title={t('editBooks.dialogTitle', { context: singleId ? 'single' : 'batch', count: bookIds.length })}
       size="lg"
     >
       {singleId && bookQuery.isPending && (
@@ -67,11 +66,11 @@ export function EditBooksDialog({ open, onClose, bookIds }: { open: boolean; onC
       )}
       {singleId && bookQuery.error && (
         <EmptyState
-          title="Could not load the book"
+          title={t('editBooks.loadError')}
           body={bookQuery.error.message}
           action={
             <Button variant="secondary" onClick={() => bookQuery.refetch()}>
-              Retry
+              {t('common:action.retry')}
             </Button>
           }
         />
@@ -83,6 +82,7 @@ export function EditBooksDialog({ open, onClose, bookIds }: { open: boolean; onC
 }
 
 function SingleBookForm({ book, onClose }: { book: BookDto; onClose: () => void }) {
+  const { t } = useTranslation('metadata')
   const queryClient = useQueryClient()
   const md = book.metadata
   const [tab, setTab] = useState<Tab>('general')
@@ -136,26 +136,29 @@ function SingleBookForm({ book, onClose }: { book: BookDto; onClose: () => void 
         authors: { ...p.authors, ...mapped.pairs.authors },
         links: { ...p.links, ...mapped.pairs.links },
       }))
-      setFormErrors(rest.length > 0 ? rest : [err instanceof Error ? err.message : 'Could not save the metadata.'])
+      setFormErrors(rest.length > 0 ? rest : [err instanceof Error ? err.message : t('saveFailed')])
       jumpToError([...Object.keys(scalars), ...Object.keys(mapped.pairs)])
     },
   })
 
   const jumpToError = (fields: string[]) => {
-    const first = fields.map((f) => TAB_OF_FIELD[f]).find((t) => t && t !== tab)
+    const first = fields.map((f) => TAB_OF_FIELD[f]).find((tb) => tb && tb !== tab)
     if (first) setTab(first)
   }
+
+  const authorCheck = (v: string) => (v.trim() ? undefined : t('validation.notBlank'))
+  const urlCheck = (v: string) => (isValidUrl(v.trim()) ? undefined : t('validation.url'))
 
   const submit = (ev: FormEvent) => {
     ev.preventDefault()
     if (save.isPending) return
     const e: Record<string, string> = {}
-    if (!title.trim()) e.title = 'Must not be blank'
-    if (!number.trim()) e.number = 'Must not be blank'
-    if (!numberSort.trim() || Number.isNaN(Number(numberSort))) e.numberSort = 'Must be a number'
-    if (isbn.trim() && !isValidIsbn13(isbn)) e.isbn = 'Must be blank or a valid ISBN-13'
-    const ae = validatePairs(authors, authorCheck)
-    const le = validatePairs(links, urlCheck)
+    if (!title.trim()) e.title = t('validation.notBlank')
+    if (!number.trim()) e.number = t('validation.notBlank')
+    if (!numberSort.trim() || Number.isNaN(Number(numberSort))) e.numberSort = t('validation.number')
+    if (isbn.trim() && !isValidIsbn13(isbn)) e.isbn = t('validation.isbn')
+    const ae = validatePairs(authors, authorCheck, t('validation.notBlank'))
+    const le = validatePairs(links, urlCheck, t('validation.notBlank'))
     setErrors(e)
     setPairErrors({ authors: ae, links: le })
     setFormErrors([])
@@ -199,10 +202,10 @@ function SingleBookForm({ book, onClose }: { book: BookDto; onClose: () => void 
         <FormErrorBanner messages={formErrors} />
         <SegmentedControl<Tab>
           options={[
-            { value: 'general', label: 'General' },
-            { value: 'authors', label: 'Authors' },
-            { value: 'tags', label: 'Tags' },
-            { value: 'links', label: 'Links' },
+            { value: 'general', label: t('tabs.general') },
+            { value: 'authors', label: t('tabs.authors') },
+            { value: 'tags', label: t('tabs.tags') },
+            { value: 'links', label: t('tabs.links') },
           ]}
           value={tab}
           onChange={setTab}
@@ -212,106 +215,106 @@ function SingleBookForm({ book, onClose }: { book: BookDto; onClose: () => void 
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
-                label="Title"
+                label={t('field.title')}
                 required
                 value={title}
                 onChange={(e) => { setTitle(e.target.value); autoLock('title'); clearError('title') }}
                 error={errors.title}
-                trailing={<LockToggle locked={locks.title} onChange={() => toggleLock('title')} label="Title" />}
+                trailing={<LockToggle locked={locks.title} onChange={() => toggleLock('title')} label={t('field.title')} />}
               />
               <TextField
-                label="Number"
+                label={t('field.number')}
                 required
                 value={number}
                 onChange={(e) => { setNumber(e.target.value); autoLock('number'); clearError('number') }}
                 error={errors.number}
-                trailing={<LockToggle locked={locks.number} onChange={() => toggleLock('number')} label="Number" />}
+                trailing={<LockToggle locked={locks.number} onChange={() => toggleLock('number')} label={t('field.number')} />}
               />
               <TextField
-                label="Sort number"
+                label={t('field.sortNumber')}
                 required
                 type="number"
                 step="0.1"
                 value={numberSort}
                 onChange={(e) => { setNumberSort(e.target.value); autoLock('numberSort'); clearError('numberSort') }}
                 error={errors.numberSort}
-                helper={errors.numberSort ? undefined : 'You can use decimal numbers'}
-                trailing={<LockToggle locked={locks.numberSort} onChange={() => toggleLock('numberSort')} label="Sort number" />}
+                helper={errors.numberSort ? undefined : t('editBooks.sortNumberHelper')}
+                trailing={<LockToggle locked={locks.numberSort} onChange={() => toggleLock('numberSort')} label={t('field.sortNumber')} />}
               />
               <TextField
-                label="Release date"
+                label={t('field.releaseDate')}
                 type="date"
                 value={releaseDate}
                 onChange={(e) => { setReleaseDate(e.target.value); autoLock('releaseDate') }}
                 error={errors.releaseDate}
-                trailing={<LockToggle locked={locks.releaseDate} onChange={() => toggleLock('releaseDate')} label="Release date" />}
+                trailing={<LockToggle locked={locks.releaseDate} onChange={() => toggleLock('releaseDate')} label={t('field.releaseDate')} />}
               />
               <TextField
-                label="ISBN"
+                label={t('field.isbn')}
                 value={isbn}
                 onChange={(e) => { setIsbn(e.target.value); autoLock('isbn'); clearError('isbn') }}
                 error={errors.isbn}
-                helper={errors.isbn ? undefined : 'ISBN-13, empty to clear'}
-                trailing={<LockToggle locked={locks.isbn} onChange={() => toggleLock('isbn')} label="ISBN" />}
+                helper={errors.isbn ? undefined : t('editBooks.isbnHelper')}
+                trailing={<LockToggle locked={locks.isbn} onChange={() => toggleLock('isbn')} label={t('field.isbn')} />}
               />
             </div>
             <TextAreaField
-              label="Summary"
+              label={t('field.summary')}
               value={summary}
               onChange={(v) => { setSummary(v); autoLock('summary') }}
               error={errors.summary}
-              trailing={<LockToggle locked={locks.summary} onChange={() => toggleLock('summary')} label="Summary" />}
+              trailing={<LockToggle locked={locks.summary} onChange={() => toggleLock('summary')} label={t('field.summary')} />}
             />
           </>
         )}
 
         {tab === 'authors' && (
           <PairListEditor
-            label="Authors"
+            label={t('field.authors')}
             pairs={authors}
             onChange={(p) => { setAuthors(p); autoLock('authors') }}
-            aLabel="Name"
-            bLabel="Role"
-            aPlaceholder="Kentaro Miura"
-            bPlaceholder="writer"
-            addLabel="Add author"
+            aLabel={t('field.name')}
+            bLabel={t('field.role')}
+            aPlaceholder={t('placeholder.authorName')}
+            bPlaceholder={t('placeholder.authorRole')}
+            addLabel={t('add.author')}
             errors={pairErrors.authors}
-            trailing={<LockToggle locked={locks.authors} onChange={() => toggleLock('authors')} label="Authors" />}
+            trailing={<LockToggle locked={locks.authors} onChange={() => toggleLock('authors')} label={t('field.authors')} />}
           />
         )}
 
         {tab === 'tags' && (
           <LabelListEditor
-            label="Tags"
+            label={t('field.tags')}
             values={tags}
             onChange={(v) => { setTags(v); autoLock('tags') }}
-            placeholder="Add tag…"
-            trailing={<LockToggle locked={locks.tags} onChange={() => toggleLock('tags')} label="Tags" />}
+            placeholder={t('placeholder.addTag')}
+            trailing={<LockToggle locked={locks.tags} onChange={() => toggleLock('tags')} label={t('field.tags')} />}
           />
         )}
 
         {tab === 'links' && (
           <PairListEditor
-            label="Web links"
+            label={t('field.webLinks')}
             pairs={links}
             onChange={(p) => { setLinks(p); autoLock('links') }}
-            aLabel="Label"
-            bLabel="URL"
-            aPlaceholder="Wiki"
+            aLabel={t('field.label')}
+            bLabel={t('field.url')}
+            aPlaceholder={t('placeholder.linkLabel')}
             bPlaceholder="https://…"
-            addLabel="Add link"
+            addLabel={t('add.link')}
             errors={pairErrors.links}
-            trailing={<LockToggle locked={locks.links} onChange={() => toggleLock('links')} label="Web links" />}
+            trailing={<LockToggle locked={locks.links} onChange={() => toggleLock('links')} label={t('field.webLinks')} />}
           />
         )}
       </div>
 
       <div className="flex justify-end gap-2 border-t border-line px-5 py-3.5">
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common:action.cancel')}
         </Button>
         <Button type="submit" variant="primary" loading={save.isPending}>
-          Save changes
+          {t('action.saveChanges')}
         </Button>
       </div>
     </form>
@@ -370,13 +373,15 @@ function BulkColumnHead({
   onToggleAll: () => void
   children?: ReactNode
 }) {
+  const { t } = useTranslation('metadata')
+  const action = status === 2 ? t('editBooks.unlockAll', { label }) : t('editBooks.lockAll', { label })
   return (
     <div className="flex items-center gap-0.5">
       <button
         type="button"
         onClick={onToggleAll}
-        aria-label={status === 2 ? `Unlock all ${label}` : `Lock all ${label}`}
-        title={status === 2 ? `Unlock all ${label}` : `Lock all ${label}`}
+        aria-label={action}
+        title={action}
         className={cn(
           'inline-flex cursor-pointer items-center justify-center rounded-md p-1 transition-colors hover:bg-overlay',
           status !== 0 ? 'text-accent' : 'text-ink-3',
@@ -391,6 +396,7 @@ function BulkColumnHead({
 }
 
 function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }) {
+  const { t } = useTranslation('metadata')
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<'shared' | 'perBook'>('shared')
   const [enabled, setEnabled] = useState<Partial<Record<BatchKey, boolean>>>({})
@@ -524,25 +530,28 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
     onError: (err) => {
       const mapped = mapViolations(err)
       setErrors(mapped.scalars)
-      setFormErrors(mapped.rest.length > 0 ? mapped.rest : [err instanceof Error ? err.message : 'Could not save the metadata.'])
+      setFormErrors(mapped.rest.length > 0 ? mapped.rest : [err instanceof Error ? err.message : t('saveFailed')])
     },
   })
+
+  const authorCheck = (v: string) => (v.trim() ? undefined : t('validation.notBlank'))
+  const urlCheck = (v: string) => (isValidUrl(v.trim()) ? undefined : t('validation.url'))
 
   const submit = (ev: FormEvent) => {
     ev.preventDefault()
     if (save.isPending || (!anyEnabled && !anyTouched)) return
     const e: Record<string, string> = {}
-    if (enabled.isbn && isbn.trim() && !isValidIsbn13(isbn)) e.isbn = 'Must be blank or a valid ISBN-13'
-    const ae = enabled.authors ? validatePairs(authors, authorCheck) : {}
-    const le = enabled.links ? validatePairs(links, urlCheck) : {}
+    if (enabled.isbn && isbn.trim() && !isValidIsbn13(isbn)) e.isbn = t('validation.isbn')
+    const ae = enabled.authors ? validatePairs(authors, authorCheck, t('validation.notBlank')) : {}
+    const le = enabled.links ? validatePairs(links, urlCheck, t('validation.notBlank')) : {}
     const re: Record<string, Partial<Record<PerBookKey, string>>> = {}
     if (rows) {
       for (const [id, r] of Object.entries(rows)) {
         const row: Partial<Record<PerBookKey, string>> = {}
-        if (r.dirty.title && !r.values.title.trim()) row.title = 'Must not be blank'
-        if (r.dirty.number && !r.values.number.trim()) row.number = 'Must not be blank'
-        if (r.dirty.numberSort && (!r.values.numberSort.trim() || Number.isNaN(Number(r.values.numberSort)))) row.numberSort = 'Must be a number'
-        if (r.dirty.isbn && r.values.isbn.trim() && !isValidIsbn13(r.values.isbn)) row.isbn = 'Must be blank or a valid ISBN-13'
+        if (r.dirty.title && !r.values.title.trim()) row.title = t('validation.notBlank')
+        if (r.dirty.number && !r.values.number.trim()) row.number = t('validation.notBlank')
+        if (r.dirty.numberSort && (!r.values.numberSort.trim() || Number.isNaN(Number(r.values.numberSort)))) row.numberSort = t('validation.number')
+        if (r.dirty.isbn && r.values.isbn.trim() && !isValidIsbn13(r.values.isbn)) row.isbn = t('validation.isbn')
         if (Object.keys(row).length > 0) re[id] = row
       }
     }
@@ -609,8 +618,8 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
         <FormErrorBanner messages={formErrors} />
         <SegmentedControl<'shared' | 'perBook'>
           options={[
-            { value: 'shared', label: 'Shared fields' },
-            { value: 'perBook', label: 'Per book' },
+            { value: 'shared', label: t('tabs.sharedFields') },
+            { value: 'perBook', label: t('tabs.perBook') },
           ]}
           value={tab}
           onChange={setTab}
@@ -618,52 +627,52 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
 
         {tab === 'shared' && (
           <>
-            <p className="text-sm text-ink-3">Switched-on fields are applied to all {ids.length} books and locked by default.</p>
+            <p className="text-sm text-ink-3">{t('editBooks.batchHint', { count: ids.length })}</p>
 
-            <BatchField label="Summary" enabled={!!enabled.summary} onEnabledChange={toggle('summary')} hint="Empty clears the summary." locked={sharedLocks.summary ?? true} onLockedChange={toggleSharedLock('summary')}>
-              <TextAreaField ariaLabel="Summary" value={summary} onChange={setSummary} />
+            <BatchField label={t('field.summary')} enabled={!!enabled.summary} onEnabledChange={toggle('summary')} hint={t('editBooks.hint.summaryEmpty')} locked={sharedLocks.summary ?? true} onLockedChange={toggleSharedLock('summary')}>
+              <TextAreaField ariaLabel={t('field.summary')} value={summary} onChange={setSummary} />
             </BatchField>
 
-            <BatchField label="Release date" enabled={!!enabled.releaseDate} onEnabledChange={toggle('releaseDate')} hint="Empty clears the date." locked={sharedLocks.releaseDate ?? true} onLockedChange={toggleSharedLock('releaseDate')}>
-              <TextInput type="date" value={releaseDate} onChange={(e) => setReleaseDate(e.target.value)} aria-label="Release date" />
+            <BatchField label={t('field.releaseDate')} enabled={!!enabled.releaseDate} onEnabledChange={toggle('releaseDate')} hint={t('editBooks.hint.releaseDateEmpty')} locked={sharedLocks.releaseDate ?? true} onLockedChange={toggleSharedLock('releaseDate')}>
+              <TextInput type="date" value={releaseDate} onChange={(e) => setReleaseDate(e.target.value)} aria-label={t('field.releaseDate')} />
             </BatchField>
 
-            <BatchField label="ISBN" enabled={!!enabled.isbn} onEnabledChange={toggle('isbn')} hint="ISBN-13, empty to clear." locked={sharedLocks.isbn ?? true} onLockedChange={toggleSharedLock('isbn')}>
+            <BatchField label={t('field.isbn')} enabled={!!enabled.isbn} onEnabledChange={toggle('isbn')} hint={t('editBooks.hint.isbnEmpty')} locked={sharedLocks.isbn ?? true} onLockedChange={toggleSharedLock('isbn')}>
               <TextInput
                 value={isbn}
                 onChange={(e) => { setIsbn(e.target.value); setErrors((p) => { const next = { ...p }; delete next.isbn; return next }) }}
-                aria-label="ISBN"
+                aria-label={t('field.isbn')}
                 error={!!errors.isbn}
               />
               {errors.isbn && <p className="mt-1 text-[13px] text-danger">{errors.isbn}</p>}
             </BatchField>
 
-            <BatchField label="Authors" enabled={!!enabled.authors} onEnabledChange={toggle('authors')} hint="Replaces all authors; an empty list clears them." locked={sharedLocks.authors ?? true} onLockedChange={toggleSharedLock('authors')}>
+            <BatchField label={t('field.authors')} enabled={!!enabled.authors} onEnabledChange={toggle('authors')} hint={t('editBooks.hint.authorsReplace')} locked={sharedLocks.authors ?? true} onLockedChange={toggleSharedLock('authors')}>
               <PairListEditor
                 pairs={authors}
                 onChange={setAuthors}
-                aLabel="Name"
-                bLabel="Role"
-                aPlaceholder="Kentaro Miura"
-                bPlaceholder="writer"
-                addLabel="Add author"
+                aLabel={t('field.name')}
+                bLabel={t('field.role')}
+                aPlaceholder={t('placeholder.authorName')}
+                bPlaceholder={t('placeholder.authorRole')}
+                addLabel={t('add.author')}
                 errors={pairErrors.authors}
               />
             </BatchField>
 
-            <BatchField label="Tags" enabled={!!enabled.tags} onEnabledChange={toggle('tags')} hint="Replaces all tags; an empty list clears them." locked={sharedLocks.tags ?? true} onLockedChange={toggleSharedLock('tags')}>
-              <LabelListEditor label="Tags" values={tags} onChange={setTags} placeholder="Add tag…" />
+            <BatchField label={t('field.tags')} enabled={!!enabled.tags} onEnabledChange={toggle('tags')} hint={t('editBooks.hint.tagsReplace')} locked={sharedLocks.tags ?? true} onLockedChange={toggleSharedLock('tags')}>
+              <LabelListEditor label={t('field.tags')} values={tags} onChange={setTags} placeholder={t('placeholder.addTag')} />
             </BatchField>
 
-            <BatchField label="Web links" enabled={!!enabled.links} onEnabledChange={toggle('links')} hint="Replaces all links; an empty list clears them." locked={sharedLocks.links ?? true} onLockedChange={toggleSharedLock('links')}>
+            <BatchField label={t('field.webLinks')} enabled={!!enabled.links} onEnabledChange={toggle('links')} hint={t('editBooks.hint.linksReplace')} locked={sharedLocks.links ?? true} onLockedChange={toggleSharedLock('links')}>
               <PairListEditor
                 pairs={links}
                 onChange={setLinks}
-                aLabel="Label"
-                bLabel="URL"
-                aPlaceholder="Wiki"
+                aLabel={t('field.label')}
+                bLabel={t('field.url')}
+                aPlaceholder={t('placeholder.linkLabel')}
                 bPlaceholder="https://…"
-                addLabel="Add link"
+                addLabel={t('add.link')}
                 errors={pairErrors.links}
               />
             </BatchField>
@@ -672,7 +681,7 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
 
         {tab === 'perBook' && (
           <>
-            <p className="text-sm text-ink-3">Only fields you touch are sent; editing locks the field. Per-book values override shared fields.</p>
+            <p className="text-sm text-ink-3">{t('editBooks.perBookHint')}</p>
             {booksPending && (
               <div className="flex flex-col gap-3">
                 <Skeleton className="h-24 w-full" />
@@ -681,11 +690,11 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
             )}
             {booksError && (
               <EmptyState
-                title="Could not load the books"
+                title={t('editBooks.loadManyError')}
                 body={booksError.message}
                 action={
                   <Button variant="secondary" onClick={() => queryClient.invalidateQueries({ queryKey: ['books'] })}>
-                    Retry
+                    {t('common:action.retry')}
                   </Button>
                 }
               />
@@ -693,22 +702,22 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
             {rows && (
               <div className="flex flex-col gap-3">
                 <div className={cn('hidden gap-2 sm:grid', BOOK_ROW_GRID)}>
-                  <BulkColumnHead label="Title" status={lockStatus('title')} onToggleAll={() => lockAll('title', lockStatus('title') !== 2)} />
-                  <BulkColumnHead label="Number" status={lockStatus('number')} onToggleAll={() => lockAll('number', lockStatus('number') !== 2)}>
-                    <IconButton label="Copy sort number into number" className="size-6" onClick={copySortToNumber}>
+                  <BulkColumnHead label={t('field.title')} status={lockStatus('title')} onToggleAll={() => lockAll('title', lockStatus('title') !== 2)} />
+                  <BulkColumnHead label={t('field.number')} status={lockStatus('number')} onToggleAll={() => lockAll('number', lockStatus('number') !== 2)}>
+                    <IconButton label={t('editBooks.copySortToNumber')} className="size-6" onClick={copySortToNumber}>
                       <Copy className="size-3.5" />
                     </IconButton>
                   </BulkColumnHead>
-                  <BulkColumnHead label="Sort number" status={lockStatus('numberSort')} onToggleAll={() => lockAll('numberSort', lockStatus('numberSort') !== 2)}>
-                    <IconButton label="Decrement all by 1" className="size-6" onClick={() => shiftAllNumberSort(-1)}>
+                  <BulkColumnHead label={t('field.sortNumber')} status={lockStatus('numberSort')} onToggleAll={() => lockAll('numberSort', lockStatus('numberSort') !== 2)}>
+                    <IconButton label={t('editBooks.decrementAll')} className="size-6" onClick={() => shiftAllNumberSort(-1)}>
                       <Minus className="size-3.5" />
                     </IconButton>
-                    <IconButton label="Increment all by 1" className="size-6" onClick={() => shiftAllNumberSort(1)}>
+                    <IconButton label={t('editBooks.incrementAll')} className="size-6" onClick={() => shiftAllNumberSort(1)}>
                       <Plus className="size-3.5" />
                     </IconButton>
                   </BulkColumnHead>
-                  <BulkColumnHead label="Release date" status={lockStatus('releaseDate')} onToggleAll={() => lockAll('releaseDate', lockStatus('releaseDate') !== 2)} />
-                  <BulkColumnHead label="ISBN" status={lockStatus('isbn')} onToggleAll={() => lockAll('isbn', lockStatus('isbn') !== 2)} />
+                  <BulkColumnHead label={t('field.releaseDate')} status={lockStatus('releaseDate')} onToggleAll={() => lockAll('releaseDate', lockStatus('releaseDate') !== 2)} />
+                  <BulkColumnHead label={t('field.isbn')} status={lockStatus('isbn')} onToggleAll={() => lockAll('isbn', lockStatus('isbn') !== 2)} />
                 </div>
                 {ids.map((id) => {
                   const row = rows[id]
@@ -718,11 +727,11 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
                     <div key={id} className="rounded-lg border border-line p-3">
                       <p className="mb-2 truncate text-[13px] font-medium text-ink-2">{book.name}</p>
                       <div className={cn('grid gap-2', BOOK_ROW_GRID)}>
-                        <LockableInput label="Title" value={row.values.title} onChange={(e) => setValue(id, 'title', e.target.value)} locked={row.locks.title} onLockChange={() => toggleRowLock(id, 'title')} error={rowErrors[id]?.title} />
-                        <LockableInput label="Number" value={row.values.number} onChange={(e) => setValue(id, 'number', e.target.value)} locked={row.locks.number} onLockChange={() => toggleRowLock(id, 'number')} error={rowErrors[id]?.number} />
-                        <LockableInput label="Sort number" type="number" step="0.1" value={row.values.numberSort} onChange={(e) => setValue(id, 'numberSort', e.target.value)} locked={row.locks.numberSort} onLockChange={() => toggleRowLock(id, 'numberSort')} error={rowErrors[id]?.numberSort} />
-                        <LockableInput label="Release date" type="date" value={row.values.releaseDate} onChange={(e) => setValue(id, 'releaseDate', e.target.value)} locked={row.locks.releaseDate} onLockChange={() => toggleRowLock(id, 'releaseDate')} error={rowErrors[id]?.releaseDate} />
-                        <LockableInput label="ISBN" value={row.values.isbn} onChange={(e) => setValue(id, 'isbn', e.target.value)} locked={row.locks.isbn} onLockChange={() => toggleRowLock(id, 'isbn')} error={rowErrors[id]?.isbn} />
+                        <LockableInput label={t('field.title')} value={row.values.title} onChange={(e) => setValue(id, 'title', e.target.value)} locked={row.locks.title} onLockChange={() => toggleRowLock(id, 'title')} error={rowErrors[id]?.title} />
+                        <LockableInput label={t('field.number')} value={row.values.number} onChange={(e) => setValue(id, 'number', e.target.value)} locked={row.locks.number} onLockChange={() => toggleRowLock(id, 'number')} error={rowErrors[id]?.number} />
+                        <LockableInput label={t('field.sortNumber')} type="number" step="0.1" value={row.values.numberSort} onChange={(e) => setValue(id, 'numberSort', e.target.value)} locked={row.locks.numberSort} onLockChange={() => toggleRowLock(id, 'numberSort')} error={rowErrors[id]?.numberSort} />
+                        <LockableInput label={t('field.releaseDate')} type="date" value={row.values.releaseDate} onChange={(e) => setValue(id, 'releaseDate', e.target.value)} locked={row.locks.releaseDate} onLockChange={() => toggleRowLock(id, 'releaseDate')} error={rowErrors[id]?.releaseDate} />
+                        <LockableInput label={t('field.isbn')} value={row.values.isbn} onChange={(e) => setValue(id, 'isbn', e.target.value)} locked={row.locks.isbn} onLockChange={() => toggleRowLock(id, 'isbn')} error={rowErrors[id]?.isbn} />
                       </div>
                     </div>
                   )
@@ -735,10 +744,10 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
 
       <div className="flex justify-end gap-2 border-t border-line px-5 py-3.5">
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common:action.cancel')}
         </Button>
         <Button type="submit" variant="primary" loading={save.isPending} disabled={!anyEnabled && !anyTouched}>
-          Save changes
+          {t('action.saveChanges')}
         </Button>
       </div>
     </form>

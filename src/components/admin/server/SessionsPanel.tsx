@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { actuatorApi } from '@/lib/api/settings'
 import { relativeTime } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
@@ -7,6 +8,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Section } from '@/components/account/Section'
 
 export function SessionsPanel() {
+  const { t } = useTranslation('admin-settings')
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['admin', 'sessions'], queryFn: () => actuatorApi.sessions() })
 
@@ -18,7 +20,7 @@ export function SessionsPanel() {
   const sessions = [...(query.data?.sessions ?? [])].sort((a, b) => b.lastAccessedTime.localeCompare(a.lastAccessedTime))
 
   return (
-    <Section title="Sessions">
+    <Section title={t('sessions.title')}>
       {query.isLoading && (
         <div className="flex flex-col gap-2.5">
           {Array.from({ length: 3 }, (_, i) => (
@@ -29,28 +31,28 @@ export function SessionsPanel() {
       {query.isError && (
         <div className="flex items-center gap-3">
           <p className="text-sm text-danger">
-            {query.error instanceof Error ? query.error.message : 'Could not load sessions.'}
+            {query.error instanceof Error ? query.error.message : t('sessions.loadFailed')}
           </p>
           <Button size="sm" onClick={() => void query.refetch()}>
-            Try again
+            {t('common:action.retry')}
           </Button>
         </div>
       )}
       {query.data && (
         <>
           {sessions.length === 0 ? (
-            <p className="text-sm text-ink-3">No active sessions.</p>
+            <p className="text-sm text-ink-3">{t('sessions.empty')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[480px] text-sm">
                 <thead>
                   <tr className="text-left text-xs text-ink-3">
-                    <th className="pb-2 pr-4 font-medium">Session</th>
-                    <th className="pb-2 pr-4 font-medium">Created</th>
-                    <th className="pb-2 pr-4 font-medium">Last active</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <th className="pb-2 pr-4 font-medium">{t('sessions.session')}</th>
+                    <th className="pb-2 pr-4 font-medium">{t('sessions.created')}</th>
+                    <th className="pb-2 pr-4 font-medium">{t('sessions.lastActive')}</th>
+                    <th className="pb-2 pr-4 font-medium">{t('sessions.status')}</th>
                     <th className="pb-2 text-right font-medium">
-                      <span className="sr-only">Actions</span>
+                      <span className="sr-only">{t('sessions.actions')}</span>
                     </th>
                   </tr>
                 </thead>
@@ -63,11 +65,15 @@ export function SessionsPanel() {
                       <td className="py-2.5 pr-4 whitespace-nowrap text-ink-2">{relativeTime(s.creationTime)}</td>
                       <td className="py-2.5 pr-4 whitespace-nowrap text-ink-2">{relativeTime(s.lastAccessedTime)}</td>
                       <td className="py-2.5 pr-4">
-                        {s.expired ? <Chip className="border-danger/40 text-danger">Expired</Chip> : <Chip>Active</Chip>}
+                        {s.expired ? (
+                          <Chip className="border-danger/40 text-danger">{t('sessions.expired')}</Chip>
+                        ) : (
+                          <Chip>{t('sessions.active')}</Chip>
+                        )}
                       </td>
                       <td className="py-2.5 text-right">
                         <Button size="sm" variant="danger" onClick={() => kick.mutate(s.id)} disabled={kick.isPending}>
-                          Kick
+                          {t('sessions.kick')}
                         </Button>
                       </td>
                     </tr>
@@ -76,10 +82,10 @@ export function SessionsPanel() {
               </table>
             </div>
           )}
-          <p className="mt-3 text-xs text-ink-3">Kicking a session signs that device out — the user has to log in again.</p>
+          <p className="mt-3 text-xs text-ink-3">{t('sessions.kickHint')}</p>
           {kick.isError && (
             <p className="mt-2 text-sm text-danger">
-              {kick.error instanceof Error ? kick.error.message : 'Could not kick the session.'}
+              {kick.error instanceof Error ? kick.error.message : t('sessions.kickFailed')}
             </p>
           )}
         </>

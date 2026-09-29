@@ -1,6 +1,7 @@
 import * as RadixDialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
 import { X } from '@phosphor-icons/react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils/cn'
 import { IconButton } from './IconButton'
 import type { ReactNode } from 'react'
@@ -18,6 +19,7 @@ interface DialogProps {
 const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-3xl' }
 
 export function Dialog({ open, onOpenChange, title, children, className, size = 'md' }: DialogProps) {
+  const { t } = useTranslation()
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
@@ -49,7 +51,7 @@ export function Dialog({ open, onOpenChange, title, children, className, size = 
                     <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
                       <RadixDialog.Title className="text-[15px] font-semibold">{title}</RadixDialog.Title>
                       <RadixDialog.Close asChild>
-                        <IconButton label="Close">
+                        <IconButton label={t('action.close')}>
                           <X className="size-4" />
                         </IconButton>
                       </RadixDialog.Close>

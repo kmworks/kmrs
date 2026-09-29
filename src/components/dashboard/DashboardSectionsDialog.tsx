@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Reorder, useDragControls } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import { DotsSixVertical } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils/cn'
 import { Dialog } from '@/components/ui/Dialog'
@@ -27,7 +28,8 @@ function SectionRow({
   disabled: boolean
 }) {
   const controls = useDragControls()
-  const title = DASHBOARD_SECTIONS[section.key].title
+  const { t } = useTranslation('dashboard')
+  const title = t(DASHBOARD_SECTIONS[section.key].titleKey)
 
   return (
     <Reorder.Item
@@ -42,7 +44,7 @@ function SectionRow({
     >
       <button
         type="button"
-        aria-label={`Reorder ${title}`}
+        aria-label={t('sectionsDialog.reorder', { title })}
         onPointerDown={(e) => controls.start(e)}
         className="cursor-grab touch-none rounded-md p-1.5 text-ink-3 transition-colors hover:bg-raised hover:text-ink-2 active:cursor-grabbing"
       >
@@ -55,6 +57,7 @@ function SectionRow({
 }
 
 export function DashboardSectionsDialog({ libraryId, open, onOpenChange }: DashboardSectionsDialogProps) {
+  const { t } = useTranslation('dashboard')
   const { sections, save, reset, isLoading, isSaving } = useDashboardSections(libraryId)
   const [draft, setDraft] = useState<ResolvedDashboardSection[]>(sections)
   const draftRef = useRef(draft)
@@ -79,11 +82,9 @@ export function DashboardSectionsDialog({ libraryId, open, onOpenChange }: Dashb
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Customize sections" size="sm">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('customizeSections')} size="sm">
       <p className="px-5 pt-4 text-xs leading-relaxed text-ink-3">
-        {libraryId
-          ? 'Only applies to this library view. Drag to reorder, or hide sections you do not use.'
-          : 'Only applies to the All dashboard view. Drag to reorder, or hide sections you do not use.'}
+        {libraryId ? t('sectionsDialog.bodyLibrary') : t('sectionsDialog.bodyAll')}
       </p>
       <div className="px-5 py-4">
         {isLoading ? (
@@ -108,7 +109,7 @@ export function DashboardSectionsDialog({ libraryId, open, onOpenChange }: Dashb
       </div>
       <div className="flex items-center justify-end gap-2 border-t border-line px-5 py-3.5">
         <Button variant="ghost" size="sm" onClick={() => reset()} disabled={isSaving}>
-          Reset to default
+          {t('sectionsDialog.reset')}
         </Button>
       </div>
     </Dialog>

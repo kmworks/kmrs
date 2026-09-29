@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
+import { Trans, useTranslation } from 'react-i18next'
 import { CheckCircle, FolderOpen, MagnifyingGlass, Scan as ScanIcon } from '@phosphor-icons/react'
+import i18n from '@/lib/i18n'
 import { booksApi } from '@/lib/api/books'
 import { seriesApi } from '@/lib/api/series'
 import { transientBooksApi } from '@/lib/api/transientBooks'
 import type { CopyMode, TransientBookDto } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
-import { plural } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -48,16 +49,20 @@ function toRow(b: TransientBookDto): ImportRow {
 function statusBadge(status: string): { label: string; className: string } {
   switch (status) {
     case 'READY':
-      return { label: 'Analyzed', className: 'border-accent/40 bg-accent-soft text-accent-strong' }
+      return { label: i18n.t('import:books.status.analyzed'), className: 'border-accent/40 bg-accent-soft text-accent-strong' }
     case 'ERROR':
     case 'UNSUPPORTED':
-      return { label: status === 'ERROR' ? 'Error' : 'Unsupported', className: 'border-danger/40 bg-danger/10 text-danger' }
+      return {
+        label: status === 'ERROR' ? i18n.t('cardStatus.error') : i18n.t('cardStatus.unsupported'),
+        className: 'border-danger/40 bg-danger/10 text-danger',
+      }
     default:
-      return { label: 'Not analyzed', className: 'border-line bg-raised text-ink-2' }
+      return { label: i18n.t('import:books.status.notAnalyzed'), className: 'border-line bg-raised text-ink-2' }
   }
 }
 
 export function ImportBooksPage() {
+  const { t } = useTranslation('import')
   const [path, setPath] = useState('')
   const [browseOpen, setBrowseOpen] = useState(false)
   const [rows, setRows] = useState<ImportRow[]>([])
@@ -139,19 +144,19 @@ export function ImportBooksPage() {
 
   return (
     <div>
-      <PageHeader title="Import books" subtitle="Import files from outside your libraries into an existing series" />
+      <PageHeader title={t('books.title')} subtitle={t('books.subtitle')} />
 
       <div className="mb-6 max-w-2xl rounded-xl border border-line bg-surface px-5 py-4">
         <div className="flex flex-wrap items-end gap-3">
           <TextField
-            label="Folder on the server"
+            label={t('books.folderLabel')}
             value={path}
             onChange={(e) => setPath(e.target.value)}
             placeholder="/data/incoming"
             className="min-w-56 flex-1 font-mono"
           />
           <Button variant="secondary" onClick={() => setBrowseOpen(true)}>
-            <FolderOpen className="size-4" /> Browse
+            <FolderOpen className="size-4" /> {t('books.browse')}
           </Button>
           <Button
             variant="primary"
@@ -159,7 +164,7 @@ export function ImportBooksPage() {
             loading={scanMutation.isPending}
             onClick={() => scanMutation.mutate(path.trim())}
           >
-            <ScanIcon className="size-4" /> Scan
+            <ScanIcon className="size-4" /> {t('books.scan')}
           </Button>
         </div>
         {scanMutation.error && <p className="mt-3 text-sm text-danger">{scanMutation.error.message}</p>}
@@ -169,23 +174,25 @@ export function ImportBooksPage() {
         <div className="max-w-2xl rounded-xl border border-accent/40 bg-accent-soft px-5 py-6">
           <div className="flex items-center gap-2">
             <CheckCircle className="size-5 text-accent-strong" />
-            <h2 className="text-[15px] font-semibold text-ink">Import queued for {plural(importedCount, 'book')}</h2>
+            <h2 className="text-[15px] font-semibold text-ink">{t('books.queued', { count: importedCount })}</h2>
           </div>
           <p className="mt-2 text-sm text-ink-2">
-            Imports run as background tasks. Follow progress on the{' '}
-            <Link to="/admin/server" className="text-accent-strong underline-offset-2 hover:underline">
-              Server page
-            </Link>
-            .
+            <Trans
+              i18nKey="books.queuedBody"
+              ns="import"
+              components={{
+                link: <Link to="/admin/server" className="text-accent-strong underline-offset-2 hover:underline" />,
+              }}
+            />
           </p>
           <div className="mt-4">
             <Button variant="secondary" size="sm" onClick={reset}>
-              Import more files
+              {t('books.importMore')}
             </Button>
           </div>
         </div>
       ) : scanned && rows.length === 0 && !scanMutation.isPending ? (
-        <EmptyState title="No importable files" body="The folder contains no book files." />
+        <EmptyState title={t('books.emptyTitle')} body={t('books.emptyBody')} />
       ) : rows.length > 0 ? (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -194,13 +201,13 @@ export function ImportBooksPage() {
               value={copyMode}
               onChange={setCopyMode}
               options={[
-                { value: 'MOVE', label: 'Move' },
-                { value: 'COPY', label: 'Copy' },
-                { value: 'HARDLINK', label: 'Hardlink' },
+                { value: 'MOVE', label: t('books.copyMode.move') },
+                { value: 'COPY', label: t('books.copyMode.copy') },
+                { value: 'HARDLINK', label: t('books.copyMode.hardlink') },
               ]}
             />
             <p className="text-sm text-ink-3">
-              {checkedRows.length} of {plural(rows.length, 'file')} selected
+              {t('books.selectedCount', { count: rows.length, checked: checkedRows.length })}
             </p>
             <div className="ml-auto">
               <Button
@@ -210,14 +217,12 @@ export function ImportBooksPage() {
                 disabled={checkedRows.length === 0}
                 onClick={submit}
               >
-                Import selected
+                {t('books.importSelected')}
               </Button>
             </div>
           </div>
           {submitAttempted && missingSeries.length > 0 && (
-            <p className="mb-4 text-sm text-danger">
-              Select a series for every checked file ({plural(missingSeries.length, 'row')} missing).
-            </p>
+            <p className="mb-4 text-sm text-danger">{t('books.missingSeries', { count: missingSeries.length })}</p>
           )}
           {analyzeMutation.error && <p className="mb-4 text-sm text-danger">{analyzeMutation.error.message}</p>}
           {importMutation.error && <p className="mb-4 text-sm text-danger">{importMutation.error.message}</p>}
@@ -231,15 +236,15 @@ export function ImportBooksPage() {
                       type="checkbox"
                       checked={checkedRows.length === rows.length && rows.length > 0}
                       onChange={(e) => setRows((prev) => prev.map((r) => ({ ...r, checked: e.target.checked })))}
-                      aria-label="Select all"
+                      aria-label={t('books.selectAll')}
                       className="size-4 cursor-pointer accent-accent"
                     />
                   </th>
-                  <th className="px-3 py-2.5 font-medium">Source file</th>
-                  <th className="px-3 py-2.5 font-medium">Series</th>
-                  <th className="px-3 py-2.5 font-medium">Number</th>
-                  <th className="px-3 py-2.5 font-medium">Destination name</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Analyze</th>
+                  <th className="px-3 py-2.5 font-medium">{t('books.table.sourceFile')}</th>
+                  <th className="px-3 py-2.5 font-medium">{t('books.table.series')}</th>
+                  <th className="px-3 py-2.5 font-medium">{t('books.table.number')}</th>
+                  <th className="px-3 py-2.5 font-medium">{t('books.table.destinationName')}</th>
+                  <th className="px-3 py-2.5 text-right font-medium">{t('books.table.analyze')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -253,7 +258,7 @@ export function ImportBooksPage() {
                           type="checkbox"
                           checked={r.checked}
                           onChange={(e) => patchRow(r.id, { checked: e.target.checked })}
-                          aria-label={`Import ${r.fileName}`}
+                          aria-label={t('books.importFile', { fileName: r.fileName })}
                           className="size-4 cursor-pointer accent-accent"
                         />
                       </td>
@@ -276,9 +281,9 @@ export function ImportBooksPage() {
                       <td className="max-w-56 px-3 py-2.5">
                         {r.seriesId ? (
                           <div className="flex items-center gap-1.5">
-                            <p className="min-w-0 truncate text-ink">{r.seriesTitle ?? 'Selected series'}</p>
+                            <p className="min-w-0 truncate text-ink">{r.seriesTitle ?? t('books.selectedSeries')}</p>
                             <Button variant="ghost" size="sm" onClick={() => setPickerRow(r.id)}>
-                              Change
+                              {t('books.change')}
                             </Button>
                           </div>
                         ) : (
@@ -290,7 +295,7 @@ export function ImportBooksPage() {
                               missing ? 'text-danger hover:text-danger' : 'text-accent-strong hover:text-accent',
                             )}
                           >
-                            Select series…
+                            {t('books.selectSeries')}
                           </button>
                         )}
                       </td>
@@ -314,7 +319,7 @@ export function ImportBooksPage() {
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <IconButton
-                          label="Analyze"
+                          label={t('books.analyze')}
                           disabled={analyzingIds.has(r.id)}
                           onClick={() => analyzeMutation.mutate(r.id)}
                         >
@@ -334,8 +339,8 @@ export function ImportBooksPage() {
       <SeriesPickerDialog
         open={pickerRow !== null}
         onOpenChange={(open) => !open && setPickerRow(null)}
-        title="Select a series"
-        confirmLabel="Use this series"
+        title={t('books.pickerTitle')}
+        confirmLabel={t('books.pickerConfirm')}
         mode="single"
         onConfirm={(selected) => {
           const s = selected[0]

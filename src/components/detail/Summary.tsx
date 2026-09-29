@@ -1,9 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils/cn'
 import { FadeKey } from '@/components/ui/FadeKey'
 
 /** Long text clamped to 4 lines with a More/Less toggle, shown only when it actually overflows. */
 export function Summary({ text, className }: { text: string; className?: string }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [overflows, setOverflows] = useState(false)
   const ref = useRef<HTMLParagraphElement>(null)
@@ -25,7 +27,7 @@ export function Summary({ text, className }: { text: string; className?: string 
           onClick={() => setExpanded((v) => !v)}
           className="mt-1 cursor-pointer text-sm text-accent-strong hover:underline"
         >
-          {expanded ? 'Less' : 'More'}
+          {expanded ? t('action.showLess') : t('action.showMore')}
         </button>
       )}
     </FadeKey>

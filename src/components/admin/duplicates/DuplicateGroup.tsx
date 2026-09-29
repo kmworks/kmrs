@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Trash } from '@phosphor-icons/react'
 import type { BookDto, LibraryDto } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
-import { formatBytes, plural } from '@/lib/utils/format'
+import { formatBytes } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 
@@ -28,8 +29,9 @@ function Cover({ book }: { book: BookDto }) {
 }
 
 export function DuplicateGroup({ fileHash, books, libraries, onDelete }: DuplicateGroupProps) {
+  const { t } = useTranslation('admin-maintenance')
   const sizeBytes = books[0]?.sizeBytes ?? 0
-  const libraryName = (id: string) => libraries.find((l) => l.id === id)?.name ?? 'Unknown library'
+  const libraryName = (id: string) => libraries.find((l) => l.id === id)?.name ?? t('unknownLibrary')
 
   return (
     <section className="rounded-xl border border-line bg-surface">
@@ -38,10 +40,13 @@ export function DuplicateGroup({ fileHash, books, libraries, onDelete }: Duplica
           {fileHash}
         </code>
         <span className="text-xs text-ink-3">
-          {plural(books.length, 'copy', 'copies')} · {formatBytes(sizeBytes)} each ·{' '}
-          {formatBytes(sizeBytes * (books.length - 1))} reclaimable
+          {t('duplicates.summary', {
+            count: books.length,
+            eachSize: formatBytes(sizeBytes),
+            reclaimableSize: formatBytes(sizeBytes * (books.length - 1)),
+          })}
         </span>
-        <span className="ml-auto text-xs text-ink-3">Keep one copy, delete the rest</span>
+        <span className="ml-auto text-xs text-ink-3">{t('duplicates.keepOne')}</span>
       </header>
       <ul className="flex flex-col divide-y divide-line">
         {books.map((b) => (
@@ -63,7 +68,7 @@ export function DuplicateGroup({ fileHash, books, libraries, onDelete }: Duplica
             <Chip className="hidden shrink-0 sm:inline-flex">{libraryName(b.libraryId)}</Chip>
             <Button size="sm" variant="danger" onClick={() => onDelete(b)}>
               <Trash className="size-4" />
-              Delete file
+              {t('detail:menu.deleteFile')}
             </Button>
           </li>
         ))}

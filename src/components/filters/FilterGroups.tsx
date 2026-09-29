@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { X } from '@phosphor-icons/react'
 import { referentialApi } from '@/lib/api/referential'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -8,9 +9,9 @@ import { cn } from '@/lib/utils/cn'
 import { useDebouncedValue } from './useDebouncedValue'
 import { LETTERS, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type ReferentialKind } from './types'
 
-const MODE_OPTIONS: { value: GroupMode; label: string }[] = [
-  { value: 'any', label: 'Any' },
-  { value: 'all', label: 'All' },
+const MODE_OPTIONS: { value: GroupMode; labelKey: string }[] = [
+  { value: 'any', labelKey: 'filters:mode.any' },
+  { value: 'all', labelKey: 'filters:mode.all' },
 ]
 
 const GROUP_SEARCH_THRESHOLD = 40
@@ -55,11 +56,12 @@ function LoadingChips() {
 }
 
 function LoadError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation('filters')
   return (
     <p className="text-xs text-ink-3">
-      Couldn't load options.{' '}
+      {t('options.loadError')}{' '}
       <button type="button" onClick={onRetry} className="cursor-pointer text-accent-strong hover:underline">
-        Retry
+        {t('common:action.retry')}
       </button>
     </p>
   )
@@ -87,7 +89,7 @@ function fetchReferential(kind: ReferentialKind, libraryId?: string): Promise<st
   }
 }
 
-function sortReferential(kind: ReferentialKind, values: string[]): string[] {
+function sortReferential(kind: ReferentialKind, values: string[], locale: string): string[] {
   const arr = [...values]
   if (kind === 'releaseDates') return arr.sort((a, b) => Number(b) - Number(a))
   if (kind === 'ageRatings')
@@ -95,9 +97,9 @@ function sortReferential(kind: ReferentialKind, values: string[]): string[] {
       const na = Number(a)
       const nb = Number(b)
       if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb
-      return a.localeCompare(b)
+      return a.localeCompare(b, locale)
     })
-  return arr.sort((a, b) => a.localeCompare(b))
+  return arr.sort((a, b) => a.localeCompare(b, locale))
 }
 
 function ReferentialOptions({
@@ -114,6 +116,7 @@ function ReferentialOptions({
   onToggle: (value: string) => void
 }) {
   const [filter, setFilter] = useState('')
+  const { t, i18n } = useTranslation('filters')
   const query = useQuery({
     queryKey: ['referential', kind, libraryId ?? 'all'],
     queryFn: () => fetchReferential(kind, libraryId),
@@ -121,7 +124,7 @@ function ReferentialOptions({
     staleTime: 60_000,
   })
 
-  const options = useMemo(() => sortReferential(kind, query.data ?? []), [kind, query.data])
+  const options = useMemo(() => sortReferential(kind, query.data ?? [], i18n.language), [kind, query.data, i18n.language])
   const visible = useMemo(() => {
     const f = filter.trim().toLowerCase()
     // selected values stay visible so they can be deselected while filtering
@@ -134,10 +137,10 @@ function ReferentialOptions({
   return (
     <div>
       {options.length > GROUP_SEARCH_THRESHOLD && (
-        <GroupSearchInput value={filter} onChange={setFilter} placeholder="Filter options…" />
+        <GroupSearchInput value={filter} onChange={setFilter} placeholder={t('options.filterPlaceholder')} />
       )}
       {visible.length === 0 ? (
-        <p className="text-xs text-ink-3">No matching options.</p>
+        <p className="text-xs text-ink-3">{t('options.noMatch')}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {visible.map((o) => (
@@ -187,6 +190,7 @@ function AuthorsOptions({
   onToggle: (author: AuthorFilter) => void
 }) {
   const [text, setText] = useState('')
+  const { t } = useTranslation('filters')
   const debounced = useDebouncedValue(text, 300)
   const query = useQuery({
     queryKey: ['referential', 'authors', libraryId ?? 'all', debounced],
@@ -210,13 +214,13 @@ function AuthorsOptions({
           ))}
         </div>
       )}
-      <GroupSearchInput value={text} onChange={setText} placeholder="Search authors…" />
+      <GroupSearchInput value={text} onChange={setText} placeholder={t('authors.searchPlaceholder')} />
       {query.isPending ? (
         <LoadingChips />
       ) : query.isError ? (
         <LoadError onRetry={() => query.refetch()} />
       ) : shown.length === 0 ? (
-        <p className="text-xs text-ink-3">No matching authors.</p>
+        <p className="text-xs text-ink-3">{t('authors.noMatch')}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {shown.map((a) => (
@@ -225,7 +229,7 @@ function AuthorsOptions({
             </OptionChip>
           ))}
           {results.length > shown.length && (
-            <span className="self-center text-xs text-ink-3">and more, keep typing to narrow down</span>
+            <span className="self-center text-xs text-ink-3">{t('authors.moreHint')}</span>
           )}
         </div>
       )}
@@ -245,9 +249,9 @@ interface FilterGroupSectionProps {
   onSetExclusive: (key: GroupKey, value: string) => void
 }
 
-const NEGATE_OPTIONS: { value: 'is' | 'isNot'; label: string }[] = [
-  { value: 'is', label: 'is' },
-  { value: 'isNot', label: 'is not' },
+const NEGATE_OPTIONS: { value: 'is' | 'isNot'; labelKey: string }[] = [
+  { value: 'is', labelKey: 'filters:negate.is' },
+  { value: 'isNot', labelKey: 'filters:negate.isNot' },
 ]
 
 export function FilterGroupSection({
@@ -261,6 +265,7 @@ export function FilterGroupSection({
   onSetNegated,
   onSetExclusive,
 }: FilterGroupSectionProps) {
+  const { t } = useTranslation('filters')
   const values = def.kind === 'authors' ? [] : (state[def.key] as string[])
   const selectedCount = def.kind === 'authors' ? state.authors.length : values.length
   const mode: GroupMode = state.matchAll.includes(def.key) ? 'all' : 'any'
@@ -269,18 +274,23 @@ export function FilterGroupSection({
   return (
     <section className="border-b border-line py-4 last:border-b-0">
       <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-        <h3 className="text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase">{def.label}</h3>
+        <h3 className="text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase">{t(def.labelKey)}</h3>
         <div className="flex items-center gap-1.5">
           {def.negatable && selectedCount >= 1 && (
             <SegmentedControl
               size="sm"
-              options={NEGATE_OPTIONS}
+              options={NEGATE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
               value={negated ? 'isNot' : 'is'}
               onChange={(m) => onSetNegated(def.key, m === 'isNot')}
             />
           )}
           {selectedCount >= 2 && (
-            <SegmentedControl size="sm" options={MODE_OPTIONS} value={mode} onChange={(m) => onSetMode(def.key, m)} />
+            <SegmentedControl
+              size="sm"
+              options={MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+              value={mode}
+              onChange={(m) => onSetMode(def.key, m)}
+            />
           )}
         </div>
       </div>
@@ -288,7 +298,7 @@ export function FilterGroupSection({
         <div className="flex flex-wrap gap-1.5">
           {def.options.map((o) => (
             <OptionChip key={o.value} active={values.includes(o.value)} onClick={() => onToggleValue(def.key, o.value)}>
-              {o.label}
+              {t(o.labelKey)}
             </OptionChip>
           ))}
         </div>

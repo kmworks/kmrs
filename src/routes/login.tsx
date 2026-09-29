@@ -1,12 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Eye, EyeSlash } from '@phosphor-icons/react'
+import i18n from '@/lib/i18n'
 import { usersApi } from '@/lib/api/users'
 import { clientSettingsApi } from '@/lib/api/clientSettings'
 import { useAuthStore } from '@/lib/store/auth'
 import { cn } from '@/lib/utils/cn'
 import { LogoMark } from '@/components/LogoMark'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/Button'
 import { TextField } from '@/components/ui/TextField'
 import { HIDE_PASSWORD_KEY } from '@/routes/admin/ui'
@@ -15,6 +18,7 @@ import type { UserDto } from '@/lib/api/types'
 const REMEMBER_KEY = 'kmweb.rememberMe'
 
 export function LoginPage() {
+  const { t } = useTranslation('auth')
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const status = useAuthStore((s) => s.status)
@@ -46,8 +50,8 @@ export function LoginPage() {
 
   useEffect(() => {
     const err = params.get('error')
-    if (err) setError(`Sign-in failed (${err})`)
-  }, [params])
+    if (err) setError(t('signInFailedWithReason', { reason: err }))
+  }, [params, t])
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -61,7 +65,7 @@ export function LoginPage() {
       setUser(user)
       navigate(params.get('redirect') || '/dashboard', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed')
+      setError(err instanceof Error ? err.message : t('signInFailed'))
     } finally {
       setBusy(false)
     }
@@ -75,43 +79,44 @@ export function LoginPage() {
         <LogoMark className="relative size-10 text-white" mono />
         <div className="relative">
           <h1 className="font-display max-w-md text-5xl leading-[1.08] font-medium tracking-tight text-white">
-            Your whole library, beautifully at hand.
+            {t('brand.tagline')}
           </h1>
           <p className="mt-5 max-w-sm text-[15px] leading-relaxed text-white/75">
-            Comics, manga and books, served from your own hardware and readable anywhere.
+            {t('brand.subtitle')}
           </p>
         </div>
-        <div className="relative text-xs text-white/50">Self-hosted.</div>
+        <div className="relative text-xs text-white/50">{t('brand.selfHosted')}</div>
       </div>
 
       {/* form panel */}
-      <div className="flex flex-col items-center justify-center px-6 py-12">
+      <div className="relative flex flex-col items-center justify-center px-6 py-12">
+        <LanguageSwitcher className="absolute top-6 right-6" size="sm" />
         <div className="w-full max-w-sm">
           <LogoMark className="mb-10 size-18 lg:hidden" />
           <h2 className="font-display text-3xl font-semibold tracking-tight">
-            {claimMode ? 'Claim this server' : 'Welcome back'}
+            {claimMode ? t('claimTitle') : t('welcomeBack')}
           </h2>
           <p className="mt-2 text-sm text-ink-3">
             {claimMode
-              ? 'Create the administrator account to get started.'
+              ? t('claimSubtitle')
               : hidePasswordForm
-                ? 'Sign in with your identity provider to continue.'
-                : 'Sign in with your account to continue.'}
+                ? t('oauthSubtitle')
+                : t('signInSubtitle')}
           </p>
 
           {!hidePasswordForm && (
             <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
             <TextField
-              label="Email"
+              label={t('email')}
               type="email"
               autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t('emailPlaceholder')}
             />
             <TextField
-              label="Password"
+              label={t('password')}
               type={showPassword ? 'text' : 'password'}
               autoComplete={claimMode ? 'new-password' : 'current-password'}
               required
@@ -123,7 +128,7 @@ export function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   className="cursor-pointer text-ink-3 hover:text-ink-2"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                 >
                   {showPassword ? <EyeSlash className="size-4.5" /> : <Eye className="size-4.5" />}
                 </button>
@@ -137,13 +142,13 @@ export function LoginPage() {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="size-4 cursor-pointer accent-[#ff7a55]"
               />
-              Keep me signed in
+              {t('keepSignedIn')}
             </label>
 
             {error && <p className="text-sm text-danger">{error}</p>}
 
             <Button type="submit" variant="primary" loading={busy} className="mt-1 h-11">
-              {claimMode ? 'Create account' : 'Sign in'}
+              {claimMode ? t('createAccount') : t('signIn')}
             </Button>
           </form>
           )}
@@ -153,7 +158,7 @@ export function LoginPage() {
               {!hidePasswordForm && (
                 <div className="my-6 flex items-center gap-3 text-xs text-ink-3">
                   <div className="h-px flex-1 bg-line" />
-                  or continue with
+                  {t('orContinueWith')}
                   <div className="h-px flex-1 bg-line" />
                 </div>
               )}
@@ -182,6 +187,6 @@ async function claimThenLogin(email: string, password: string, rememberMe: boole
       'X-Komga-Password': password,
     },
   })
-  if (!res.ok) throw new Error(`Could not claim server (${res.status})`)
+  if (!res.ok) throw new Error(i18n.t('auth:claimFailed', { status: res.status }))
   return usersApi.login(email, password, rememberMe)
 }

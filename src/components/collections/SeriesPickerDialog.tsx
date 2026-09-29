@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Check, MagnifyingGlass } from '@phosphor-icons/react'
 import { seriesApi } from '@/lib/api/series'
 import type { SeriesDto } from '@/lib/api/types'
@@ -38,6 +39,7 @@ export function SeriesPickerDialog({
   confirming,
   error,
 }: SeriesPickerDialogProps) {
+  const { t } = useTranslation('detail')
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Map<string, SeriesDto>>(new Map())
@@ -51,8 +53,8 @@ export function SeriesPickerDialog({
   }, [open])
 
   useEffect(() => {
-    const t = setTimeout(() => setSearch(text.trim()), 300)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setSearch(text.trim()), 300)
+    return () => clearTimeout(timer)
   }, [text])
 
   const q = useInfiniteQuery({
@@ -92,7 +94,7 @@ export function SeriesPickerDialog({
             type="search"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Search series…"
+            placeholder={t('picker.searchSeriesPlaceholder')}
             autoFocus
             className="h-9 w-full rounded-lg border border-line bg-surface pr-3 pl-9 text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
           />
@@ -107,16 +109,16 @@ export function SeriesPickerDialog({
           </div>
         ) : q.isError ? (
           <EmptyState
-            title="Could not load series"
+            title={t('empty.loadSeriesFailed')}
             body={q.error.message}
             action={
               <Button variant="secondary" onClick={() => q.refetch()}>
-                Retry
+                {t('common:action.retry')}
               </Button>
             }
           />
         ) : items.length === 0 ? (
-          <EmptyState title="No series found" body={search ? 'Try a different search.' : undefined} />
+          <EmptyState title={t('picker.noSeriesFound')} body={search ? t('picker.tryDifferentSearch') : undefined} />
         ) : (
           <>
             <div className="grid grid-cols-3 gap-4 sm:grid-cols-4">
@@ -149,7 +151,7 @@ export function SeriesPickerDialog({
                       )}
                       {excluded && (
                         <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-1.5 text-[11px] text-white">
-                          Added
+                          {t('picker.addedBadge')}
                         </span>
                       )}
                     </div>
@@ -171,11 +173,19 @@ export function SeriesPickerDialog({
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-line px-5 py-3.5">
         <p className="text-sm text-ink-3">
-          {error ? <span className="text-danger">{error}</span> : selected.size > 0 ? `${selected.size} selected` : mode === 'single' ? 'Pick one series' : 'None selected'}
+          {error ? (
+            <span className="text-danger">{error}</span>
+          ) : selected.size > 0 ? (
+            t('collection.selectedSeriesCount', { count: selected.size })
+          ) : mode === 'single' ? (
+            t('picker.pickOneSeries')
+          ) : (
+            t('picker.noneSelected')
+          )}
         </p>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common:action.cancel')}
           </Button>
           <Button
             variant="primary"

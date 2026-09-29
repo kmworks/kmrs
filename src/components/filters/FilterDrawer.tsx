@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
@@ -35,6 +36,7 @@ export function FilterDrawer({
   onSetExclusive,
   onClearAll,
 }: FilterDrawerProps) {
+  const { t } = useTranslation('filters')
   const reduce = useReducedMotion()
 
   useEffect(() => {
@@ -70,7 +72,7 @@ export function FilterDrawer({
           />
           <motion.aside
             key="panel"
-            aria-label="Filters"
+            aria-label={t('title')}
             className="fixed inset-y-0 right-0 z-20 flex w-80 flex-col border-l border-line bg-surface sm:w-96"
             initial={reduce ? { opacity: 0 } : { x: '100%' }}
             animate={reduce ? { opacity: 1 } : { x: 0 }}
@@ -78,12 +80,12 @@ export function FilterDrawer({
             transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 36 }}
           >
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
-              <h2 className="font-display text-lg font-semibold text-ink">Filters</h2>
+              <h2 className="font-display text-lg font-semibold text-ink">{t('title')}</h2>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={onClearAll} disabled={activeCount === 0}>
-                  Clear all
+                  {t('clearAll')}
                 </Button>
-                <IconButton label="Close filters" onClick={onClose}>
+                <IconButton label={t('close')} onClick={onClose}>
                   <X className="size-5" />
                 </IconButton>
               </div>

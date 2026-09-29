@@ -1,4 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowUUpLeft,
   ArrowUUpRight,
@@ -88,6 +89,7 @@ export function ReaderChrome({
   onGoToBook,
 }: ReaderChromeProps) {
   const reduceMotion = useReducedMotion()
+  const { t } = useTranslation('reader')
   const transition = { duration: reduceMotion ? 0 : 0.25, ease: [0.16, 1, 0.3, 1] as const }
 
   return (
@@ -103,7 +105,7 @@ export function ReaderChrome({
             className="fixed inset-x-0 top-0 z-20 bg-gradient-to-b from-black/70 to-transparent"
           >
             <div className="flex items-center gap-0.5 px-2 pt-2 pb-10 text-white">
-              <IconButton label="Close reader" className={chromeButton} onClick={onClose}>
+              <IconButton label={t('chrome.closeReader')} className={chromeButton} onClick={onClose}>
                 <X className="size-5" />
               </IconButton>
               <div className="flex min-w-0 flex-1 justify-center px-2">
@@ -112,23 +114,23 @@ export function ReaderChrome({
                 </span>
               </div>
               {incognito && (
-                <Tooltip content="Incognito: progress is not saved" side="bottom">
+                <Tooltip content={t('chrome.incognito')} side="bottom">
                   <span className="inline-flex size-9 shrink-0 items-center justify-center text-white/70">
                     <EyeSlash className="size-5" />
                   </span>
                 </Tooltip>
               )}
-              <IconButton label="Pages" className={chromeButton} onClick={onToggleExplorer}>
+              <IconButton label={t('chrome.pages')} className={chromeButton} onClick={onToggleExplorer}>
                 <SquaresFour className="size-5" />
               </IconButton>
-              <IconButton label="Settings" className={chromeButton} onClick={onToggleSettings}>
+              <IconButton label={t('chrome.settings')} className={chromeButton} onClick={onToggleSettings}>
                 <SlidersHorizontal className="size-5" />
               </IconButton>
-              <IconButton label="Keyboard shortcuts" className={chromeButton} onClick={onToggleHelp}>
+              <IconButton label={t('shortcuts.title')} className={chromeButton} onClick={onToggleHelp}>
                 <Question className="size-5" />
               </IconButton>
               <IconButton
-                label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                label={isFullscreen ? t('chrome.exitFullscreen') : t('chrome.fullscreen')}
                 className={chromeButton}
                 onClick={onToggleFullscreen}
               >
@@ -136,41 +138,41 @@ export function ReaderChrome({
               </IconButton>
               <Menu
                 trigger={
-                  <IconButton label="More" className={chromeButton}>
+                  <IconButton label={t('chrome.more')} className={chromeButton}>
                     <DotsThreeVertical className="size-5" />
                   </IconButton>
                 }
               >
                 {canDownloadFile && (
                   <MenuItem onSelect={onDownload}>
-                    <Download className="size-4" /> Download file
+                    <Download className="size-4" /> {t('chrome.downloadFile')}
                   </MenuItem>
                 )}
                 {canDownloadFile && (
                   <MenuItem onSelect={onDownloadPage}>
-                    <FileImage className="size-4" /> Download page {page}
+                    <FileImage className="size-4" /> {t('chrome.downloadPage', { page })}
                   </MenuItem>
                 )}
                 {canSetPoster && (
                   <>
                     <MenuSeparator />
-                    <MenuLabel>Set page {page} as poster</MenuLabel>
+                    <MenuLabel>{t('chrome.setPoster', { page })}</MenuLabel>
                     <MenuItem disabled={posterBusy} onSelect={() => onSetPoster('book')}>
-                      <Book className="size-4" /> Book poster
+                      <Book className="size-4" /> {t('chrome.bookPoster')}
                     </MenuItem>
                     <MenuItem disabled={posterBusy} onSelect={() => onSetPoster('series')}>
-                      <Books className="size-4" /> Series poster
+                      <Books className="size-4" /> {t('chrome.seriesPoster')}
                     </MenuItem>
                     {readListContext && (
                       <MenuItem disabled={posterBusy} onSelect={() => onSetPoster('readlist')}>
-                        <ListBullets className="size-4" /> Read list poster
+                        <ListBullets className="size-4" /> {t('chrome.readListPoster')}
                       </MenuItem>
                     )}
                   </>
                 )}
                 <MenuSeparator />
                 <MenuItem onSelect={onGoToBook}>
-                  <BookOpen className="size-4" /> Go to book page
+                  <BookOpen className="size-4" /> {t('chrome.goToBook')}
                 </MenuItem>
               </Menu>
             </div>
@@ -187,26 +189,26 @@ export function ReaderChrome({
           >
             <div dir={rtl ? 'rtl' : 'ltr'} className="flex items-center gap-1.5 px-3 pt-10 pb-3 text-white">
               <IconButton
-                label="Previous book"
+                label={t('chrome.previousBook')}
                 className={chromeButton}
                 disabled={!hasPreviousBook}
                 onClick={onPreviousBook}
               >
                 <ArrowUUpLeft className="size-5" />
               </IconButton>
-              <IconButton label="First page" className={chromeButton} onClick={onFirstPage}>
+              <IconButton label={t('chrome.firstPage')} className={chromeButton} onClick={onFirstPage}>
                 <SkipBack className="size-5" />
               </IconButton>
               <div className="min-w-0 flex-1 px-2">
-                <Slider value={page} onValueChange={onGoToPage} min={1} max={pagesCount} label="Page" dir={rtl ? 'rtl' : 'ltr'} />
+                <Slider value={page} onValueChange={onGoToPage} min={1} max={pagesCount} label={t('chrome.page')} dir={rtl ? 'rtl' : 'ltr'} />
               </div>
               <span className="shrink-0 font-mono text-xs text-white/80 tabular-nums" dir="ltr">
                 {page} / {pagesCount}
               </span>
-              <IconButton label="Last page" className={chromeButton} onClick={onLastPage}>
+              <IconButton label={t('chrome.lastPage')} className={chromeButton} onClick={onLastPage}>
                 <SkipForward className="size-5" />
               </IconButton>
-              <IconButton label="Next book" className={chromeButton} disabled={!hasNextBook} onClick={onNextBook}>
+              <IconButton label={t('chrome.nextBook')} className={chromeButton} disabled={!hasNextBook} onClick={onNextBook}>
                 <ArrowUUpRight className="size-5" />
               </IconButton>
             </div>

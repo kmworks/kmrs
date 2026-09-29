@@ -1,5 +1,6 @@
 import type { BookDto } from '@/lib/api/types'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { CheckCircle, EyeSlash, Play } from '@phosphor-icons/react'
 import { urls } from '@/lib/utils/urls'
 import { bookDetailRoute, readRoute } from '@/lib/utils/nav'
@@ -12,7 +13,7 @@ import { BookCardMenu } from './BookCardMenu'
 import { MenuItem } from '@/components/ui/Menu'
 import { SelectBadge } from '@/components/selection/SelectBadge'
 import type { CardSelection } from '@/components/selection/useSelection'
-import { plural, relativeTime } from '@/lib/utils/format'
+import { relativeTime } from '@/lib/utils/format'
 import { cardStatusLabel } from '@/lib/utils/mediaStatus'
 import { useLibraryUnavailable } from '@/lib/utils/libraries'
 import { cn } from '@/lib/utils/cn'
@@ -28,6 +29,7 @@ interface BookCardProps {
 }
 
 export function BookCard({ book, className, showSeries, eager, selection }: BookCardProps) {
+  const { t } = useTranslation('media')
   const navigate = useNavigate()
   const bust = useBust(book.id)
   const blurUnread = useUiStore((s) => s.blurUnreadCovers)
@@ -43,7 +45,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
   const metaParts: string[] = []
   if (!showSeries) metaParts.push(`#${book.metadata.number}`)
   if (progress > 0) metaParts.push(`${Math.round(progress * 100)}%`)
-  metaParts.push(plural(book.media.pagesCount, 'page'))
+  metaParts.push(t('card.pageCount', { count: book.media.pagesCount }))
   const secondary = readAgo ? (
     <span className="inline-flex items-center gap-1">
       {!showSeries && `#${book.metadata.number} · `}
@@ -86,17 +88,17 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
             navItem={
               <>
                 <MenuItem onSelect={() => navigate(readTo ?? bookDetailRoute(book))}>
-                  <Play className="size-4" /> Read
+                  <Play className="size-4" /> {t('menu.read')}
                 </MenuItem>
                 {readTo && (
                   <MenuItem onSelect={() => navigate(`${readTo}?incognito=true`)}>
-                    <EyeSlash className="size-4" /> Peek
+                    <EyeSlash className="size-4" /> {t('menu.peek')}
                   </MenuItem>
                 )}
               </>
             }
             onSelect={selection?.onToggle}
-            trigger={<CardMenuButton aria-label={`Actions for ${title}`} />}
+            trigger={<CardMenuButton aria-label={t('card.actionsFor', { title })} />}
           />
         )
       }

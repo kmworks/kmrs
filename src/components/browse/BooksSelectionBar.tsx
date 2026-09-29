@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Checks, DotsThreeVertical, ListPlus, PencilSimple, Trash } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
-import { plural } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
@@ -21,6 +21,7 @@ interface BooksSelectionBarProps {
 }
 
 export function BooksSelectionBar({ selection, loadedIds }: BooksSelectionBarProps) {
+  const { t } = useTranslation('browse')
   const queryClient = useQueryClient()
   const admin = isAdmin(useAuthStore((s) => s.user))
   const { state, run, setResult, reset } = useBatchRun()
@@ -48,10 +49,9 @@ export function BooksSelectionBar({ selection, loadedIds }: BooksSelectionBarPro
   }, [state.status, selection, reset])
 
   const mark = (read: boolean) => {
-    const noun = plural(ids.length, 'book')
     void run(ids, (id) => (read ? booksApi.markRead(id) : booksApi.markUnread(id)), {
-      success: (n) => `Marked ${plural(n, 'book')} as ${read ? 'read' : 'unread'}`,
-      failure: (f) => `${f} of ${noun} failed`,
+      success: { key: 'browse:selection.markBooksAs', context: read ? 'read' : 'unread' },
+      failure: { key: 'browse:selection.markBooksFailed' },
     }).then((failed) => {
       if (failed < ids.length) invalidate()
     })
@@ -60,8 +60,8 @@ export function BooksSelectionBar({ selection, loadedIds }: BooksSelectionBarPro
   const deleteFiles = () => {
     setDeleteOpen(false)
     void run(ids, (id) => booksApi.deleteFile(id), {
-      success: (n) => `Deleted files for ${plural(n, 'book')}`,
-      failure: (f, n) => `${f} of ${n} failed`,
+      success: { key: 'browse:selection.deleteBooksFiles' },
+      failure: { key: 'browse:selection.deleteFilesFailed' },
     }).then((failed) => {
       if (failed < ids.length) invalidate()
     })
@@ -82,30 +82,30 @@ export function BooksSelectionBar({ selection, loadedIds }: BooksSelectionBarPro
       >
         <Button variant="ghost" size="sm" disabled={busy} onClick={() => mark(true)}>
           <Checks className="size-4" />
-          Mark read
+          {t('selection.markRead')}
         </Button>
         <Button variant="ghost" size="sm" disabled={busy} onClick={() => mark(false)}>
-          Mark unread
+          {t('selection.markUnread')}
         </Button>
         <Menu
           side="top"
           trigger={
-            <IconButton label="More actions" className="size-8">
+            <IconButton label={t('selection.moreActions')} className="size-8">
               <DotsThreeVertical className="size-4.5" />
             </IconButton>
           }
         >
           <MenuItem onSelect={() => setAddOpen(true)}>
-            <ListPlus className="size-4" /> Add to read list
+            <ListPlus className="size-4" /> {t('selection.addToReadList')}
           </MenuItem>
           <MenuItem onSelect={() => setEditOpen(true)}>
-            <PencilSimple className="size-4" /> Edit metadata
+            <PencilSimple className="size-4" /> {t('selection.editMetadata')}
           </MenuItem>
           {admin && (
             <>
               <MenuSeparator />
               <MenuItem danger onSelect={() => setDeleteOpen(true)}>
-                <Trash className="size-4" /> Delete files
+                <Trash className="size-4" /> {t('selection.deleteFiles')}
               </MenuItem>
             </>
           )}
@@ -123,7 +123,7 @@ export function BooksSelectionBar({ selection, loadedIds }: BooksSelectionBarPro
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         count={ids.length}
-        noun={plural(ids.length, 'book')}
+        kind="book"
         loading={busy}
         onConfirm={deleteFiles}
       />

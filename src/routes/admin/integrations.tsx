@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/api/client'
 import { komfApi } from '@/lib/api/komf'
 import type { KomfIntegrationDto, KomfIntegrationState } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Section } from '@/components/account/Section'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -12,10 +14,10 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TextField } from '@/components/ui/TextField'
 
-const STATE_PILL: Record<KomfIntegrationState, { label: string; className: string }> = {
-  connected: { label: 'Connected', className: 'border-accent/40 bg-accent-soft text-accent-strong' },
-  pending: { label: 'Pending', className: 'border-line bg-raised text-ink-2' },
-  error: { label: 'Error', className: 'border-danger/40 bg-danger/10 text-danger' },
+const STATE_PILL: Record<KomfIntegrationState, { labelKey: string; className: string }> = {
+  connected: { labelKey: 'integrations.state.connected', className: 'border-accent/40 bg-accent-soft text-accent-strong' },
+  pending: { labelKey: 'integrations.state.pending', className: 'border-line bg-raised text-ink-2' },
+  error: { labelKey: 'integrations.state.error', className: 'border-danger/40 bg-danger/10 text-danger' },
 }
 
 function Pill({ className, children }: { className: string; children: ReactNode }) {
@@ -41,6 +43,7 @@ function violationMessages(err: unknown): ViolationMessage[] {
 }
 
 function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
+  const { t } = useTranslation('admin-komf')
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [url, setUrl] = useState(integration.url ?? '')
@@ -90,7 +93,7 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
     connect.error && violations.length === 0
       ? connect.error instanceof Error
         ? connect.error.message
-        : 'Could not connect to komf.'
+        : t('integrations.connectFailed')
       : null
 
   return (
@@ -99,9 +102,11 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             {integration.configured && integration.state ? (
-              <Pill className={STATE_PILL[integration.state].className}>{STATE_PILL[integration.state].label}</Pill>
+              <Pill className={STATE_PILL[integration.state].className}>
+                {t(STATE_PILL[integration.state].labelKey)}
+              </Pill>
             ) : (
-              <Pill className="border-line bg-raised text-ink-2">Not configured</Pill>
+              <Pill className="border-line bg-raised text-ink-2">{t('integrations.notConfigured')}</Pill>
             )}
             {integration.configured && (
               <Pill
@@ -111,14 +116,14 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
                     : 'border-danger/40 bg-danger/10 text-danger'
                 }
               >
-                {integration.komfReachable ? 'komf reachable' : 'komf unreachable'}
+                {integration.komfReachable ? t('integrations.reachable') : t('integrations.unreachable')}
               </Pill>
             )}
           </div>
           {integration.lastError && <p className="text-sm text-danger">{integration.lastError}</p>}
           <TextField
-            label="komf URL"
-            helper="Address of the komf server."
+            label={t('integrations.komfUrl')}
+            helper={t('integrations.komfUrlHelper')}
             placeholder="http://komf:8085"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
@@ -126,8 +131,8 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
             disabled={locked}
           />
           <TextField
-            label="kmrs base URL"
-            helper="Address komf uses to call back into kmrs."
+            label={t('integrations.baseUrl')}
+            helper={t('integrations.baseUrlHelper')}
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
             error={violationFor('baseUrl')}
@@ -136,26 +141,26 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
           <div className="flex items-center gap-2">
             {locked ? (
               <Button variant="primary" onClick={() => setEditing(true)}>
-                Edit
+                {t('common:action.edit')}
               </Button>
             ) : (
               <Button variant="primary" loading={connect.isPending} onClick={() => connect.mutate()}>
-                {integration.configured ? 'Reconnect' : 'Connect'}
+                {integration.configured ? t('integrations.reconnect') : t('integrations.connect')}
               </Button>
             )}
             {integration.state === 'connected' && (
               <Button variant="secondary" onClick={() => navigate('/admin/integrations/komf')}>
-                Configure
+                {t('integrations.configure')}
               </Button>
             )}
             {editing && integration.configured && (
               <Button variant="ghost" onClick={cancelEdit}>
-                Cancel
+                {t('common:action.cancel')}
               </Button>
             )}
             {integration.configured && (
               <Button variant="danger" onClick={() => setConfirmOpen(true)}>
-                Disconnect
+                {t('integrations.disconnect')}
               </Button>
             )}
           </div>
@@ -167,25 +172,22 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
           {connectError && <p className="text-sm text-danger">{connectError}</p>}
           {disconnect.isError && (
             <p className="text-sm text-danger">
-              {disconnect.error instanceof Error ? disconnect.error.message : 'Could not disconnect.'}
+              {disconnect.error instanceof Error ? disconnect.error.message : t('integrations.disconnectFailed')}
             </p>
           )}
         </div>
       </Section>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen} title="Disconnect komf" size="sm">
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen} title={t('integrations.disconnectTitle')} size="sm">
         <div className="px-5 py-4">
-          <p className="text-sm text-ink-2">
-            Disconnect komf? The stored connection and its API key are removed, and komf stops receiving metadata
-            requests.
-          </p>
+          <p className="text-sm text-ink-2">{t('integrations.disconnectBody')}</p>
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3.5">
           <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
-            Cancel
+            {t('common:action.cancel')}
           </Button>
           <Button variant="danger" loading={disconnect.isPending} onClick={() => disconnect.mutate()}>
-            Disconnect
+            {t('integrations.disconnect')}
           </Button>
         </div>
       </Dialog>
@@ -194,15 +196,14 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
 }
 
 export function AdminIntegrationsPage() {
+  const { t } = useTranslation('admin-komf')
   const query = useQuery({ queryKey: ['admin', 'komf-integration'], queryFn: komfApi.getIntegration })
 
-  useEffect(() => {
-    document.title = 'Integrations · KMReader'
-  }, [])
+  useDocumentTitle(t('layout:nav.integrations'))
 
   return (
     <div className="max-w-3xl">
-      <PageHeader title="Integrations" subtitle="External services connected to this server" />
+      <PageHeader title={t('layout:nav.integrations')} subtitle={t('integrations.subtitle')} />
       {query.isLoading && (
         <div className="space-y-6">
           <Skeleton className="h-72 w-full rounded-xl" />
@@ -211,10 +212,10 @@ export function AdminIntegrationsPage() {
       {query.isError && (
         <div className="flex items-center gap-3 rounded-xl border border-line bg-surface p-5">
           <p className="text-sm text-danger">
-            {query.error instanceof Error ? query.error.message : 'Could not load integrations.'}
+            {query.error instanceof Error ? query.error.message : t('integrations.loadFailed')}
           </p>
           <Button size="sm" onClick={() => void query.refetch()}>
-            Try again
+            {t('common:action.retry')}
           </Button>
         </div>
       )}

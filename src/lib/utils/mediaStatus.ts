@@ -1,6 +1,8 @@
+import i18n from '@/lib/i18n'
 import type { BookDto, MediaStatus } from '@/lib/api/types'
 
-// same ERR_xxxx set the server (kmrs, like komga) puts in media.comment and error messages
+// same ERR_xxxx set the server (kmrs, like komga) puts in media.comment and error messages;
+// server-originated text stays in English, only UI-owned labels are localized
 const ERROR_CODE_MESSAGES: Record<string, string> = {
   ERR_1000: 'File could not be accessed during analysis',
   ERR_1001: 'Media type is not supported',
@@ -54,22 +56,22 @@ export interface MediaIssue {
 export function mediaIssue(book: Pick<BookDto, 'media' | 'deleted'>): MediaIssue | null {
   const { media } = book
   // deleted wins over any media status: the file is gone, nothing else applies (komga parity)
-  if (book.deleted) return { severity: 'danger', title: 'Unavailable' }
+  if (book.deleted) return { severity: 'danger', title: i18n.t('mediaIssue.unavailable') }
   const detail = media.comment ? convertErrorCodes(media.comment) : undefined
   switch (media.status) {
     case 'ERROR':
-      return { severity: 'danger', title: 'Media analysis failed', detail }
+      return { severity: 'danger', title: i18n.t('mediaIssue.error'), detail }
     case 'UNSUPPORTED':
-      return { severity: 'accent', title: 'This media type is not supported', detail }
+      return { severity: 'accent', title: i18n.t('mediaIssue.unsupported'), detail }
     case 'OUTDATED':
-      return { severity: 'accent', title: 'The file for this book has changed and needs to be re-analyzed' }
+      return { severity: 'accent', title: i18n.t('mediaIssue.outdated') }
     case 'UNKNOWN':
-      return { severity: 'muted', title: 'This book has not been analyzed yet' }
+      return { severity: 'muted', title: i18n.t('mediaIssue.unknown') }
     default:
       break
   }
   if (media.mediaProfile === 'EPUB' && !media.epubDivinaCompatible)
-    return { severity: 'muted', title: 'EPUB books are not supported by the web reader yet' }
+    return { severity: 'muted', title: i18n.t('mediaIssue.epubUnsupported') }
   return null
 }
 
@@ -78,14 +80,14 @@ export function mediaIssue(book: Pick<BookDto, 'media' | 'deleted'>): MediaIssue
  * deleted beats media status and OUTDATED stays hidden on cards, like komga's card body line.
  */
 export function cardStatusLabel(item: { deleted: boolean; mediaStatus?: MediaStatus }): { text: string; className: string } | undefined {
-  if (item.deleted) return { text: 'Unavailable', className: 'font-medium text-danger' }
+  if (item.deleted) return { text: i18n.t('cardStatus.unavailable'), className: 'font-medium text-danger' }
   switch (item.mediaStatus) {
     case 'ERROR':
-      return { text: 'Error', className: 'font-medium text-danger' }
+      return { text: i18n.t('cardStatus.error'), className: 'font-medium text-danger' }
     case 'UNSUPPORTED':
-      return { text: 'Unsupported', className: 'font-medium text-accent-strong' }
+      return { text: i18n.t('cardStatus.unsupported'), className: 'font-medium text-accent-strong' }
     case 'UNKNOWN':
-      return { text: 'To be analyzed', className: '' }
+      return { text: i18n.t('cardStatus.toBeAnalyzed'), className: '' }
     default:
       return undefined
   }

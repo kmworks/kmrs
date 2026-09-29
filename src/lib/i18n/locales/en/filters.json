@@ -1,0 +1,97 @@
+{
+  "title": "Filters",
+  "clearAll": "Clear all",
+  "close": "Close filters",
+  "noun": {
+    "books_one": "<num>{{count, number}}</num> book",
+    "books_other": "<num>{{count, number}}</num> books",
+    "series_one": "<num>{{count, number}}</num> series",
+    "series_other": "<num>{{count, number}}</num> series"
+  },
+  "chip": {
+    "remove": "Remove filter: {{label}}",
+    "author": "Author: {{name}}",
+    "search": "Search: {{q}}",
+    "value": "{{group}}: {{value}}",
+    "value_negated": "{{group}}: not {{value}}"
+  },
+  "mode": {
+    "any": "Any",
+    "all": "All"
+  },
+  "negate": {
+    "is": "is",
+    "isNot": "is not"
+  },
+  "group": {
+    "readStatus": "Read status",
+    "seriesStatus": "Series status",
+    "letter": "First letter",
+    "complete": "Complete",
+    "deleted": "Deleted",
+    "publishers": "Publishers",
+    "genres": "Genres",
+    "tags": "Tags",
+    "sharingLabels": "Sharing labels",
+    "ageRatings": "Age rating",
+    "languages": "Languages",
+    "releaseYears": "Release years",
+    "authors": "Authors",
+    "mediaProfiles": "Media profile",
+    "mediaStatuses": "Media status",
+    "poster": "Poster"
+  },
+  "option": {
+    "readStatus": {
+      "read": "Read",
+      "unread": "Unread",
+      "inProgress": "In progress"
+    },
+    "yesNo": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "mediaProfile": {
+      "divina": "Divina",
+      "pdf": "PDF",
+      "epub": "EPUB"
+    },
+    "mediaStatus": {
+      "ready": "Ready",
+      "outdated": "Outdated"
+    },
+    "poster": {
+      "selected": "Has poster",
+      "missing": "No poster"
+    }
+  },
+  "sort": {
+    "sortBy": "Sort by",
+    "ascending": "Ascending",
+    "descending": "Descending",
+    "title": "Title",
+    "series": "Series",
+    "number": "Number",
+    "dateAdded": "Date added",
+    "dateUpdated": "Date updated",
+    "releaseDate": "Release date",
+    "lastRead": "Last read",
+    "folderName": "Folder name",
+    "fileName": "File name",
+    "fileSize": "File size",
+    "pages": "Pages",
+    "booksCount": "Books count",
+    "random": "Random",
+    "listOrder": "List order"
+  },
+  "options": {
+    "filterPlaceholder": "Filter options…",
+    "loadError": "Couldn't load options.",
+    "noMatch": "No matching options."
+  },
+  "authors": {
+    "searchPlaceholder": "Search authors…",
+    "noMatch": "No matching authors.",
+    "moreHint": "and more, keep typing to narrow down"
+  }
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ArrowUp, Folder, WarningCircle } from '@phosphor-icons/react'
 import { filesystemApi } from '@/lib/api/settings'
 import { Dialog } from '@/components/ui/Dialog'
@@ -17,6 +18,7 @@ interface FilesystemDialogProps {
 }
 
 export function FilesystemDialog({ open, onOpenChange, initialPath, onSelect }: FilesystemDialogProps) {
+  const { t } = useTranslation('admin-maintenance')
   const [path, setPath] = useState<string | undefined>(initialPath)
 
   useEffect(() => {
@@ -32,9 +34,9 @@ export function FilesystemDialog({ open, onOpenChange, initialPath, onSelect }: 
   const listing = q.data
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Browse filesystem">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('filesystem.title')}>
       <div className="flex items-center gap-2 border-b border-line px-5 py-3">
-        <IconButton label="Up one level" disabled={!listing?.parent} onClick={() => setPath(listing?.parent)}>
+        <IconButton label={t('filesystem.up')} disabled={!listing?.parent} onClick={() => setPath(listing?.parent)}>
           <ArrowUp className="size-4" />
         </IconButton>
         <Tooltip content={path ?? '/'}>
@@ -51,14 +53,14 @@ export function FilesystemDialog({ open, onOpenChange, initialPath, onSelect }: 
         ) : q.isError ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
             <WarningCircle className="size-8 text-danger" />
-            <p className="text-sm text-ink-2">{q.error instanceof Error ? q.error.message : 'Could not list this folder.'}</p>
+            <p className="text-sm text-ink-2">{q.error instanceof Error ? q.error.message : t('filesystem.listError')}</p>
             <Button type="button" size="sm" onClick={() => setPath(undefined)}>
-              Back to root
+              {t('filesystem.backToRoot')}
             </Button>
           </div>
         ) : listing && listing.directories.length === 0 ? (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-ink-3">No folders here</p>
+            <p className="text-sm text-ink-3">{t('filesystem.empty')}</p>
           </div>
         ) : (
           listing?.directories.map((d) => (
@@ -76,7 +78,7 @@ export function FilesystemDialog({ open, onOpenChange, initialPath, onSelect }: 
       </div>
       <div className="flex justify-end gap-2 border-t border-line px-5 py-3.5">
         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-          Cancel
+          {t('common:action.cancel')}
         </Button>
         <Button
           type="button"
@@ -88,7 +90,7 @@ export function FilesystemDialog({ open, onOpenChange, initialPath, onSelect }: 
             onOpenChange(false)
           }}
         >
-          Select this folder
+          {t('filesystem.select')}
         </Button>
       </div>
     </Dialog>

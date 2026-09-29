@@ -1,10 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, type InfiniteData } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Books, PushPin, SlidersHorizontal } from '@phosphor-icons/react'
 import { librariesApi } from '@/lib/api/libraries'
 import type { BookDto, LibraryDto, Page, SeriesDto } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { usePinnedLibraries } from '@/lib/store/clientSettings'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { IconButton } from '@/components/ui/IconButton'
@@ -62,6 +64,7 @@ function LibraryScopeSwitcher({
   value: string
   onChange: (v: string) => void
 }) {
+  const { t } = useTranslation('dashboard')
   const pinnedSet = new Set(pinnedIds)
   const ordered = [
     ...pinnedIds.map((id) => libraries.find((l) => l.id === id)).filter((l) => !!l),
@@ -70,7 +73,7 @@ function LibraryScopeSwitcher({
   return (
     <div className="inline-flex items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5">
       <ScopeButton active={value === 'all'} onClick={() => onChange('all')}>
-        All
+        {t('scope.all')}
       </ScopeButton>
       {ordered.map((lib) => (
         <ScopeButton key={lib.id} active={value === lib.id} onClick={() => onChange(lib.id)}>
@@ -83,6 +86,7 @@ function LibraryScopeSwitcher({
 }
 
 export function DashboardPage() {
+  const { t } = useTranslation('dashboard')
   const { libraryId } = useParams()
   const navigate = useNavigate()
 
@@ -101,9 +105,7 @@ export function DashboardPage() {
   const [sectionsDialogOpen, setSectionsDialogOpen] = useState(false)
   const [pinDialogOpen, setPinDialogOpen] = useState(false)
 
-  useEffect(() => {
-    document.title = libraryId ? (library ? `${library.name} · KMReader` : 'KMReader') : 'Dashboard · KMReader'
-  }, [libraryId, library])
+  useDocumentTitle(libraryId ? library?.name : t('title'))
 
   const sectionQueries: Record<DashboardSectionKey, PagedRowQuery<BookDto | SeriesDto>> = {
     'keep-reading': useSectionRow('keep-reading', libraryIds, scope, rowsEnabled),
@@ -135,7 +137,7 @@ export function DashboardPage() {
         ) : (
           <div className="flex-1" />
         )}
-        <IconButton label="Customize sections" onClick={() => setSectionsDialogOpen(true)}>
+        <IconButton label={t('customizeSections')} onClick={() => setSectionsDialogOpen(true)}>
           <SlidersHorizontal className="size-5" />
         </IconButton>
       </div>
@@ -145,26 +147,26 @@ export function DashboardPage() {
       ) : allHidden ? (
         <EmptyState
           icon={<SlidersHorizontal />}
-          title="All sections are hidden"
-          body="Every dashboard section is hidden for this view."
+          title={t('allHidden.title')}
+          body={t('allHidden.body')}
           action={
             <Button variant="primary" onClick={() => setSectionsDialogOpen(true)}>
-              Customize sections
+              {t('customizeSections')}
             </Button>
           }
         />
       ) : allEmpty ? (
         <EmptyState
           icon={<Books />}
-          title="Nothing here yet"
-          body="Books and series will appear here once your server has content."
+          title={t('empty.title')}
+          body={t('empty.body')}
         />
       ) : (
         <div className="space-y-10">
           {rows.map(({ key, query }) => (
             <DashboardRow
               key={key}
-              title={DASHBOARD_SECTIONS[key].title}
+              title={t(DASHBOARD_SECTIONS[key].titleKey)}
               to={libraryId ? `/libraries/${libraryId}/sections/${key}` : `/dashboard/sections/${key}`}
               query={query}
               keyOf={(item) => item.id}

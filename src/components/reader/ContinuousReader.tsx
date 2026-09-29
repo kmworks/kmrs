@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import { useReaderSettings } from '@/lib/store/readerSettings'
 import type { SpreadPage } from '@/lib/utils/spreads'
 import { useWindowKeys } from './keys'
@@ -27,6 +28,7 @@ export function ContinuousReader({
   const margin = useReaderSettings((s) => s.continuousMargin)
   const animations = useReaderSettings((s) => s.animations)
   const reduceMotion = useReducedMotion()
+  const { t } = useTranslation('reader')
 
   const pinch = usePinchZoom({ zoomedTouchAction: 'pan-y' })
   const { reset: resetPinch } = pinch
@@ -161,7 +163,7 @@ export function ContinuousReader({
                 }}
               >
                 {load && (
-                  <img src={p.url} alt={`Page ${p.number}`} draggable={false} className="block h-auto w-full" />
+                  <img src={p.url} alt={t('pageAlt', { page: p.number })} draggable={false} className="block h-auto w-full" />
                 )}
               </div>
             )

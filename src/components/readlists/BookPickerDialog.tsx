@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Check, MagnifyingGlass } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import type { BookDto } from '@/lib/api/types'
@@ -38,6 +39,7 @@ export function BookPickerDialog({
   confirming,
   error,
 }: BookPickerDialogProps) {
+  const { t } = useTranslation('detail')
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Map<string, BookDto>>(new Map())
@@ -92,7 +94,7 @@ export function BookPickerDialog({
             type="search"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Search books…"
+            placeholder={t('picker.searchPlaceholder')}
             autoFocus
             className="h-9 w-full rounded-lg border border-line bg-surface pr-3 pl-9 text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
           />
@@ -107,16 +109,16 @@ export function BookPickerDialog({
           </div>
         ) : q.isError ? (
           <EmptyState
-            title="Could not load books"
+            title={t('empty.loadBooksFailed')}
             body={q.error.message}
             action={
               <Button variant="secondary" onClick={() => q.refetch()}>
-                Retry
+                {t('common:action.retry')}
               </Button>
             }
           />
         ) : items.length === 0 ? (
-          <EmptyState title="No books found" body={search ? 'Try a different search.' : undefined} />
+          <EmptyState title={t('picker.noBooksFound')} body={search ? t('picker.tryDifferentSearch') : undefined} />
         ) : (
           <>
             <div className="grid grid-cols-3 gap-4 sm:grid-cols-4">
@@ -149,7 +151,7 @@ export function BookPickerDialog({
                       )}
                       {excluded && (
                         <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-1.5 text-[11px] text-white">
-                          Added
+                          {t('picker.addedBadge')}
                         </span>
                       )}
                     </div>
@@ -174,11 +176,19 @@ export function BookPickerDialog({
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-line px-5 py-3.5">
         <p className="text-sm text-ink-3">
-          {error ? <span className="text-danger">{error}</span> : selected.size > 0 ? `${selected.size} selected` : mode === 'single' ? 'Pick one book' : 'None selected'}
+          {error ? (
+            <span className="text-danger">{error}</span>
+          ) : selected.size > 0 ? (
+            t('selectedCount', { count: selected.size })
+          ) : mode === 'single' ? (
+            t('picker.pickOne')
+          ) : (
+            t('picker.noneSelected')
+          )}
         </p>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common:action.cancel')}
           </Button>
           <Button
             variant="primary"

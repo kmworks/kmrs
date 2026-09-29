@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Trans, useTranslation } from 'react-i18next'
 import { ArrowsClockwise, Check, Copy, Trash, WarningCircle } from '@phosphor-icons/react'
 import { syncpointsApi } from '@/lib/api/syncpoints'
 import { usersApi } from '@/lib/api/users'
@@ -15,6 +16,7 @@ import { Section } from './Section'
 type ResyncTarget = { kind: 'key'; key: ApiKeyDto } | { kind: 'all' }
 
 export function ApiKeysSection() {
+  const { t } = useTranslation('account')
   const queryClient = useQueryClient()
   const keysQuery = useQuery({ queryKey: ['account', 'api-keys'], queryFn: usersApi.apiKeys })
   const activityQuery = useQuery({
@@ -61,7 +63,7 @@ export function ApiKeysSection() {
       target.kind === 'key' ? syncpointsApi.deleteMine([target.key.id]) : syncpointsApi.deleteMine(),
     onSuccess: (_data, target) => {
       setResyncTarget(null)
-      setResyncDone(target.kind === 'key' ? (target.key.comment || 'Untitled') : 'all devices')
+      setResyncDone(target.kind === 'key' ? target.key.comment || t('apiKeys.untitled') : t('apiKeys.allDevices'))
       window.setTimeout(() => setResyncDone(null), 4000)
     },
   })
@@ -78,7 +80,7 @@ export function ApiKeysSection() {
   }
 
   return (
-    <Section title="API keys">
+    <Section title={t('apiKeys.title')}>
       {keysQuery.isLoading && (
         <div className="flex flex-col gap-2.5">
           <Skeleton className="h-9 w-full" />
@@ -88,10 +90,10 @@ export function ApiKeysSection() {
       {keysQuery.isError && (
         <div className="flex items-center gap-3">
           <p className="text-sm text-danger">
-            {keysQuery.error instanceof Error ? keysQuery.error.message : 'Could not load API keys.'}
+            {keysQuery.error instanceof Error ? keysQuery.error.message : t('apiKeys.failed')}
           </p>
           <Button size="sm" onClick={() => void keysQuery.refetch()}>
-            Try again
+            {t('common:action.retry')}
           </Button>
         </div>
       )}
@@ -99,10 +101,10 @@ export function ApiKeysSection() {
         <>
           {keysQuery.data.length > 0 && (
             <div className="mb-1 flex items-center justify-between gap-3">
-              <p className="text-xs text-ink-3">Resync forces KOReader and Kobo devices to fetch everything again.</p>
+              <p className="text-xs text-ink-3">{t('apiKeys.resyncHint')}</p>
               <Button size="sm" onClick={() => setResyncTarget({ kind: 'all' })}>
                 <ArrowsClockwise className="size-4" />
-                Resync all devices
+                {t('apiKeys.resyncAll')}
               </Button>
             </div>
           )}
@@ -110,20 +112,24 @@ export function ApiKeysSection() {
             {keysQuery.data.map((k) => (
               <li key={k.id} className="flex items-center gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-ink">{k.comment || 'Untitled'}</p>
+                  <p className="truncate text-sm text-ink">{k.comment || t('apiKeys.untitled')}</p>
                   <p className="mt-0.5 text-xs text-ink-3">
-                    Created {formatDate(k.createdDate)}
-                    {lastUsedByKey.has(k.id) && ` · Last used ${relativeTime(lastUsedByKey.get(k.id))}`}
+                    {lastUsedByKey.has(k.id)
+                      ? t('apiKeys.createdAndUsed', {
+                          date: formatDate(k.createdDate),
+                          time: relativeTime(lastUsedByKey.get(k.id)),
+                        })
+                      : t('apiKeys.createdOnly', { date: formatDate(k.createdDate) })}
                   </p>
                 </div>
                 <IconButton
-                  label={`Force resync for ${k.comment || 'Untitled'}`}
+                  label={t('apiKeys.resyncKey', { name: k.comment || t('apiKeys.untitled') })}
                   onClick={() => setResyncTarget({ kind: 'key', key: k })}
                 >
                   <ArrowsClockwise className="size-4" />
                 </IconButton>
                 <IconButton
-                  label="Delete API key"
+                  label={t('apiKeys.delete')}
                   onClick={() => deleteMutation.mutate(k.id)}
                   disabled={deleteMutation.isPending}
                 >
@@ -131,16 +137,16 @@ export function ApiKeysSection() {
                 </IconButton>
               </li>
             ))}
-            {keysQuery.data.length === 0 && <li className="py-1 text-sm text-ink-3">No API keys yet.</li>}
+            {keysQuery.data.length === 0 && <li className="py-1 text-sm text-ink-3">{t('apiKeys.empty')}</li>}
           </ul>
         </>
       )}
       {deleteMutation.isError && (
         <p className="mt-2 text-sm text-danger">
-          {deleteMutation.error instanceof Error ? deleteMutation.error.message : 'Could not delete API key.'}
+          {deleteMutation.error instanceof Error ? deleteMutation.error.message : t('apiKeys.deleteFailed')}
         </p>
       )}
-      {resyncDone && <p className="mt-2 text-sm text-accent-strong">Resync requested for {resyncDone}.</p>}
+      {resyncDone && <p className="mt-2 text-sm text-accent-strong">{t('apiKeys.resyncDone', { name: resyncDone })}</p>}
 
       <form
         className="mt-4 flex items-end gap-3"
@@ -151,27 +157,27 @@ export function ApiKeysSection() {
         }}
       >
         <TextField
-          label="New API key"
+          label={t('apiKeys.new')}
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="Comment, e.g. KOReader on Boox"
+          placeholder={t('apiKeys.commentPlaceholder')}
           className="flex-1"
         />
         <Button type="submit" variant="primary" loading={createMutation.isPending} disabled={!comment.trim()}>
-          Create
+          {t('common:action.create')}
         </Button>
       </form>
       {createMutation.isError && (
         <p className="mt-2 text-sm text-danger">
-          {createMutation.error instanceof Error ? createMutation.error.message : 'Could not create API key.'}
+          {createMutation.error instanceof Error ? createMutation.error.message : t('apiKeys.createFailed')}
         </p>
       )}
 
-      <Dialog open={!!created} onOpenChange={(open) => !open && setCreated(null)} title="API key created" size="sm">
+      <Dialog open={!!created} onOpenChange={(open) => !open && setCreated(null)} title={t('apiKeys.createdTitle')} size="sm">
         <div className="flex flex-col gap-4 p-5">
           <p className="flex items-center gap-2 text-sm font-medium text-danger">
             <WarningCircle className="size-4 shrink-0" />
-            This key is shown only once.
+            {t('apiKeys.shownOnce')}
           </p>
           <code className="rounded-lg border border-line bg-raised p-3 font-mono text-[13px] break-all text-ink select-all">
             {created?.key}
@@ -179,7 +185,7 @@ export function ApiKeysSection() {
           <div className="flex justify-end">
             <Button onClick={() => void copy()}>
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('apiKeys.copied') : t('apiKeys.copy')}
             </Button>
           </div>
         </div>
@@ -193,23 +199,24 @@ export function ApiKeysSection() {
             setResyncTarget(null)
           }
         }}
-        title="Force resync"
+        title={t('apiKeys.resyncTitle')}
         size="sm"
       >
         <div className="px-5 py-4">
           <p className="text-sm text-ink-2">
             {resyncTarget?.kind === 'key' ? (
-              <>
-                Reset the sync point for <span className="font-medium text-ink">{resyncTarget.key.comment || 'Untitled'}</span>?
-                The next KOReader or Kobo device using this key downloads its whole progress again.
-              </>
+              <Trans
+                i18nKey="account:apiKeys.resyncKeyBody"
+                values={{ name: resyncTarget.key.comment || t('apiKeys.untitled') }}
+                components={{ name: <span className="font-medium text-ink" /> }}
+              />
             ) : (
-              'Reset the sync points of every API key? All your KOReader and Kobo devices download their whole progress again on the next sync.'
+              t('apiKeys.resyncAllBody')
             )}
           </p>
           {resyncMutation.isError && (
             <p className="mt-3 text-sm text-danger">
-              {resyncMutation.error instanceof Error ? resyncMutation.error.message : 'Could not request the resync.'}
+              {resyncMutation.error instanceof Error ? resyncMutation.error.message : t('apiKeys.resyncFailed')}
             </p>
           )}
         </div>
@@ -221,14 +228,14 @@ export function ApiKeysSection() {
               setResyncTarget(null)
             }}
           >
-            Cancel
+            {t('common:action.cancel')}
           </Button>
           <Button
             variant="primary"
             loading={resyncMutation.isPending}
             onClick={() => resyncTarget && resyncMutation.mutate(resyncTarget)}
           >
-            Force resync
+            {t('apiKeys.resyncTitle')}
           </Button>
         </div>
       </Dialog>

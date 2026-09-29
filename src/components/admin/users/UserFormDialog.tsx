@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/api/client'
 import { librariesApi } from '@/lib/api/libraries'
 import { usersApi } from '@/lib/api/users'
@@ -53,6 +54,7 @@ export function UserFormDialog({
   onOpenChange: (open: boolean) => void
   user?: UserDto
 }) {
+  const { t } = useTranslation('admin-users')
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -105,7 +107,7 @@ export function UserFormDialog({
         setErrors(next)
         return
       }
-      const message = err instanceof Error ? err.message : 'Could not save the user.'
+      const message = err instanceof Error ? err.message : t('form.saveFailed')
       // A duplicate-email 400 reads much better under the email field than as a banner.
       if (!user && /email/i.test(message)) setErrors({ email: message })
       else setErrors({ form: [message] })
@@ -184,7 +186,7 @@ export function UserFormDialog({
       onOpenChange={(o) => {
         if (!o) close()
       }}
-      title={user ? 'Edit user' : 'Add user'}
+      title={user ? t('form.editTitle') : t('addUser')}
       size="lg"
     >
       <form onSubmit={submit}>
@@ -201,10 +203,10 @@ export function UserFormDialog({
             <p className="truncate text-sm text-ink-3">{user.email}</p>
           ) : (
             <section>
-              <FormSectionTitle>Account</FormSectionTitle>
+              <FormSectionTitle>{t('form.sectionAccount')}</FormSectionTitle>
               <div className="grid gap-4 sm:grid-cols-2">
                 <TextField
-                  label="Email"
+                  label={t('account:profile.email')}
                   type="email"
                   autoComplete="off"
                   required
@@ -217,7 +219,7 @@ export function UserFormDialog({
                   placeholder="reader@example.com"
                 />
                 <TextField
-                  label="Password"
+                  label={t('form.password')}
                   type="password"
                   autoComplete="new-password"
                   required
@@ -233,7 +235,7 @@ export function UserFormDialog({
           )}
 
           <section>
-            <FormSectionTitle>Roles</FormSectionTitle>
+            <FormSectionTitle>{t('account:profile.roles')}</FormSectionTitle>
             <div className="flex flex-col">
               {ASSIGNABLE_ROLES.map((r) => (
                 <div
@@ -241,23 +243,23 @@ export function UserFormDialog({
                   className="flex items-center justify-between gap-4 border-t border-line py-3 first:border-t-0 first:pt-0 last:pb-0"
                 >
                   <div>
-                    <p className="text-sm text-ink">{r.label}</p>
-                    <p className="mt-0.5 text-xs text-ink-3">{r.description}</p>
+                    <p className="text-sm text-ink">{t(r.labelKey)}</p>
+                    <p className="mt-0.5 text-xs text-ink-3">{t(r.descriptionKey)}</p>
                   </div>
-                  <Switch checked={roles.has(r.value)} onCheckedChange={(v) => toggleRole(r.value, v)} label={r.label} />
+                  <Switch checked={roles.has(r.value)} onCheckedChange={(v) => toggleRole(r.value, v)} label={t(r.labelKey)} />
                 </div>
               ))}
             </div>
           </section>
 
           <section>
-            <FormSectionTitle>Library access</FormSectionTitle>
+            <FormSectionTitle>{t('form.sectionLibraryAccess')}</FormSectionTitle>
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm text-ink">All libraries</p>
-                <p className="mt-0.5 text-xs text-ink-3">Share every library, including ones created later</p>
+                <p className="text-sm text-ink">{t('account:profile.allLibraries')}</p>
+                <p className="mt-0.5 text-xs text-ink-3">{t('form.allLibrariesDesc')}</p>
               </div>
-              <Switch checked={shareAll} onCheckedChange={setShareAll} label="All libraries" />
+              <Switch checked={shareAll} onCheckedChange={setShareAll} label={t('account:profile.allLibraries')} />
             </div>
             {!shareAll && (
               <div className="mt-3 max-h-52 overflow-y-auto rounded-lg border border-line">
@@ -281,21 +283,21 @@ export function UserFormDialog({
                     <span className="truncate text-sm text-ink-2">{lib.name}</span>
                   </label>
                 ))}
-                {librariesQuery.data?.length === 0 && <p className="px-3 py-2.5 text-sm text-ink-3">No libraries yet.</p>}
+                {librariesQuery.data?.length === 0 && <p className="px-3 py-2.5 text-sm text-ink-3">{t('layout:nav.noLibraries')}</p>}
               </div>
             )}
           </section>
 
           <section>
-            <FormSectionTitle>Content restrictions</FormSectionTitle>
+            <FormSectionTitle>{t('form.sectionContentRestrictions')}</FormSectionTitle>
             <div>
-              <p className="mb-2 text-[13px] font-medium text-ink-2">Age restriction</p>
+              <p className="mb-2 text-[13px] font-medium text-ink-2">{t('form.ageRestriction')}</p>
               <div className="flex flex-wrap items-center gap-3">
                 <SegmentedControl<AgeMode>
                   options={[
-                    { value: 'none', label: 'None' },
-                    { value: 'allow', label: 'Allow only' },
-                    { value: 'exclude', label: 'Exclude' },
+                    { value: 'none', label: t('form.ageMode.none') },
+                    { value: 'allow', label: t('form.ageMode.allow') },
+                    { value: 'exclude', label: t('form.ageMode.exclude') },
                   ]}
                   value={ageMode}
                   onChange={setAgeMode}
@@ -310,8 +312,8 @@ export function UserFormDialog({
                       setAge(e.target.value)
                       setErrors((p) => ({ ...p, age: undefined }))
                     }}
-                    placeholder="Age"
-                    aria-label="Age"
+                    placeholder={t('form.age')}
+                    aria-label={t('form.age')}
                     className={cn(
                       'h-10 w-24 rounded-lg border bg-surface px-3 text-base text-ink transition-colors placeholder:text-ink-3 focus:outline-none',
                       errors.age || ageInvalid ? 'border-danger/60 focus:border-danger' : 'border-line focus:border-accent/70',
@@ -320,26 +322,26 @@ export function UserFormDialog({
                 )}
               </div>
               {errors.age || ageInvalid ? (
-                <p className="mt-2 text-[13px] text-danger">{errors.age ?? 'Enter a whole number of 0 or more.'}</p>
+                <p className="mt-2 text-[13px] text-danger">{errors.age ?? t('form.ageInvalid')}</p>
               ) : ageMode === 'allow' ? (
-                <p className="mt-2 text-[13px] text-ink-3">Only show content with an age rating at or below this age.</p>
+                <p className="mt-2 text-[13px] text-ink-3">{t('form.ageAllowHint')}</p>
               ) : ageMode === 'exclude' ? (
-                <p className="mt-2 text-[13px] text-ink-3">Hide content with an age rating above this age.</p>
+                <p className="mt-2 text-[13px] text-ink-3">{t('form.ageExcludeHint')}</p>
               ) : null}
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <LabelListEditor label="Allowed labels" values={labelsAllow} onChange={setLabelsAllow} placeholder="Add label…" />
-              <LabelListEditor label="Excluded labels" values={labelsExclude} onChange={setLabelsExclude} placeholder="Add label…" />
+              <LabelListEditor label={t('form.allowedLabels')} values={labelsAllow} onChange={setLabelsAllow} placeholder={t('metadata:placeholder.addLabel')} />
+              <LabelListEditor label={t('form.excludedLabels')} values={labelsExclude} onChange={setLabelsExclude} placeholder={t('metadata:placeholder.addLabel')} />
             </div>
           </section>
         </div>
 
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3.5">
           <Button type="button" variant="ghost" onClick={close}>
-            Cancel
+            {t('common:action.cancel')}
           </Button>
           <Button type="submit" variant="primary" loading={saveMutation.isPending} disabled={!canSubmit}>
-            {user ? 'Save changes' : 'Add user'}
+            {user ? t('metadata:action.saveChanges') : t('addUser')}
           </Button>
         </div>
       </form>

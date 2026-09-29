@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next'
 import type { PageHashAction } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
-import { ACTION_LABELS } from './actionMeta'
+import { ACTION_LABEL_KEYS } from './actionMeta'
 
 const styles: Record<PageHashAction, string> = {
   DELETE_AUTO: 'border-danger/40 bg-danger/10 text-danger',
@@ -9,6 +10,7 @@ const styles: Record<PageHashAction, string> = {
 }
 
 export function HashActionBadge({ action, className }: { action: PageHashAction; className?: string }) {
+  const { t } = useTranslation('admin-maintenance')
   return (
     <span
       className={cn(
@@ -17,7 +19,7 @@ export function HashActionBadge({ action, className }: { action: PageHashAction;
         className,
       )}
     >
-      {ACTION_LABELS[action]}
+      {t(ACTION_LABEL_KEYS[action])}
     </span>
   )
 }

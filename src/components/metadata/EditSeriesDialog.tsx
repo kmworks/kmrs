@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { seriesApi } from '@/lib/api/series'
 import type { ReadingDirection, SeriesDto, SeriesMetadataUpdateDto, SeriesStatus } from '@/lib/api/types'
+import { readingDirectionLabel, seriesStatusLabel } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
@@ -12,21 +14,9 @@ import { LabelListEditor } from '@/components/admin/users/LabelListEditor'
 import { BatchField, FormErrorBanner, LockToggle, PairListEditor, TextAreaField, TextInput, type Pair, type PairErrors } from './fields'
 import { isValidBcp47, isValidUrl, mapViolations } from './validation'
 
-const STATUS_OPTIONS: { value: SeriesStatus; label: string }[] = [
-  { value: 'ONGOING', label: 'Ongoing' },
-  { value: 'ENDED', label: 'Ended' },
-  { value: 'ABANDONED', label: 'Abandoned' },
-  { value: 'HIATUS', label: 'Hiatus' },
-]
+const STATUS_VALUES: SeriesStatus[] = ['ONGOING', 'ENDED', 'ABANDONED', 'HIATUS']
 
 const DIRECTIONS: ReadingDirection[] = ['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT', 'VERTICAL', 'WEBTOON']
-const DIRECTION_OPTIONS: { value: ReadingDirection | ''; label: string }[] = [
-  { value: '', label: 'Not set' },
-  { value: 'LEFT_TO_RIGHT', label: 'Left to right' },
-  { value: 'RIGHT_TO_LEFT', label: 'Right to left' },
-  { value: 'VERTICAL', label: 'Vertical' },
-  { value: 'WEBTOON', label: 'Webtoon' },
-]
 
 const asDirection = (v: string): ReadingDirection | '' => (DIRECTIONS as string[]).includes(v) ? (v as ReadingDirection) : ''
 
@@ -44,6 +34,7 @@ const TAB_OF_FIELD: Record<string, Tab> = {
 }
 
 export function EditSeriesDialog({ open, onClose, seriesIds }: { open: boolean; onClose: () => void; seriesIds: string[] }) {
+  const { t } = useTranslation('metadata')
   const singleId = seriesIds.length === 1 ? seriesIds[0] : null
   const seriesQuery = useQuery({
     queryKey: ['series', singleId],
@@ -57,7 +48,7 @@ export function EditSeriesDialog({ open, onClose, seriesIds }: { open: boolean; 
       onOpenChange={(o) => {
         if (!o) onClose()
       }}
-      title={singleId ? 'Edit series metadata' : `Edit metadata of ${seriesIds.length} series`}
+      title={t('editSeries.dialogTitle', { context: singleId ? 'single' : 'batch', count: seriesIds.length })}
       size="lg"
     >
       {singleId && seriesQuery.isPending && (
@@ -69,11 +60,11 @@ export function EditSeriesDialog({ open, onClose, seriesIds }: { open: boolean; 
       )}
       {singleId && seriesQuery.error && (
         <EmptyState
-          title="Could not load the series"
+          title={t('editSeries.loadError')}
           body={seriesQuery.error.message}
           action={
             <Button variant="secondary" onClick={() => seriesQuery.refetch()}>
-              Retry
+              {t('common:action.retry')}
             </Button>
           }
         />
@@ -85,7 +76,13 @@ export function EditSeriesDialog({ open, onClose, seriesIds }: { open: boolean; 
 }
 
 function SingleSeriesForm({ series, onClose }: { series: SeriesDto; onClose: () => void }) {
+  const { t } = useTranslation('metadata')
   const queryClient = useQueryClient()
+  const statusOptions = STATUS_VALUES.map((v) => ({ value: v, label: seriesStatusLabel(v) }))
+  const directionOptions: { value: ReadingDirection | ''; label: string }[] = [
+    { value: '', label: t('field.notSet') },
+    ...DIRECTIONS.map((v) => ({ value: v, label: readingDirectionLabel(v) })),
+  ]
   const md = series.metadata
   const [tab, setTab] = useState<Tab>('general')
   const [title, setTitle] = useState(md.title)
@@ -147,13 +144,13 @@ function SingleSeriesForm({ series, onClose }: { series: SeriesDto; onClose: () 
         alternateTitles: { ...p.alternateTitles, ...mapped.pairs.alternateTitles },
         links: { ...p.links, ...mapped.pairs.links },
       }))
-      setFormErrors(rest.length > 0 ? rest : [err instanceof Error ? err.message : 'Could not save the metadata.'])
+      setFormErrors(rest.length > 0 ? rest : [err instanceof Error ? err.message : t('saveFailed')])
       jumpToError([...Object.keys(scalars), ...Object.keys(mapped.pairs)])
     },
   })
 
   const jumpToError = (fields: string[]) => {
-    const first = fields.map((f) => TAB_OF_FIELD[f]).find((t) => t && t !== tab)
+    const first = fields.map((f) => TAB_OF_FIELD[f]).find((tb) => tb && tb !== tab)
     if (first) setTab(first)
   }
 
@@ -161,23 +158,23 @@ function SingleSeriesForm({ series, onClose }: { series: SeriesDto; onClose: () 
     const e: Record<string, string> = {}
     const te: PairErrors = {}
     const le: PairErrors = {}
-    if (!title.trim()) e.title = 'Must not be blank'
-    if (!titleSort.trim()) e.titleSort = 'Must not be blank'
+    if (!title.trim()) e.title = t('validation.notBlank')
+    if (!titleSort.trim()) e.titleSort = t('validation.notBlank')
     if (ageRating.trim() && (!Number.isInteger(Number(ageRating)) || Number(ageRating) < 0))
-      e.ageRating = 'Must be a whole number of 0 or more'
+      e.ageRating = t('validation.wholeNumberMinZero')
     if (totalBookCount.trim() && (!Number.isInteger(Number(totalBookCount)) || Number(totalBookCount) <= 0))
-      e.totalBookCount = 'Must be a whole number greater than 0'
-    if (language.trim() && !isValidBcp47(language.trim())) e.language = 'Must be a valid BCP 47 language tag'
+      e.totalBookCount = t('validation.wholeNumberPositive')
+    if (language.trim() && !isValidBcp47(language.trim())) e.language = t('validation.bcp47')
     altTitles.forEach((p, i) => {
       const row: { a?: string; b?: string } = {}
-      if (!p.a.trim()) row.a = 'Must not be blank'
-      if (!p.b.trim()) row.b = 'Must not be blank'
+      if (!p.a.trim()) row.a = t('validation.notBlank')
+      if (!p.b.trim()) row.b = t('validation.notBlank')
       if (row.a || row.b) te[i] = row
     })
     links.forEach((p, i) => {
       const row: { a?: string; b?: string } = {}
-      if (!p.a.trim()) row.a = 'Must not be blank'
-      if (!isValidUrl(p.b.trim())) row.b = 'Must be a valid URL'
+      if (!p.a.trim()) row.a = t('validation.notBlank')
+      if (!isValidUrl(p.b.trim())) row.b = t('validation.url')
       if (row.a || row.b) le[i] = row
     })
     setErrors(e)
@@ -239,11 +236,11 @@ function SingleSeriesForm({ series, onClose }: { series: SeriesDto; onClose: () 
         <FormErrorBanner messages={formErrors} />
         <SegmentedControl<Tab>
           options={[
-            { value: 'general', label: 'General' },
-            { value: 'titles', label: 'Titles' },
-            { value: 'tags', label: 'Tags' },
-            { value: 'links', label: 'Links' },
-            { value: 'sharing', label: 'Sharing' },
+            { value: 'general', label: t('tabs.general') },
+            { value: 'titles', label: t('tabs.titles') },
+            { value: 'tags', label: t('tabs.tags') },
+            { value: 'links', label: t('tabs.links') },
+            { value: 'sharing', label: t('tabs.sharing') },
           ]}
           value={tab}
           onChange={setTab}
@@ -253,44 +250,44 @@ function SingleSeriesForm({ series, onClose }: { series: SeriesDto; onClose: () 
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
-                label="Title"
+                label={t('field.title')}
                 required
                 value={title}
                 onChange={(e) => { setTitle(e.target.value); autoLock('title'); clearError('title') }}
                 error={errors.title}
-                trailing={<LockToggle locked={locks.title} onChange={() => toggleLock('title')} label="Title" />}
+                trailing={<LockToggle locked={locks.title} onChange={() => toggleLock('title')} label={t('field.title')} />}
               />
               <TextField
-                label="Sort title"
+                label={t('field.sortTitle')}
                 required
                 value={titleSort}
                 onChange={(e) => { setTitleSort(e.target.value); autoLock('titleSort'); clearError('titleSort') }}
                 error={errors.titleSort}
-                trailing={<LockToggle locked={locks.titleSort} onChange={() => toggleLock('titleSort')} label="Sort title" />}
+                trailing={<LockToggle locked={locks.titleSort} onChange={() => toggleLock('titleSort')} label={t('field.sortTitle')} />}
               />
             </div>
             <TextAreaField
-              label="Summary"
+              label={t('field.summary')}
               value={summary}
               onChange={(v) => { setSummary(v); autoLock('summary') }}
               error={errors.summary}
-              trailing={<LockToggle locked={locks.summary} onChange={() => toggleLock('summary')} label="Summary" />}
+              trailing={<LockToggle locked={locks.summary} onChange={() => toggleLock('summary')} label={t('field.summary')} />}
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-medium text-ink-2">Status</span>
-                  <LockToggle locked={locks.status} onChange={() => toggleLock('status')} label="Status" />
+                  <span className="text-[13px] font-medium text-ink-2">{t('field.status')}</span>
+                  <LockToggle locked={locks.status} onChange={() => toggleLock('status')} label={t('field.status')} />
                 </div>
-                <SegmentedControl<SeriesStatus> options={STATUS_OPTIONS} value={status} onChange={(v) => { setStatus(v); autoLock('status') }} className="flex flex-wrap" />
+                <SegmentedControl<SeriesStatus> options={statusOptions} value={status} onChange={(v) => { setStatus(v); autoLock('status') }} className="flex flex-wrap" />
               </div>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-medium text-ink-2">Reading direction</span>
-                  <LockToggle locked={locks.readingDirection} onChange={() => toggleLock('readingDirection')} label="Reading direction" />
+                  <span className="text-[13px] font-medium text-ink-2">{t('field.readingDirection')}</span>
+                  <LockToggle locked={locks.readingDirection} onChange={() => toggleLock('readingDirection')} label={t('field.readingDirection')} />
                 </div>
                 <SegmentedControl<ReadingDirection | ''>
-                  options={DIRECTION_OPTIONS}
+                  options={directionOptions}
                   value={direction}
                   onChange={(v) => { setDirection(v); autoLock('readingDirection') }}
                   className="flex flex-wrap"
@@ -299,38 +296,38 @@ function SingleSeriesForm({ series, onClose }: { series: SeriesDto; onClose: () 
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
-                label="Publisher"
+                label={t('field.publisher')}
                 value={publisher}
                 onChange={(e) => { setPublisher(e.target.value); autoLock('publisher'); clearError('publisher') }}
                 error={errors.publisher}
-                trailing={<LockToggle locked={locks.publisher} onChange={() => toggleLock('publisher')} label="Publisher" />}
+                trailing={<LockToggle locked={locks.publisher} onChange={() => toggleLock('publisher')} label={t('field.publisher')} />}
               />
               <TextField
-                label="Language"
+                label={t('field.language')}
                 placeholder="en, ja, zh-Hans…"
                 value={language}
                 onChange={(e) => { setLanguage(e.target.value); autoLock('language'); clearError('language') }}
                 error={errors.language}
-                helper={errors.language ? undefined : 'BCP 47 tag, empty to clear'}
-                trailing={<LockToggle locked={locks.language} onChange={() => toggleLock('language')} label="Language" />}
+                helper={errors.language ? undefined : t('editSeries.languageHelper')}
+                trailing={<LockToggle locked={locks.language} onChange={() => toggleLock('language')} label={t('field.language')} />}
               />
               <TextField
-                label="Age rating"
+                label={t('field.ageRating')}
                 inputMode="numeric"
-                placeholder="Not set"
+                placeholder={t('field.notSet')}
                 value={ageRating}
                 onChange={(e) => { setAgeRating(e.target.value); autoLock('ageRating'); clearError('ageRating') }}
                 error={errors.ageRating}
-                trailing={<LockToggle locked={locks.ageRating} onChange={() => toggleLock('ageRating')} label="Age rating" />}
+                trailing={<LockToggle locked={locks.ageRating} onChange={() => toggleLock('ageRating')} label={t('field.ageRating')} />}
               />
               <TextField
-                label="Total book count"
+                label={t('field.totalBookCount')}
                 inputMode="numeric"
-                placeholder="Not set"
+                placeholder={t('field.notSet')}
                 value={totalBookCount}
                 onChange={(e) => { setTotalBookCount(e.target.value); autoLock('totalBookCount'); clearError('totalBookCount') }}
                 error={errors.totalBookCount}
-                trailing={<LockToggle locked={locks.totalBookCount} onChange={() => toggleLock('totalBookCount')} label="Total book count" />}
+                trailing={<LockToggle locked={locks.totalBookCount} onChange={() => toggleLock('totalBookCount')} label={t('field.totalBookCount')} />}
               />
             </div>
           </>
@@ -338,70 +335,70 @@ function SingleSeriesForm({ series, onClose }: { series: SeriesDto; onClose: () 
 
         {tab === 'titles' && (
           <PairListEditor
-            label="Alternate titles"
+            label={t('field.alternateTitles')}
             pairs={altTitles}
             onChange={(p) => { setAltTitles(p); autoLock('alternateTitles') }}
-            aLabel="Label"
-            bLabel="Title"
+            aLabel={t('field.label')}
+            bLabel={t('field.title')}
             aPlaceholder="ja"
             bPlaceholder="ベルセルク"
-            addLabel="Add title"
+            addLabel={t('add.title')}
             errors={pairErrors.alternateTitles}
-            trailing={<LockToggle locked={locks.alternateTitles} onChange={() => toggleLock('alternateTitles')} label="Alternate titles" />}
+            trailing={<LockToggle locked={locks.alternateTitles} onChange={() => toggleLock('alternateTitles')} label={t('field.alternateTitles')} />}
           />
         )}
 
         {tab === 'tags' && (
           <div className="grid gap-4 sm:grid-cols-2">
             <LabelListEditor
-              label="Genres"
+              label={t('field.genres')}
               values={genres}
               onChange={(v) => { setGenres(v); autoLock('genres') }}
-              placeholder="Add genre…"
-              trailing={<LockToggle locked={locks.genres} onChange={() => toggleLock('genres')} label="Genres" />}
+              placeholder={t('placeholder.addGenre')}
+              trailing={<LockToggle locked={locks.genres} onChange={() => toggleLock('genres')} label={t('field.genres')} />}
             />
             <LabelListEditor
-              label="Tags"
+              label={t('field.tags')}
               values={tags}
               onChange={(v) => { setTags(v); autoLock('tags') }}
-              placeholder="Add tag…"
-              trailing={<LockToggle locked={locks.tags} onChange={() => toggleLock('tags')} label="Tags" />}
+              placeholder={t('placeholder.addTag')}
+              trailing={<LockToggle locked={locks.tags} onChange={() => toggleLock('tags')} label={t('field.tags')} />}
             />
           </div>
         )}
 
         {tab === 'links' && (
           <PairListEditor
-            label="Web links"
+            label={t('field.webLinks')}
             pairs={links}
             onChange={(p) => { setLinks(p); autoLock('links') }}
-            aLabel="Label"
-            bLabel="URL"
-            aPlaceholder="Wiki"
+            aLabel={t('field.label')}
+            bLabel={t('field.url')}
+            aPlaceholder={t('placeholder.linkLabel')}
             bPlaceholder="https://…"
-            addLabel="Add link"
+            addLabel={t('add.link')}
             errors={pairErrors.links}
-            trailing={<LockToggle locked={locks.links} onChange={() => toggleLock('links')} label="Web links" />}
+            trailing={<LockToggle locked={locks.links} onChange={() => toggleLock('links')} label={t('field.webLinks')} />}
           />
         )}
 
         {tab === 'sharing' && (
           <LabelListEditor
-            label="Sharing labels"
+            label={t('field.sharingLabels')}
             values={sharingLabels}
             onChange={(v) => { setSharingLabels(v); autoLock('sharingLabels') }}
-            placeholder="Add label…"
-            trailing={<LockToggle locked={locks.sharingLabels} onChange={() => toggleLock('sharingLabels')} label="Sharing labels" />}
+            placeholder={t('placeholder.addLabel')}
+            trailing={<LockToggle locked={locks.sharingLabels} onChange={() => toggleLock('sharingLabels')} label={t('field.sharingLabels')} />}
           />
         )}
       </div>
 
       <div className="flex justify-end gap-2 border-t border-line px-5 py-3.5">
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common:action.cancel')}
         </Button>
         <Button type="submit" variant="primary" loading={save.isPending}>
-          Save changes
+          {t('action.saveChanges')}
         </Button>
       </div>
     </form>
@@ -411,7 +408,13 @@ function SingleSeriesForm({ series, onClose }: { series: SeriesDto; onClose: () 
 type BatchKey = 'status' | 'readingDirection' | 'publisher' | 'language' | 'ageRating' | 'genres' | 'tags' | 'sharingLabels'
 
 function BatchSeriesForm({ ids, onClose }: { ids: string[]; onClose: () => void }) {
+  const { t } = useTranslation('metadata')
   const queryClient = useQueryClient()
+  const statusOptions = STATUS_VALUES.map((v) => ({ value: v, label: seriesStatusLabel(v) }))
+  const directionOptions: { value: ReadingDirection | ''; label: string }[] = [
+    { value: '', label: t('field.notSet') },
+    ...DIRECTIONS.map((v) => ({ value: v, label: readingDirectionLabel(v) })),
+  ]
   const [enabled, setEnabled] = useState<Partial<Record<BatchKey, boolean>>>({})
   const [status, setStatus] = useState<SeriesStatus>('ONGOING')
   const [direction, setDirection] = useState<ReadingDirection | ''>('')
@@ -445,7 +448,7 @@ function BatchSeriesForm({ ids, onClose }: { ids: string[]; onClose: () => void 
     onError: (err) => {
       const mapped = mapViolations(err)
       setErrors(mapped.scalars)
-      setFormErrors(mapped.rest.length > 0 ? mapped.rest : [err instanceof Error ? err.message : 'Could not save the metadata.'])
+      setFormErrors(mapped.rest.length > 0 ? mapped.rest : [err instanceof Error ? err.message : t('saveFailed')])
     },
   })
 
@@ -454,8 +457,8 @@ function BatchSeriesForm({ ids, onClose }: { ids: string[]; onClose: () => void 
     if (save.isPending || !anyEnabled) return
     const e: Record<string, string> = {}
     if (enabled.ageRating && ageRating.trim() && (!Number.isInteger(Number(ageRating)) || Number(ageRating) < 0))
-      e.ageRating = 'Must be a whole number of 0 or more'
-    if (enabled.language && language.trim() && !isValidBcp47(language.trim())) e.language = 'Must be a valid BCP 47 language tag'
+      e.ageRating = t('validation.wholeNumberMinZero')
+    if (enabled.language && language.trim() && !isValidBcp47(language.trim())) e.language = t('validation.bcp47')
     setErrors(e)
     setFormErrors([])
     if (Object.keys(e).length > 0) return
@@ -500,61 +503,61 @@ function BatchSeriesForm({ ids, onClose }: { ids: string[]; onClose: () => void 
     <form onSubmit={submit}>
       <div className="flex flex-col gap-3 px-5 py-4">
         <FormErrorBanner messages={formErrors} />
-        <p className="text-sm text-ink-3">Switched-on fields are applied to all {ids.length} series and locked by default.</p>
+        <p className="text-sm text-ink-3">{t('editSeries.batchHint', { count: ids.length })}</p>
 
-        <BatchField label="Status" enabled={!!enabled.status} onEnabledChange={toggle('status')} locked={sharedLocks.status ?? true} onLockedChange={toggleSharedLock('status')}>
-          <SegmentedControl<SeriesStatus> options={STATUS_OPTIONS} value={status} onChange={setStatus} className="flex flex-wrap" />
+        <BatchField label={t('field.status')} enabled={!!enabled.status} onEnabledChange={toggle('status')} locked={sharedLocks.status ?? true} onLockedChange={toggleSharedLock('status')}>
+          <SegmentedControl<SeriesStatus> options={statusOptions} value={status} onChange={setStatus} className="flex flex-wrap" />
         </BatchField>
 
-        <BatchField label="Reading direction" enabled={!!enabled.readingDirection} onEnabledChange={toggle('readingDirection')} hint="“Not set” clears the direction." locked={sharedLocks.readingDirection ?? true} onLockedChange={toggleSharedLock('readingDirection')}>
-          <SegmentedControl<ReadingDirection | ''> options={DIRECTION_OPTIONS} value={direction} onChange={setDirection} className="flex flex-wrap" />
+        <BatchField label={t('field.readingDirection')} enabled={!!enabled.readingDirection} onEnabledChange={toggle('readingDirection')} hint={t('editSeries.hint.directionNotSet')} locked={sharedLocks.readingDirection ?? true} onLockedChange={toggleSharedLock('readingDirection')}>
+          <SegmentedControl<ReadingDirection | ''> options={directionOptions} value={direction} onChange={setDirection} className="flex flex-wrap" />
         </BatchField>
 
-        <BatchField label="Publisher" enabled={!!enabled.publisher} onEnabledChange={toggle('publisher')} locked={sharedLocks.publisher ?? true} onLockedChange={toggleSharedLock('publisher')}>
-          <TextInput value={publisher} onChange={(e) => setPublisher(e.target.value)} aria-label="Publisher" />
+        <BatchField label={t('field.publisher')} enabled={!!enabled.publisher} onEnabledChange={toggle('publisher')} locked={sharedLocks.publisher ?? true} onLockedChange={toggleSharedLock('publisher')}>
+          <TextInput value={publisher} onChange={(e) => setPublisher(e.target.value)} aria-label={t('field.publisher')} />
         </BatchField>
 
-        <BatchField label="Language" enabled={!!enabled.language} onEnabledChange={toggle('language')} hint="BCP 47 tag, empty to clear." locked={sharedLocks.language ?? true} onLockedChange={toggleSharedLock('language')}>
+        <BatchField label={t('field.language')} enabled={!!enabled.language} onEnabledChange={toggle('language')} hint={t('editSeries.hint.languageEmpty')} locked={sharedLocks.language ?? true} onLockedChange={toggleSharedLock('language')}>
           <TextInput
             value={language}
             onChange={(e) => { setLanguage(e.target.value); setErrors((p) => { const next = { ...p }; delete next.language; return next }) }}
-            aria-label="Language"
+            aria-label={t('field.language')}
             placeholder="en, ja, zh-Hans…"
             error={!!errors.language}
           />
           {errors.language && <p className="mt-1 text-[13px] text-danger">{errors.language}</p>}
         </BatchField>
 
-        <BatchField label="Age rating" enabled={!!enabled.ageRating} onEnabledChange={toggle('ageRating')} hint="Empty clears the rating." locked={sharedLocks.ageRating ?? true} onLockedChange={toggleSharedLock('ageRating')}>
+        <BatchField label={t('field.ageRating')} enabled={!!enabled.ageRating} onEnabledChange={toggle('ageRating')} hint={t('editSeries.hint.ageRatingEmpty')} locked={sharedLocks.ageRating ?? true} onLockedChange={toggleSharedLock('ageRating')}>
           <TextInput
             value={ageRating}
             onChange={(e) => { setAgeRating(e.target.value); setErrors((p) => { const next = { ...p }; delete next.ageRating; return next }) }}
-            aria-label="Age rating"
+            aria-label={t('field.ageRating')}
             inputMode="numeric"
             error={!!errors.ageRating}
           />
           {errors.ageRating && <p className="mt-1 text-[13px] text-danger">{errors.ageRating}</p>}
         </BatchField>
 
-        <BatchField label="Genres" enabled={!!enabled.genres} onEnabledChange={toggle('genres')} hint="Replaces all genres; an empty list clears them." locked={sharedLocks.genres ?? true} onLockedChange={toggleSharedLock('genres')}>
-          <LabelListEditor label="Genres" values={genres} onChange={setGenres} placeholder="Add genre…" />
+        <BatchField label={t('field.genres')} enabled={!!enabled.genres} onEnabledChange={toggle('genres')} hint={t('editSeries.hint.genresReplace')} locked={sharedLocks.genres ?? true} onLockedChange={toggleSharedLock('genres')}>
+          <LabelListEditor label={t('field.genres')} values={genres} onChange={setGenres} placeholder={t('placeholder.addGenre')} />
         </BatchField>
 
-        <BatchField label="Tags" enabled={!!enabled.tags} onEnabledChange={toggle('tags')} hint="Replaces all tags; an empty list clears them." locked={sharedLocks.tags ?? true} onLockedChange={toggleSharedLock('tags')}>
-          <LabelListEditor label="Tags" values={tags} onChange={setTags} placeholder="Add tag…" />
+        <BatchField label={t('field.tags')} enabled={!!enabled.tags} onEnabledChange={toggle('tags')} hint={t('editSeries.hint.tagsReplace')} locked={sharedLocks.tags ?? true} onLockedChange={toggleSharedLock('tags')}>
+          <LabelListEditor label={t('field.tags')} values={tags} onChange={setTags} placeholder={t('placeholder.addTag')} />
         </BatchField>
 
-        <BatchField label="Sharing labels" enabled={!!enabled.sharingLabels} onEnabledChange={toggle('sharingLabels')} hint="Replaces all sharing labels; an empty list clears them." locked={sharedLocks.sharingLabels ?? true} onLockedChange={toggleSharedLock('sharingLabels')}>
-          <LabelListEditor label="Sharing labels" values={sharingLabels} onChange={setSharingLabels} placeholder="Add label…" />
+        <BatchField label={t('field.sharingLabels')} enabled={!!enabled.sharingLabels} onEnabledChange={toggle('sharingLabels')} hint={t('editSeries.hint.sharingLabelsReplace')} locked={sharedLocks.sharingLabels ?? true} onLockedChange={toggleSharedLock('sharingLabels')}>
+          <LabelListEditor label={t('field.sharingLabels')} values={sharingLabels} onChange={setSharingLabels} placeholder={t('placeholder.addLabel')} />
         </BatchField>
       </div>
 
       <div className="flex justify-end gap-2 border-t border-line px-5 py-3.5">
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          {t('common:action.cancel')}
         </Button>
         <Button type="submit" variant="primary" loading={save.isPending} disabled={!anyEnabled}>
-          Save changes
+          {t('action.saveChanges')}
         </Button>
       </div>
     </form>

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ArrowCounterClockwise, Checks, CheckSquare, FolderPlus, PencilSimple, Sparkle, Trash } from '@phosphor-icons/react'
 import type { SeriesDto } from '@/lib/api/types'
 import { seriesApi } from '@/lib/api/series'
@@ -14,6 +15,7 @@ import { showToast } from '@/lib/store/toast'
 
 /** Series actions for grid cards, plus the dialogs they open. */
 export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDto; trigger: ReactNode; onSelect?: () => void }) {
+  const { t } = useTranslation('media')
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const hasUnread = series.booksUnreadCount > 0
@@ -47,29 +49,29 @@ export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDt
       <Menu trigger={trigger}>
         {onSelect && (
           <MenuItem onSelect={onSelect}>
-            <CheckSquare className="size-4" /> Select
+            <CheckSquare className="size-4" /> {t('menu.select')}
           </MenuItem>
         )}
         <MenuItem onSelect={() => markMutation.mutate(hasUnread)}>
           {hasUnread ? <Checks className="size-4" /> : <ArrowCounterClockwise className="size-4" />}
-          {hasUnread ? 'Mark as read' : 'Mark as unread'}
+          {hasUnread ? t('menu.markAsRead') : t('menu.markAsUnread')}
         </MenuItem>
         <MenuItem onSelect={() => setAddOpen(true)}>
-          <FolderPlus className="size-4" /> Add to collection
+          <FolderPlus className="size-4" /> {t('menu.addToCollection')}
         </MenuItem>
         <MenuItem onSelect={() => setEditOpen(true)}>
-          <PencilSimple className="size-4" /> Edit metadata
+          <PencilSimple className="size-4" /> {t('menu.editMetadata')}
         </MenuItem>
         {komfReady && (
           <MenuItem onSelect={() => setIdentifyOpen(true)}>
-            <Sparkle className="size-4" /> Identify with komf
+            <Sparkle className="size-4" /> {t('menu.identifyWithKomf')}
           </MenuItem>
         )}
         {isAdmin(user) && (
           <>
             <MenuSeparator />
             <MenuItem danger onSelect={() => setDeleteOpen(true)}>
-              <Trash className="size-4" /> Delete files
+              <Trash className="size-4" /> {t('menu.deleteFiles')}
             </MenuItem>
           </>
         )}
@@ -82,14 +84,14 @@ export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDt
           open={identifyOpen}
           onOpenChange={setIdentifyOpen}
           series={series}
-          onIdentified={() => showToast('Identify queued')}
+          onIdentified={() => showToast(t('identifyQueued'))}
         />
       )}
       <ConfirmDeleteFilesDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         count={1}
-        noun="series"
+        kind="series"
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
       />

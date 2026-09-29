@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/ui/Dialog'
 import { urls } from '@/lib/utils/urls'
 import { cn } from '@/lib/utils/cn'
@@ -20,6 +21,7 @@ export function ThumbnailExplorer({
   currentPage,
   onGoToPage,
 }: ThumbnailExplorerProps) {
+  const { t } = useTranslation('reader')
   const currentRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export function ThumbnailExplorer({
   }, [open])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Pages" size="lg">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('chrome.pages')} size="lg">
       <div className="grid grid-cols-3 gap-3 p-4 sm:grid-cols-5">
         {Array.from({ length: pagesCount }, (_, i) => i + 1).map((n) => (
           <button
@@ -47,7 +49,7 @@ export function ThumbnailExplorer({
           >
             <img
               src={urls.bookPageThumbnail(bookId, n)}
-              alt={`Page ${n}`}
+              alt={t('pageAlt', { page: n })}
               loading="lazy"
               draggable={false}
               className="aspect-[0.7071] w-full bg-raised object-cover"

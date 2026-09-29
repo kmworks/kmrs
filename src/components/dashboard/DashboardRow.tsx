@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react'
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { WarningCircle } from '@phosphor-icons/react'
 import type { Page } from '@/lib/api/types'
 import { HorizontalRow } from '@/components/media/HorizontalRow'
@@ -20,6 +21,7 @@ interface DashboardRowProps<T> {
 }
 
 export function DashboardRow<T>({ title, to, query, keyOf, renderItem, skeleton }: DashboardRowProps<T>) {
+  const { t } = useTranslation('dashboard')
   const cardWidth = useDensityCardWidth()
   if (query.isPending) {
     return (
@@ -43,9 +45,9 @@ export function DashboardRow<T>({ title, to, query, keyOf, renderItem, skeleton 
           className="flex w-full shrink-0 items-center gap-3 rounded-xl border border-line bg-surface px-4 py-5"
         >
           <WarningCircle className="size-5 shrink-0 text-danger" />
-          <p className="min-w-0 flex-1 text-sm text-ink-2">Could not load this section.</p>
+          <p className="min-w-0 flex-1 text-sm text-ink-2">{t('rowError')}</p>
           <Button size="sm" loading={query.isRefetching} onClick={() => void query.refetch()}>
-            Retry
+            {t('common:action.retry')}
           </Button>
         </div>
       </HorizontalRow>

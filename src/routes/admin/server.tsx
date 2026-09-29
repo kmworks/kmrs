@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { serverApi } from '@/lib/api/users'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatsGrid } from '@/components/admin/server/StatsGrid'
 import { ContentCounts } from '@/components/admin/server/ContentCounts'
@@ -11,19 +12,18 @@ import { SessionsPanel } from '@/components/admin/server/SessionsPanel'
 import { DangerZone } from '@/components/admin/server/DangerZone'
 
 export function AdminServerPage() {
+  const { t } = useTranslation('admin-settings')
   const { data: info } = useQuery({ queryKey: ['server-info'], queryFn: serverApi.info, staleTime: Infinity })
 
-  useEffect(() => {
-    document.title = 'Server · KMReader'
-  }, [])
+  useDocumentTitle(t('server.title'))
 
-  const subtitle = info?.build?.version
-    ? `kmrs ${info.build.version}${info.git?.commit?.id ? ` · commit ${info.git.commit.id}` : ''}`
-    : undefined
+  const version = info?.build?.version
+  const commit = info?.git?.commit?.id
+  const subtitle = version ? (commit ? t('server.subtitleWithCommit', { version, commit }) : t('server.subtitle', { version })) : undefined
 
   return (
     <div>
-      <PageHeader title="Server" subtitle={subtitle} />
+      <PageHeader title={t('server.title')} subtitle={subtitle} />
       <div className="space-y-6">
         <StatsGrid />
         <ContentCounts />

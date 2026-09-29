@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import i18n from '@/lib/i18n'
 import { useLibraryPrefs } from '@/lib/store/libraryPrefs'
 import type { SortOption, SortState } from './types'
 
@@ -18,8 +19,8 @@ export function serializeSort(s: SortState): string {
 
 export function sortLabel(options: SortOption[], property: string): string {
   const found = options.find((o) => o.property === property)
-  if (found) return found.label
-  return property === 'name' ? 'File name' : property
+  if (found) return i18n.t(found.labelKey)
+  return property === 'name' ? i18n.t('filters:sort.fileName') : property
 }
 
 /** name/number-like fields read naturally ascending; everything else (dates, counts) newest/largest first */

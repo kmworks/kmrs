@@ -1,15 +1,15 @@
-import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ApiKeysSection } from '@/components/account/ApiKeysSection'
 
 export function AccountApiKeysPage() {
-  useEffect(() => {
-    document.title = 'API keys · KMReader'
-  }, [])
+  const { t } = useTranslation('account')
+  useDocumentTitle(t('apiKeys.title'))
 
   return (
     <div className="max-w-3xl">
-      <PageHeader title="API keys" subtitle="Keys for third-party clients and sync" />
+      <PageHeader title={t('apiKeys.title')} subtitle={t('apiKeys.subtitle')} />
       <ApiKeysSection />
     </div>
   )

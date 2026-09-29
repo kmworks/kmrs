@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Book, Check } from '@phosphor-icons/react'
 import type { AuthorDto } from '@/lib/api/types'
 import { primaryAuthor } from '@/lib/utils/authors'
@@ -68,10 +69,11 @@ export function UnreadBadge({ count, className }: { count: number; className?: s
     series) followed by the primary author, so the line carries useful info instead
     of just the "Oneshot" label. Render as a fragment so the caller controls layout. */
 export function OneshotLine({ authors }: { authors: AuthorDto[] }) {
+  const { t } = useTranslation()
   return (
     <>
       <Book className="size-3 shrink-0" />
-      {primaryAuthor(authors)?.name ?? 'Oneshot'}
+      {primaryAuthor(authors)?.name ?? t('oneshot')}
     </>
   )
 }

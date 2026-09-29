@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { komfApi } from '@/lib/api/komf'
+import i18n from '@/lib/i18n'
 import type { KomfJobEvent } from '@/lib/api/types'
 import { showToast } from './toast'
 
@@ -148,12 +149,12 @@ async function runJob(jobId: string, signal: AbortSignal) {
   try {
     const job = await komfApi.getJob(jobId)
     const recorded = useKomfJobs.getState().jobs[jobId]?.failed ?? null
-    finishJob(jobId, job.status === 'FAILED' ? (job.message ?? recorded ?? 'Match failed') : null)
+    finishJob(jobId, job.status === 'FAILED' ? (job.message ?? recorded ?? i18n.t('metadata:identify.matchFailed')) : null)
   } catch {
     // komf no longer knows the job (e.g. after EventStreamNotFoundEvent): fall back
     // to whatever the stream told us
     const recorded = useKomfJobs.getState().jobs[jobId]?.failed ?? null
-    finishJob(jobId, recorded ?? 'Match failed')
+    finishJob(jobId, recorded ?? i18n.t('metadata:identify.matchFailed'))
   }
 }
 

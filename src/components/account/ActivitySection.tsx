@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { usersApi } from '@/lib/api/users'
 import { relativeTime } from '@/lib/utils/format'
@@ -11,6 +12,7 @@ import { Section } from './Section'
 const PAGE_SIZE = 20
 
 export function ActivitySection() {
+  const { t } = useTranslation('account')
   const [page, setPage] = useState(0)
   const query = useQuery({
     queryKey: ['account', 'activity', page],
@@ -19,7 +21,7 @@ export function ActivitySection() {
   })
 
   return (
-    <Section title="Login activity">
+    <Section title={t('security.activity.title')}>
       {query.isLoading && (
         <div className="flex flex-col gap-2.5">
           {Array.from({ length: 5 }, (_, i) => (
@@ -30,27 +32,27 @@ export function ActivitySection() {
       {query.isError && (
         <div className="flex items-center gap-3">
           <p className="text-sm text-danger">
-            {query.error instanceof Error ? query.error.message : 'Could not load login activity.'}
+            {query.error instanceof Error ? query.error.message : t('security.activity.failed')}
           </p>
           <Button size="sm" onClick={() => void query.refetch()}>
-            Try again
+            {t('common:action.retry')}
           </Button>
         </div>
       )}
       {query.data && (
         <>
           {query.data.content.length === 0 ? (
-            <p className="text-sm text-ink-3">No login activity yet.</p>
+            <p className="text-sm text-ink-3">{t('security.activity.empty')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="text-left text-xs text-ink-3">
-                    <th className="pb-2 pr-4 font-medium">When</th>
-                    <th className="pb-2 pr-4 font-medium">IP</th>
-                    <th className="pb-2 pr-4 font-medium">Source</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
-                    <th className="pb-2 font-medium">Agent</th>
+                    <th className="pb-2 pr-4 font-medium">{t('security.activity.when')}</th>
+                    <th className="pb-2 pr-4 font-medium">{t('security.activity.ip')}</th>
+                    <th className="pb-2 pr-4 font-medium">{t('security.activity.source')}</th>
+                    <th className="pb-2 pr-4 font-medium">{t('security.activity.status')}</th>
+                    <th className="pb-2 font-medium">{t('security.activity.agent')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -60,7 +62,7 @@ export function ActivitySection() {
                       <td className="py-2.5 pr-4 font-mono text-xs whitespace-nowrap text-ink-2">{a.ip || '-'}</td>
                       <td className="py-2.5 pr-4 whitespace-nowrap text-ink-2">{a.source || '-'}</td>
                       <td className={cn('py-2.5 pr-4 whitespace-nowrap', a.success ? 'text-ink-2' : 'text-danger')}>
-                        {a.success ? 'Success' : 'Failed'}
+                        {a.success ? t('security.activity.success') : t('security.activity.statusFailed')}
                       </td>
                       <td className="max-w-48 truncate py-2.5 text-ink-3" title={a.userAgent}>
                         {a.userAgent || '-'}
@@ -73,19 +75,19 @@ export function ActivitySection() {
           )}
           <div className="mt-4 flex items-center justify-between">
             <span className="font-mono text-xs text-ink-3">
-              Page {query.data.number + 1} of {Math.max(query.data.totalPages, 1)}
+              {t('security.activity.page', { current: query.data.number + 1, total: Math.max(query.data.totalPages, 1) })}
             </span>
             <div className="flex gap-2">
               <Button size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 0 || query.isFetching}>
                 <CaretLeft className="size-4" />
-                Previous
+                {t('security.activity.previous')}
               </Button>
               <Button
                 size="sm"
                 onClick={() => setPage((p) => p + 1)}
                 disabled={query.data.last || query.isFetching}
               >
-                Next
+                {t('security.activity.next')}
                 <CaretRight className="size-4" />
               </Button>
             </div>

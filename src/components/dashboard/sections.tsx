@@ -11,7 +11,8 @@ import { useDensityCardWidth } from '@/lib/store/ui'
 const PAGE_SIZE = 20
 
 export interface DashboardSectionDef {
-  title: string
+  /** dashboard-ns key, resolved with t() at the render site */
+  titleKey: string
   kind: 'book' | 'series'
   /** libraryIds undefined aggregates every library; callers must not pass an empty array */
   fetchPage: (libraryIds: string[] | undefined, page: number) => Promise<Page<BookDto | SeriesDto>>
@@ -22,7 +23,7 @@ export interface DashboardSectionDef {
 }
 
 interface BookSectionDef {
-  title: string
+  titleKey: string
   fetchPage: (libraryIds: string[] | undefined, page: number) => Promise<Page<BookDto>>
   renderRow: (book: BookDto) => ReactNode
   renderGrid: (book: BookDto) => ReactNode
@@ -30,7 +31,7 @@ interface BookSectionDef {
 }
 
 interface SeriesSectionDef {
-  title: string
+  titleKey: string
   fetchPage: (libraryIds: string[] | undefined, page: number) => Promise<Page<SeriesDto>>
   renderRow: (series: SeriesDto) => ReactNode
   renderGrid: (series: SeriesDto) => ReactNode
@@ -71,7 +72,7 @@ const seriesGrid = (s: SeriesDto) => <SeriesCard series={s} />
 
 export const DASHBOARD_SECTIONS = {
   'keep-reading': bookSection({
-    title: 'Keep Reading',
+    titleKey: 'sections.keepReading',
     fetchPage: (libraryIds, page) =>
       booksApi.list({
         search: {
@@ -88,14 +89,14 @@ export const DASHBOARD_SECTIONS = {
     renderSkeleton: () => <HorizontalCardSkeleton />,
   }),
   'on-deck': bookSection({
-    title: 'On Deck',
+    titleKey: 'sections.onDeck',
     fetchPage: (libraryIds, page) =>
       booksApi.ondeck({ libraryId: libraryIds, page, size: PAGE_SIZE }),
     renderRow: bookRow,
     renderGrid: bookGrid,
   }),
   'recently-released-books': bookSection({
-    title: 'Recently Released Books',
+    titleKey: 'sections.recentlyReleasedBooks',
     fetchPage: (libraryIds, page) =>
       booksApi.list({
         search: { condition: { allOf: [{ releaseDate: { operator: 'isNotNull' } }, ...libraryConditions(libraryIds)] } },
@@ -107,7 +108,7 @@ export const DASHBOARD_SECTIONS = {
     renderGrid: bookGrid,
   }),
   'recently-added-books': bookSection({
-    title: 'Recently Added Books',
+    titleKey: 'sections.recentlyAddedBooks',
     fetchPage: (libraryIds, page) =>
       libraryIds?.length
         ? booksApi.list({
@@ -121,21 +122,21 @@ export const DASHBOARD_SECTIONS = {
     renderGrid: bookGrid,
   }),
   'recently-added-series': seriesSection({
-    title: 'Recently Added Series',
+    titleKey: 'sections.recentlyAddedSeries',
     fetchPage: (libraryIds, page) =>
       seriesApi.new({ libraryId: libraryIds, page, size: PAGE_SIZE }),
     renderRow: seriesRow,
     renderGrid: seriesGrid,
   }),
   'recently-updated-series': seriesSection({
-    title: 'Recently Updated Series',
+    titleKey: 'sections.recentlyUpdatedSeries',
     fetchPage: (libraryIds, page) =>
       seriesApi.updated({ libraryId: libraryIds, page, size: PAGE_SIZE }),
     renderRow: seriesRow,
     renderGrid: seriesGrid,
   }),
   'recently-read': bookSection({
-    title: 'Recently Read',
+    titleKey: 'sections.recentlyRead',
     fetchPage: (libraryIds, page) =>
       booksApi.list({
         search: {

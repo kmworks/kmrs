@@ -1,34 +1,35 @@
+import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/ui/Dialog'
 
-const GROUPS: { title: string; rows: [string, string][] }[] = [
+const GROUPS: { titleKey: string; rows: [string, string][] }[] = [
   {
-    title: 'Navigation',
+    titleKey: 'shortcuts.navigation',
     rows: [
-      ['← / →', 'Turn page'],
-      ['↑ / ↓', 'Turn page (vertical)'],
-      ['Home / End', 'First / last page'],
-      ['Space / PgUp / PgDn', 'Scroll (webtoon)'],
+      ['← / →', 'shortcuts.turnPage'],
+      ['↑ / ↓', 'shortcuts.turnPageVertical'],
+      ['Home / End', 'shortcuts.firstLastPage'],
+      ['Space / PgUp / PgDn', 'shortcuts.scrollWebtoon'],
     ],
   },
   {
-    title: 'Settings',
+    titleKey: 'chrome.settings',
     rows: [
-      ['L / R / V / W', 'Reading direction'],
-      ['C', 'Cycle scale'],
-      ['D', 'Cycle page layout'],
-      ['P', 'Cycle side padding (webtoon)'],
-      ['N', 'Cycle page gap (webtoon)'],
-      ['F', 'Toggle fullscreen'],
+      ['L / R / V / W', 'shortcuts.readingDirection'],
+      ['C', 'shortcuts.cycleScale'],
+      ['D', 'shortcuts.cycleLayout'],
+      ['P', 'shortcuts.cyclePadding'],
+      ['N', 'shortcuts.cycleMargin'],
+      ['F', 'shortcuts.toggleFullscreen'],
     ],
   },
   {
-    title: 'Menus',
+    titleKey: 'shortcuts.menus',
     rows: [
-      ['M', 'Toggle toolbars'],
-      ['S', 'Settings'],
-      ['T', 'Thumbnails'],
-      ['H', 'This help'],
-      ['Esc', 'Close / exit'],
+      ['M', 'shortcuts.toggleToolbars'],
+      ['S', 'chrome.settings'],
+      ['T', 'shortcuts.thumbnails'],
+      ['H', 'shortcuts.thisHelp'],
+      ['Esc', 'shortcuts.closeExit'],
     ],
   },
 ]
@@ -39,16 +40,17 @@ interface ShortcutsHelpProps {
 }
 
 export function ShortcutsHelp({ open, onOpenChange }: ShortcutsHelpProps) {
+  const { t } = useTranslation('reader')
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Keyboard shortcuts" size="lg">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('shortcuts.title')} size="lg">
       <div className="grid gap-6 p-5 md:grid-cols-3">
         {GROUPS.map((group) => (
-          <section key={group.title}>
-            <h3 className="mb-2 text-[11px] font-medium tracking-wide text-ink-3 uppercase">{group.title}</h3>
+          <section key={group.titleKey}>
+            <h3 className="mb-2 text-[11px] font-medium tracking-wide text-ink-3 uppercase">{t(group.titleKey)}</h3>
             <div className="space-y-1">
-              {group.rows.map(([keys, description]) => (
-                <div key={description} className="flex items-center justify-between gap-3 py-1">
-                  <span className="text-[13px] text-ink-2">{description}</span>
+              {group.rows.map(([keys, descriptionKey]) => (
+                <div key={descriptionKey} className="flex items-center justify-between gap-3 py-1">
+                  <span className="text-[13px] text-ink-2">{t(descriptionKey)}</span>
                   <kbd className="rounded-md border border-line bg-raised px-1.5 py-0.5 font-mono text-[11px] whitespace-nowrap text-ink">
                     {keys}
                   </kbd>

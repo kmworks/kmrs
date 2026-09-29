@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Books, Plus, WarningCircle } from '@phosphor-icons/react'
 import { librariesApi } from '@/lib/api/libraries'
 import type { LibraryDto } from '@/lib/api/types'
-import { plural } from '@/lib/utils/format'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -15,13 +16,12 @@ import { LibraryDialog } from '@/components/admin/libraries/LibraryDialog'
 const GRID_STYLE = { gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }
 
 export function AdminLibrariesPage() {
+  const { t } = useTranslation('admin-maintenance')
   const [addOpen, setAddOpen] = useState(false)
   const [editing, setEditing] = useState<LibraryDto | null>(null)
   const [deleting, setDeleting] = useState<LibraryDto | null>(null)
 
-  useEffect(() => {
-    document.title = 'Libraries · KMReader'
-  }, [])
+  useDocumentTitle(t('layout:nav.libraries'))
 
   const q = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
   const libraries = q.data ?? []
@@ -29,16 +29,12 @@ export function AdminLibrariesPage() {
   return (
     <div>
       <PageHeader
-        title="Libraries"
-        subtitle={
-          q.data
-            ? `${plural(q.data.length, 'library', 'libraries')} · scan intervals, import sources and analysis options`
-            : undefined
-        }
+        title={t('layout:nav.libraries')}
+        subtitle={q.data ? t('libraries.subtitle', { count: q.data.length }) : undefined}
         actions={
           <Button variant="primary" onClick={() => setAddOpen(true)}>
             <Plus className="size-4" />
-            Add library
+            {t('libraries.add')}
           </Button>
         }
       />
@@ -51,19 +47,19 @@ export function AdminLibrariesPage() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load libraries"
-          body={q.error instanceof Error ? q.error.message : 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('libraries.loadError')}
+          body={q.error instanceof Error ? q.error.message : t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : libraries.length === 0 ? (
         <EmptyState
           icon={<Books />}
-          title="No libraries yet"
-          body="Add a library to start scanning your books."
+          title={t('layout:nav.noLibraries')}
+          body={t('libraries.emptyBody')}
           action={
             <Button variant="primary" onClick={() => setAddOpen(true)}>
               <Plus className="size-4" />
-              Add library
+              {t('libraries.add')}
             </Button>
           }
         />

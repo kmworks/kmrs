@@ -1,11 +1,12 @@
-import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ArrowSquareOut, GitCommit, Rocket, Tag, WarningCircle } from '@phosphor-icons/react'
 import { releasesApi } from '@/lib/api/releases'
 import { serverApi } from '@/lib/api/users'
 import type { ReleaseDto } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
 import { formatDate } from '@/lib/utils/format'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -27,6 +28,7 @@ function Badge({ children, tone }: { children: string; tone: 'current' | 'pre' }
 }
 
 function ReleaseCard({ release, isCurrent }: { release: ReleaseDto; isCurrent: boolean }) {
+  const { t, i18n } = useTranslation('admin-maintenance')
   return (
     <article className={cn('rounded-xl border bg-surface p-5', isCurrent ? 'border-accent/40' : 'border-line')}>
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -34,9 +36,9 @@ function ReleaseCard({ release, isCurrent }: { release: ReleaseDto; isCurrent: b
           <Tag className="size-4 text-ink-3" />
           {release.version}
         </h2>
-        {isCurrent && <Badge tone="current">Current</Badge>}
-        {release.preRelease && <Badge tone="pre">Pre-release</Badge>}
-        <time className="text-xs text-ink-3" dateTime={release.releaseDate} title={new Date(release.releaseDate).toLocaleString()}>
+        {isCurrent && <Badge tone="current">{t('updates.current')}</Badge>}
+        {release.preRelease && <Badge tone="pre">{t('updates.preRelease')}</Badge>}
+        <time className="text-xs text-ink-3" dateTime={release.releaseDate} title={new Date(release.releaseDate).toLocaleString(i18n.language)}>
           {formatDate(release.releaseDate)}
         </time>
         <a
@@ -55,12 +57,11 @@ function ReleaseCard({ release, isCurrent }: { release: ReleaseDto; isCurrent: b
 }
 
 export function AdminUpdatesPage() {
+  const { t } = useTranslation('admin-maintenance')
   const infoQuery = useQuery({ queryKey: ['server-info'], queryFn: serverApi.info, staleTime: Infinity })
   const q = useQuery({ queryKey: ['admin', 'releases'], queryFn: releasesApi.list })
 
-  useEffect(() => {
-    document.title = 'Updates · KMReader'
-  }, [])
+  useDocumentTitle(t('layout:nav.updates'))
 
   const currentVersion = infoQuery.data?.build?.version
   const commit = infoQuery.data?.git?.commit?.id
@@ -70,15 +71,15 @@ export function AdminUpdatesPage() {
 
   return (
     <div className="max-w-3xl">
-      <PageHeader title="Updates" subtitle="Server version and upstream releases" />
+      <PageHeader title={t('layout:nav.updates')} subtitle={t('updates.subtitle')} />
 
       <section className="mb-6 rounded-xl border border-line bg-surface p-5">
-        <h2 className="text-xs font-medium tracking-wide text-ink-3 uppercase">Running version</h2>
+        <h2 className="text-xs font-medium tracking-wide text-ink-3 uppercase">{t('updates.runningVersion')}</h2>
         {infoQuery.isPending ? (
           <Skeleton className="mt-3 h-7 w-40" />
         ) : (
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="text-xl font-semibold text-ink">{currentVersion ?? 'unknown'}</span>
+            <span className="text-xl font-semibold text-ink">{currentVersion ?? t('common:state.unknown')}</span>
             {commit && (
               <span className="inline-flex items-center gap-1.5 font-mono text-xs text-ink-3">
                 <GitCommit className="size-3.5" />
@@ -86,7 +87,7 @@ export function AdminUpdatesPage() {
               </span>
             )}
             {q.data && currentVersion && !releases.some((r) => r.version === currentVersion) && (
-              <Chip className="px-2 py-0.5 text-[11px]">not in release feed</Chip>
+              <Chip className="px-2 py-0.5 text-[11px]">{t('updates.notInFeed')}</Chip>
             )}
           </div>
         )}
@@ -101,12 +102,12 @@ export function AdminUpdatesPage() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load releases"
-          body={q.error instanceof Error ? q.error.message : 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('updates.loadError')}
+          body={q.error instanceof Error ? q.error.message : t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : sorted.length === 0 ? (
-        <EmptyState icon={<Rocket />} title="No releases found" body="The release feed returned nothing." />
+        <EmptyState icon={<Rocket />} title={t('updates.emptyTitle')} body={t('updates.emptyBody')} />
       ) : (
         <div className="flex flex-col gap-4">
           {sorted.map((r) => (

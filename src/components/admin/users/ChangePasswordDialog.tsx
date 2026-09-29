@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { Trans, useTranslation } from 'react-i18next'
 import { usersApi } from '@/lib/api/users'
 import type { UserDto } from '@/lib/api/types'
 import { Button } from '@/components/ui/Button'
@@ -7,6 +8,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
 
 export function ChangePasswordDialog({ user, onOpenChange }: { user: UserDto | null; onOpenChange: (open: boolean) => void }) {
+  const { t } = useTranslation('admin-users')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
 
@@ -41,16 +43,20 @@ export function ChangePasswordDialog({ user, onOpenChange }: { user: UserDto | n
       onOpenChange={(o) => {
         if (!o) close()
       }}
-      title="Change password"
+      title={t('account:security.password.title')}
       size="sm"
     >
       <form onSubmit={submit} className="flex flex-col gap-4 px-5 py-4">
         <p className="text-sm text-ink-3">
-          Set a new password for <span className="text-ink">{user?.email}</span>. All of their sessions will be signed
-          out.
+          <Trans
+            i18nKey="changePassword.body"
+            ns="admin-users"
+            values={{ email: user?.email ?? '' }}
+            components={{ email: <span className="text-ink" /> }}
+          />
         </p>
         <TextField
-          label="New password"
+          label={t('account:security.password.new')}
           type="password"
           autoComplete="new-password"
           required
@@ -58,25 +64,25 @@ export function ChangePasswordDialog({ user, onOpenChange }: { user: UserDto | n
           onChange={(e) => setPassword(e.target.value)}
         />
         <TextField
-          label="Confirm password"
+          label={t('account:security.password.confirm')}
           type="password"
           autoComplete="new-password"
           required
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          error={mismatch ? 'Passwords do not match.' : undefined}
+          error={mismatch ? t('account:security.password.mismatch') : undefined}
         />
         {mutation.isError && (
           <p className="text-sm text-danger">
-            {mutation.error instanceof Error ? mutation.error.message : 'Could not update the password.'}
+            {mutation.error instanceof Error ? mutation.error.message : t('account:security.password.failed')}
           </p>
         )}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={close}>
-            Cancel
+            {t('common:action.cancel')}
           </Button>
           <Button type="submit" variant="primary" loading={mutation.isPending} disabled={!password || password !== confirm}>
-            Update password
+            {t('account:security.password.submit')}
           </Button>
         </div>
       </form>

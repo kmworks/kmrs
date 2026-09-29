@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowsDownUp, ArrowUp, Check } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '@/components/ui/Menu'
@@ -11,6 +12,7 @@ interface SortMenuProps {
 }
 
 export function SortMenu({ options, value, onChange }: SortMenuProps) {
+  const { t } = useTranslation('filters')
   return (
     <Menu
       trigger={
@@ -25,7 +27,7 @@ export function SortMenu({ options, value, onChange }: SortMenuProps) {
         </Button>
       }
     >
-      <MenuLabel>Sort by</MenuLabel>
+      <MenuLabel>{t('sort.sortBy')}</MenuLabel>
       {options.map((o) => {
         const active = o.property === value.property
         return (
@@ -39,7 +41,7 @@ export function SortMenu({ options, value, onChange }: SortMenuProps) {
               })
             }
           >
-            <span className="flex-1">{o.label}</span>
+            <span className="flex-1">{t(o.labelKey)}</span>
             {active && <Check className="size-4 text-accent" />}
           </MenuItem>
         )
@@ -47,12 +49,12 @@ export function SortMenu({ options, value, onChange }: SortMenuProps) {
       <MenuSeparator />
       <MenuItem onSelect={() => onChange({ ...value, direction: 'asc' })}>
         <ArrowUp className="size-4" />
-        <span className="flex-1">Ascending</span>
+        <span className="flex-1">{t('sort.ascending')}</span>
         {value.direction === 'asc' && <Check className="size-4 text-accent" />}
       </MenuItem>
       <MenuItem onSelect={() => onChange({ ...value, direction: 'desc' })}>
         <ArrowDown className="size-4" />
-        <span className="flex-1">Descending</span>
+        <span className="flex-1">{t('sort.descending')}</span>
         {value.direction === 'desc' && <Check className="size-4 text-accent" />}
       </MenuItem>
     </Menu>

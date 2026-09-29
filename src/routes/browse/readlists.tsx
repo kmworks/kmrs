@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { BookmarkSimple, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HistoryBackButton } from '@/components/ui/BackButton'
@@ -13,14 +15,13 @@ import { ReadListCard } from '@/components/media/SeriesCard'
 import { Sentinel } from '@/components/filters/Sentinel'
 
 export function BrowseReadListsPage() {
+  const { t, i18n } = useTranslation('browse')
   const { libraryId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const qParam = searchParams.get('q') ?? ''
   const [text, setText] = useState(qParam)
 
-  useEffect(() => {
-    document.title = 'Read lists · KMReader'
-  }, [])
+  useDocumentTitle(t('readlists.title'))
 
   // external URL changes (back/forward, shared links) sync back into the input
   useEffect(() => {
@@ -63,11 +64,11 @@ export function BrowseReadListsPage() {
     <div>
       <HistoryBackButton to="/dashboard" className="mb-2 -ml-2" />
       <PageHeader
-        title="Read lists"
+        title={t('readlists.title')}
         subtitle={
           total !== undefined ? (
             <>
-              <span className="font-mono">{total.toLocaleString()}</span> read lists
+              <span className="font-mono">{total.toLocaleString(i18n.language)}</span> {t('readlists.count', { count: total })}
             </>
           ) : undefined
         }
@@ -79,7 +80,7 @@ export function BrowseReadListsPage() {
             type="search"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Search read lists…"
+            placeholder={t('readlists.searchPlaceholder')}
             className="h-9 w-full rounded-lg border border-line bg-surface pr-3 pl-9 text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
           />
         </div>
@@ -89,15 +90,15 @@ export function BrowseReadListsPage() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load read lists"
-          body={q.error?.message || 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('readlists.loadError')}
+          body={q.error?.message || t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<BookmarkSimple />}
-          title="No read lists yet"
-          body={qParam ? 'Try a different search.' : undefined}
+          title={t('readlists.empty')}
+          body={qParam ? t('tryDifferentSearch') : undefined}
         />
       ) : (
         <>

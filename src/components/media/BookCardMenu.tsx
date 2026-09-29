@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowCounterClockwise,
   Checks,
@@ -29,6 +30,7 @@ interface BookCardMenuProps {
 
 /** Book actions shared by horizontal and grid cards, plus the dialogs they open. */
 export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuProps) {
+  const { t } = useTranslation('media')
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const completed = book.readProgress?.completed ?? false
@@ -61,15 +63,15 @@ export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuP
         {navItem}
         {onSelect && (
           <MenuItem onSelect={onSelect}>
-            <CheckSquare className="size-4" /> Select
+            <CheckSquare className="size-4" /> {t('menu.select')}
           </MenuItem>
         )}
         <MenuItem onSelect={() => markMutation.mutate(!completed)}>
           {completed ? <ArrowCounterClockwise className="size-4" /> : <Checks className="size-4" />}
-          {completed ? 'Mark as unread' : 'Mark as read'}
+          {completed ? t('menu.markAsUnread') : t('menu.markAsRead')}
         </MenuItem>
         <MenuItem onSelect={() => setAddOpen(true)}>
-          <ListPlus className="size-4" /> Add to read list
+          <ListPlus className="size-4" /> {t('menu.addToReadList')}
         </MenuItem>
         {canDownload(user) && (
           <MenuItem
@@ -80,17 +82,17 @@ export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuP
               a.click()
             }}
           >
-            <DownloadSimple className="size-4" /> Download
+            <DownloadSimple className="size-4" /> {t('menu.download')}
           </MenuItem>
         )}
         {isAdmin(user) && (
           <>
             <MenuSeparator />
             <MenuItem onSelect={() => setEditOpen(true)}>
-              <PencilSimple className="size-4" /> Edit metadata
+              <PencilSimple className="size-4" /> {t('menu.editMetadata')}
             </MenuItem>
             <MenuItem danger onSelect={() => setDeleteOpen(true)}>
-              <Trash className="size-4" /> Delete file
+              <Trash className="size-4" /> {t('menu.deleteFile')}
             </MenuItem>
           </>
         )}
@@ -102,7 +104,7 @@ export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuP
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         count={1}
-        noun="book"
+        kind="book"
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
       />

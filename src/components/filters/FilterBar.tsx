@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next'
 import { Funnel, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
 import { describeActiveFilters, parseAuthor, type ActiveFilterItem } from './filterUrl'
@@ -6,7 +7,7 @@ import type { AuthorFilter, FilterGroupDef, FilterState, GroupKey, SortOption, S
 
 interface FilterBarProps {
   count?: number
-  noun: string
+  noun: 'books' | 'series'
   groups: FilterGroupDef[]
   state: FilterState
   activeCount: number
@@ -20,11 +21,12 @@ interface FilterBarProps {
 }
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const { t } = useTranslation('filters')
   return (
     <button
       type="button"
       onClick={onRemove}
-      title={`Remove filter: ${label}`}
+      title={t('chip.remove', { label })}
       className="inline-flex max-w-56 cursor-pointer items-center gap-1 rounded-full border border-line bg-raised px-2.5 py-1 text-xs text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
     >
       <span className="truncate">{label}</span>
@@ -47,6 +49,7 @@ export function FilterBar({
   sort,
   onSortChange,
 }: FilterBarProps) {
+  const { t } = useTranslation('filters')
   const items = describeActiveFilters(state, groups)
   const remove = (item: ActiveFilterItem) => {
     if (item.group === 'q') onClearQ()
@@ -58,9 +61,7 @@ export function FilterBar({
     <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
       <span className="text-xs text-ink-3">
         {count !== undefined && (
-          <>
-            <span className="font-mono">{count.toLocaleString()}</span> {noun}
-          </>
+          <Trans i18nKey={`filters:noun.${noun}`} count={count} components={{ num: <span className="font-mono" /> }} />
         )}
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
@@ -69,7 +70,7 @@ export function FilterBar({
         ))}
         <Button variant="secondary" size="sm" onClick={onOpenFilters}>
           <Funnel className="size-4" />
-          Filters
+          {t('title')}
           {activeCount > 0 && (
             <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-semibold text-accent-ink">
               {activeCount}

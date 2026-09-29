@@ -1,11 +1,11 @@
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ArrowRight, FileArrowUp, WarningCircle } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
 import type { BookDto, ReadListRequestMatchDto } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
-import { plural } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { TextField } from '@/components/ui/TextField'
@@ -65,22 +65,23 @@ function toCandidate(b: BookDto): Candidate {
   return { bookId: b.id, number: b.metadata.number, title: b.metadata.title || b.name, seriesTitle: b.seriesTitle }
 }
 
-const statusBadge: Record<RowStatus, { label: string; className: string }> = {
-  matched: { label: 'Matched', className: 'border-accent/40 bg-accent-soft text-accent-strong' },
-  ambiguous: { label: 'Multiple', className: 'border-line bg-raised text-ink-2' },
-  unmatched: { label: 'No match', className: 'border-danger/40 bg-danger/10 text-danger' },
+const statusClass: Record<RowStatus, string> = {
+  matched: 'border-accent/40 bg-accent-soft text-accent-strong',
+  ambiguous: 'border-line bg-raised text-ink-2',
+  unmatched: 'border-danger/40 bg-danger/10 text-danger',
 }
 
 function StatusBadge({ status }: { status: RowStatus }) {
-  const s = statusBadge[status]
+  const { t } = useTranslation('import')
   return (
-    <span className={cn('rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap', s.className)}>
-      {s.label}
+    <span className={cn('rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap', statusClass[status])}>
+      {t(`readlist.status.${status}`)}
     </span>
   )
 }
 
 export function ImportReadListPage() {
+  const { t } = useTranslation('import')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -145,7 +146,7 @@ export function ImportReadListPage() {
 
   return (
     <div>
-      <PageHeader title="Import read list" subtitle="Create a read list from a ComicRack .cbl file" />
+      <PageHeader title={t('readlist.title')} subtitle={t('readlist.subtitle')} />
 
       {!match ? (
         <div className="max-w-xl rounded-xl border border-line bg-surface px-5 py-6">
@@ -158,11 +159,11 @@ export function ImportReadListPage() {
           />
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-              <FileArrowUp className="size-4" /> Choose file
+              <FileArrowUp className="size-4" /> {t('readlist.chooseFile')}
             </Button>
-            <p className="min-w-0 flex-1 truncate text-sm text-ink-2">{file ? file.name : 'No file chosen'}</p>
+            <p className="min-w-0 flex-1 truncate text-sm text-ink-2">{file ? file.name : t('readlist.noFileChosen')}</p>
             <Button variant="primary" disabled={!file} loading={matchMutation.isPending} onClick={() => file && matchMutation.mutate(file)}>
-              Match against library
+              {t('readlist.match')}
             </Button>
           </div>
           {matchMutation.error && <p className="mt-4 text-sm text-danger">{matchMutation.error.message}</p>}
@@ -172,22 +173,22 @@ export function ImportReadListPage() {
           <div className="mb-5 rounded-xl border border-line bg-surface px-5 py-4">
             <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
               <TextField
-                label="Read list name"
+                label={t('readlist.nameLabel')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                error={nameConflict ? 'A read list with this name already exists' : undefined}
+                error={nameConflict ? t('readlist.nameConflict') : undefined}
                 className="w-72"
               />
               <p className="pb-2.5 text-sm text-ink-3">
-                <span className="text-accent-strong">{counts.matched} matched</span>
+                <span className="text-accent-strong">{t('readlist.summary.matched', { count: counts.matched })}</span>
                 {' · '}
-                <span className="text-ink-2">{counts.ambiguous} multiple</span>
+                <span className="text-ink-2">{t('readlist.summary.multiple', { count: counts.ambiguous })}</span>
                 {' · '}
-                <span className="text-danger">{counts.unmatched} no match</span>
+                <span className="text-danger">{t('readlist.summary.noMatch', { count: counts.unmatched })}</span>
               </p>
               <div className="ml-auto flex items-center gap-2 pb-0.5">
                 <Button variant="ghost" size="sm" onClick={reset}>
-                  Start over
+                  {t('readlist.startOver')}
                 </Button>
                 <Button
                   variant="primary"
@@ -196,12 +197,12 @@ export function ImportReadListPage() {
                   disabled={selectedIds.length === 0 || !name.trim() || nameConflict}
                   onClick={() => createMutation.mutate(selectedIds)}
                 >
-                  Create read list ({plural(selectedIds.length, 'book')})
+                  {t('readlist.create', { count: selectedIds.length })}
                 </Button>
               </div>
             </div>
             {(counts.ambiguous > 0 || counts.unmatched > 0) && (
-              <p className="mt-2 text-xs text-ink-3">Entries without a matched book are skipped.</p>
+              <p className="mt-2 text-xs text-ink-3">{t('readlist.skippedNote')}</p>
             )}
             {createMutation.error && <p className="mt-2 text-sm text-danger">{createMutation.error.message}</p>}
           </div>
@@ -215,26 +216,26 @@ export function ImportReadListPage() {
                 setPage(0)
               }}
               options={[
-                { value: 'ALL', label: `All (${rows.length})` },
-                { value: 'matched', label: `Matched (${counts.matched})` },
-                { value: 'ambiguous', label: `Multiple (${counts.ambiguous})` },
-                { value: 'unmatched', label: `No match (${counts.unmatched})` },
+                { value: 'ALL', label: t('readlist.filter.all', { count: rows.length }) },
+                { value: 'matched', label: t('readlist.filter.matched', { count: counts.matched }) },
+                { value: 'ambiguous', label: t('readlist.filter.multiple', { count: counts.ambiguous }) },
+                { value: 'unmatched', label: t('readlist.filter.noMatch', { count: counts.unmatched }) },
               ]}
             />
           </div>
 
           {pageRows.length === 0 ? (
-            <EmptyState icon={<WarningCircle />} title="Nothing here" body="No entries with this status." />
+            <EmptyState icon={<WarningCircle />} title={t('readlist.emptyTitle')} body={t('readlist.emptyBody')} />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-line bg-surface">
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="text-left text-xs text-ink-3">
                     <th className="px-4 py-2.5 font-medium">#</th>
-                    <th className="px-4 py-2.5 font-medium">Requested</th>
-                    <th className="px-4 py-2.5 font-medium">Matched book</th>
-                    <th className="px-4 py-2.5 font-medium">Status</th>
-                    <th className="px-4 py-2.5 text-right font-medium">Action</th>
+                    <th className="px-4 py-2.5 font-medium">{t('readlist.table.requested')}</th>
+                    <th className="px-4 py-2.5 font-medium">{t('readlist.table.matchedBook')}</th>
+                    <th className="px-4 py-2.5 font-medium">{t('readlist.table.status')}</th>
+                    <th className="px-4 py-2.5 text-right font-medium">{t('readlist.table.action')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -244,7 +245,7 @@ export function ImportReadListPage() {
                       <tr key={index} className="border-t border-line">
                         <td className="px-4 py-2.5 font-mono text-xs text-ink-3">{index + 1}</td>
                         <td className="max-w-64 px-4 py-2.5">
-                          <p className="truncate text-ink">{r.seriesCandidates.join(' / ') || 'Unknown series'}</p>
+                          <p className="truncate text-ink">{r.seriesCandidates.join(' / ') || t('readlist.unknownSeries')}</p>
                           <p className="text-xs text-ink-3">#{r.number}</p>
                         </td>
                         <td className="max-w-72 px-4 py-2.5">
@@ -252,7 +253,7 @@ export function ImportReadListPage() {
                             <div className="min-w-0">
                               <p className="truncate text-ink">
                                 {r.selected.title}
-                                {r.manual && <span className="ml-1.5 text-xs text-accent-strong">manual</span>}
+                                {r.manual && <span className="ml-1.5 text-xs text-accent-strong">{t('readlist.manual')}</span>}
                               </p>
                               <p className="truncate text-xs text-ink-3">
                                 {r.selected.seriesTitle} #{r.selected.number}
@@ -268,7 +269,7 @@ export function ImportReadListPage() {
                               className="h-8 w-full max-w-64 cursor-pointer rounded-lg border border-line bg-surface px-2 text-base text-ink focus:border-accent/70 focus:outline-none"
                             >
                               <option value="" disabled>
-                                Choose a book…
+                                {t('readlist.chooseBook')}
                               </option>
                               {r.candidates.map((c) => (
                                 <option key={c.bookId} value={c.bookId}>
@@ -277,7 +278,7 @@ export function ImportReadListPage() {
                               ))}
                             </select>
                           ) : (
-                            <span className="text-ink-3">No library match</span>
+                            <span className="text-ink-3">{t('readlist.noLibraryMatch')}</span>
                           )}
                         </td>
                         <td className="px-4 py-2.5">
@@ -285,7 +286,7 @@ export function ImportReadListPage() {
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           <Button variant="ghost" size="sm" onClick={() => setPickerRow(index)}>
-                            {r.selected ? 'Change' : 'Pick book'}
+                            {r.selected ? t('readlist.change') : t('readlist.pickBook')}
                           </Button>
                         </td>
                       </tr>
@@ -299,11 +300,11 @@ export function ImportReadListPage() {
           {pageCount > 1 && (
             <div className="mt-4 flex items-center justify-between">
               <p className="text-sm text-ink-3">
-                Page {safePage + 1} of {pageCount}
+                {t('readlist.pageInfo', { page: safePage + 1, pages: pageCount })}
               </p>
               <div className="flex gap-2">
                 <Button variant="secondary" size="sm" disabled={safePage === 0} onClick={() => setPage((p) => p - 1)}>
-                  <ArrowLeft className="size-4" /> Previous
+                  <ArrowLeft className="size-4" /> {t('readlist.previous')}
                 </Button>
                 <Button
                   variant="secondary"
@@ -311,7 +312,7 @@ export function ImportReadListPage() {
                   disabled={safePage >= pageCount - 1}
                   onClick={() => setPage((p) => p + 1)}
                 >
-                  Next <ArrowRight className="size-4" />
+                  {t('readlist.next')} <ArrowRight className="size-4" />
                 </Button>
               </div>
             </div>
@@ -322,10 +323,13 @@ export function ImportReadListPage() {
             onOpenChange={(open) => !open && setPickerRow(null)}
             title={
               pickerRow !== null
-                ? `Pick a book for ${rows[pickerRow].seriesCandidates.join(' / ') || 'entry'} #${rows[pickerRow].number}`
-                : 'Pick a book'
+                ? t('readlist.pickerTitle', {
+                    series: rows[pickerRow].seriesCandidates.join(' / ') || t('readlist.pickerEntry'),
+                    number: rows[pickerRow].number,
+                  })
+                : t('readlist.pickerTitleDefault')
             }
-            confirmLabel="Use this book"
+            confirmLabel={t('readlist.pickerConfirm')}
             mode="single"
             excludeIds={new Set(selectedIds)}
             onConfirm={(books) => {

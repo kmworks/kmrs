@@ -1,4 +1,5 @@
 import { api, ApiError } from './client'
+import i18n from '@/lib/i18n'
 import type {
   ActuatorInfo,
   ApiKeyDto,
@@ -28,7 +29,7 @@ export const usersApi = {
         Authorization: basicHeader(email, password),
       },
     })
-    if (res.status === 401) throw new ApiError(401, 'Invalid email or password')
+    if (res.status === 401) throw new ApiError(401, i18n.t('auth:invalidCredentials'))
     if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`)
     return (await res.json()) as UserDto
   },

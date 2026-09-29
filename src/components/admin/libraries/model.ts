@@ -130,68 +130,68 @@ export const RESCAN_PATCH_KEYS = [
 /** Newly enabling any of these queues background tasks for existing books. */
 export const BATCH_ENABLE_KEYS = ['hashFiles', 'hashPages', 'hashKoreader', 'repairExtensions', 'convertToCbz'] as const
 
-export const SCAN_INTERVAL_OPTIONS: { value: ScanInterval; label: string }[] = [
-  { value: 'DISABLED', label: 'Disabled' },
-  { value: 'HOURLY', label: 'Hourly' },
-  { value: 'EVERY_6H', label: 'Every 6h' },
-  { value: 'EVERY_12H', label: 'Every 12h' },
-  { value: 'DAILY', label: 'Daily' },
-  { value: 'WEEKLY', label: 'Weekly' },
+export const SCAN_INTERVAL_OPTIONS: { value: ScanInterval; labelKey: string }[] = [
+  { value: 'DISABLED', labelKey: 'admin-maintenance:libraries.scanInterval.disabled' },
+  { value: 'HOURLY', labelKey: 'admin-maintenance:libraries.scanInterval.hourly' },
+  { value: 'EVERY_6H', labelKey: 'admin-maintenance:libraries.scanInterval.every6h' },
+  { value: 'EVERY_12H', labelKey: 'admin-maintenance:libraries.scanInterval.every12h' },
+  { value: 'DAILY', labelKey: 'admin-maintenance:libraries.scanInterval.daily' },
+  { value: 'WEEKLY', labelKey: 'admin-maintenance:libraries.scanInterval.weekly' },
 ]
 
-export const SERIES_COVER_OPTIONS: { value: SeriesCover; label: string }[] = [
-  { value: 'FIRST', label: 'First' },
-  { value: 'FIRST_UNREAD_OR_FIRST', label: 'First unread or first' },
-  { value: 'FIRST_UNREAD_OR_LAST', label: 'First unread or last' },
-  { value: 'LAST', label: 'Last' },
+export const SERIES_COVER_OPTIONS: { value: SeriesCover; labelKey: string }[] = [
+  { value: 'FIRST', labelKey: 'admin-maintenance:libraries.seriesCoverOption.first' },
+  { value: 'FIRST_UNREAD_OR_FIRST', labelKey: 'admin-maintenance:libraries.seriesCoverOption.firstUnreadOrFirst' },
+  { value: 'FIRST_UNREAD_OR_LAST', labelKey: 'admin-maintenance:libraries.seriesCoverOption.firstUnreadOrLast' },
+  { value: 'LAST', labelKey: 'admin-maintenance:libraries.seriesCoverOption.last' },
 ]
 
-export function scanIntervalBadge(interval: ScanInterval): string | null {
+export function scanIntervalBadgeKey(interval: ScanInterval): string | null {
   switch (interval) {
     case 'DISABLED':
       return null
     case 'HOURLY':
-      return 'Hourly'
+      return 'admin-maintenance:libraries.scanInterval.hourly'
     case 'EVERY_6H':
-      return 'Every 6h'
+      return 'admin-maintenance:libraries.scanInterval.every6h'
     case 'EVERY_12H':
-      return 'Every 12h'
+      return 'admin-maintenance:libraries.scanInterval.every12h'
     case 'DAILY':
-      return 'Daily'
+      return 'admin-maintenance:libraries.scanInterval.daily'
     case 'WEEKLY':
-      return 'Weekly'
+      return 'admin-maintenance:libraries.scanInterval.weekly'
   }
 }
 
-export const SCAN_SWITCH_FIELDS: { key: BoolKey; label: string }[] = [
-  { key: 'scanOnStartup', label: 'Scan on startup' },
-  { key: 'scanForceModifiedTime', label: 'Force modified time' },
-  { key: 'scanCbx', label: 'Scan CBX/CBR' },
-  { key: 'scanPdf', label: 'Scan PDF' },
-  { key: 'scanEpub', label: 'Scan EPUB' },
+export const SCAN_SWITCH_FIELDS: { key: BoolKey; labelKey: string }[] = [
+  { key: 'scanOnStartup', labelKey: 'admin-maintenance:libraries.scan.onStartup' },
+  { key: 'scanForceModifiedTime', labelKey: 'admin-maintenance:libraries.scan.forceModifiedTime' },
+  { key: 'scanCbx', labelKey: 'admin-maintenance:libraries.scan.cbx' },
+  { key: 'scanPdf', labelKey: 'admin-maintenance:libraries.scan.pdf' },
+  { key: 'scanEpub', labelKey: 'admin-maintenance:libraries.scan.epub' },
 ]
 
-export const IMPORT_FIELDS: { key: BoolKey; label: string }[] = [
-  { key: 'importComicInfoBook', label: 'ComicInfo book' },
-  { key: 'importComicInfoSeries', label: 'ComicInfo series' },
-  { key: 'importComicInfoCollection', label: 'ComicInfo collection' },
-  { key: 'importComicInfoReadList', label: 'ComicInfo read list' },
-  { key: 'importComicInfoSeriesAppendVolume', label: 'ComicInfo series append volume' },
-  { key: 'importEpubBook', label: 'EPUB book' },
-  { key: 'importEpubSeries', label: 'EPUB series' },
-  { key: 'importMylarSeries', label: 'Mylar series' },
-  { key: 'importLocalArtwork', label: 'Local artwork' },
-  { key: 'importBarcodeIsbn', label: 'Barcode ISBN' },
+export const IMPORT_FIELDS: { key: BoolKey; labelKey: string }[] = [
+  { key: 'importComicInfoBook', labelKey: 'admin-maintenance:libraries.import.comicInfoBook' },
+  { key: 'importComicInfoSeries', labelKey: 'admin-maintenance:libraries.import.comicInfoSeries' },
+  { key: 'importComicInfoCollection', labelKey: 'admin-maintenance:libraries.import.comicInfoCollection' },
+  { key: 'importComicInfoReadList', labelKey: 'admin-maintenance:libraries.import.comicInfoReadList' },
+  { key: 'importComicInfoSeriesAppendVolume', labelKey: 'admin-maintenance:libraries.import.comicInfoSeriesAppendVolume' },
+  { key: 'importEpubBook', labelKey: 'admin-maintenance:libraries.import.epubBook' },
+  { key: 'importEpubSeries', labelKey: 'admin-maintenance:libraries.import.epubSeries' },
+  { key: 'importMylarSeries', labelKey: 'admin-maintenance:libraries.import.mylarSeries' },
+  { key: 'importLocalArtwork', labelKey: 'admin-maintenance:libraries.import.localArtwork' },
+  { key: 'importBarcodeIsbn', labelKey: 'admin-maintenance:libraries.import.barcodeIsbn' },
 ]
 
-export const ANALYSIS_FIELDS: { key: BoolKey; label: string }[] = [
-  { key: 'hashFiles', label: 'Hash files' },
-  { key: 'hashPages', label: 'Hash pages' },
-  { key: 'hashKoreader', label: 'Hash Koreader position' },
-  { key: 'analyzeDimensions', label: 'Analyze dimensions' },
-  { key: 'repairExtensions', label: 'Repair extensions' },
-  { key: 'convertToCbz', label: 'Convert to CBZ' },
-  { key: 'emptyTrashAfterScan', label: 'Empty trash after scan' },
+export const ANALYSIS_FIELDS: { key: BoolKey; labelKey: string }[] = [
+  { key: 'hashFiles', labelKey: 'admin-maintenance:libraries.analysis.hashFiles' },
+  { key: 'hashPages', labelKey: 'admin-maintenance:libraries.analysis.hashPages' },
+  { key: 'hashKoreader', labelKey: 'admin-maintenance:libraries.analysis.hashKoreader' },
+  { key: 'analyzeDimensions', labelKey: 'admin-maintenance:libraries.analysis.analyzeDimensions' },
+  { key: 'repairExtensions', labelKey: 'admin-maintenance:libraries.analysis.repairExtensions' },
+  { key: 'convertToCbz', labelKey: 'admin-maintenance:libraries.analysis.convertToCbz' },
+  { key: 'emptyTrashAfterScan', labelKey: 'admin-maintenance:libraries.analysis.emptyTrashAfterScan' },
 ]
 
 export interface Violation {

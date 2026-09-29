@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import { X } from '@phosphor-icons/react'
 import type { ReadingDirection } from '@/lib/api/types'
 import {
@@ -16,37 +17,37 @@ import { Slider } from '@/components/ui/Slider'
 import { Switch } from '@/components/ui/Switch'
 import { cn } from '@/lib/utils/cn'
 
-const DIRECTION_OPTIONS: { value: ReadingDirection; label: string }[] = [
-  { value: 'LEFT_TO_RIGHT', label: 'LTR' },
-  { value: 'RIGHT_TO_LEFT', label: 'RTL' },
-  { value: 'VERTICAL', label: 'Vertical' },
-  { value: 'WEBTOON', label: 'Webtoon' },
-]
+const SCALE_LABEL_KEYS: Record<ScaleType, string> = {
+  SCREEN: 'scale.screen',
+  WIDTH: 'scale.width',
+  WIDTH_SHRINK_ONLY: 'scale.shrink',
+  HEIGHT: 'scale.height',
+  ORIGINAL: 'scale.original',
+}
 
-const PAGED_SCALE_OPTIONS: { value: ScaleType; label: string }[] = [
-  { value: 'SCREEN', label: 'Screen' },
-  { value: 'WIDTH', label: 'Width' },
-  { value: 'WIDTH_SHRINK_ONLY', label: 'Shrink' },
-  { value: 'HEIGHT', label: 'Height' },
-  { value: 'ORIGINAL', label: 'Original' },
-]
+const LAYOUT_LABEL_KEYS: Record<PagedReaderLayout, string> = {
+  SINGLE_PAGE: 'layout.single',
+  DOUBLE_PAGES: 'layout.double',
+  DOUBLE_NO_COVER: 'layout.doubleNoCover',
+}
 
-const CONTINUOUS_SCALE_OPTIONS: { value: ContinuousScaleType; label: string }[] = [
-  { value: 'WIDTH', label: 'Fit width' },
-  { value: 'ORIGINAL', label: 'Original' },
-]
+const DIRECTION_LABEL_KEYS: Record<ReadingDirection, string> = {
+  LEFT_TO_RIGHT: 'common:readingDirection.leftToRight',
+  RIGHT_TO_LEFT: 'common:readingDirection.rightToLeft',
+  VERTICAL: 'common:readingDirection.vertical',
+  WEBTOON: 'common:readingDirection.webtoon',
+}
 
-const LAYOUT_OPTIONS: { value: PagedReaderLayout; label: string }[] = [
-  { value: 'SINGLE_PAGE', label: 'Single' },
-  { value: 'DOUBLE_PAGES', label: 'Double' },
-  { value: 'DOUBLE_NO_COVER', label: 'No cover' },
-]
+const BACKGROUND_LABEL_KEYS: Record<ReaderBackground, string> = {
+  BLACK: 'background.black',
+  GRAY: 'background.gray',
+  WHITE: 'background.white',
+}
 
-const BACKGROUNDS: { value: ReaderBackground; label: string }[] = [
-  { value: 'BLACK', label: 'Black' },
-  { value: 'GRAY', label: 'Gray' },
-  { value: 'WHITE', label: 'White' },
-]
+const PAGED_SCALE_VALUES: ScaleType[] = ['SCREEN', 'WIDTH', 'WIDTH_SHRINK_ONLY', 'HEIGHT', 'ORIGINAL']
+const CONTINUOUS_SCALE_VALUES: ContinuousScaleType[] = ['WIDTH', 'ORIGINAL']
+const LAYOUT_VALUES: PagedReaderLayout[] = ['SINGLE_PAGE', 'DOUBLE_PAGES', 'DOUBLE_NO_COVER']
+const BACKGROUND_VALUES: ReaderBackground[] = ['BLACK', 'GRAY', 'WHITE']
 
 interface SettingsPanelProps {
   open: boolean
@@ -92,8 +93,20 @@ export function SettingsPanel({
   const background = useReaderSettings((s) => s.background)
   const update = useReaderSettings((s) => s.update)
   const reduceMotion = useReducedMotion()
+  const { t } = useTranslation('reader')
 
   const webtoon = direction === 'WEBTOON'
+
+  const directionOptions = (Object.keys(DIRECTION_LABEL_KEYS) as ReadingDirection[]).map((value) => ({
+    value,
+    label: t(DIRECTION_LABEL_KEYS[value]),
+  }))
+  const pagedScaleOptions = PAGED_SCALE_VALUES.map((value) => ({ value, label: t(SCALE_LABEL_KEYS[value]) }))
+  const continuousScaleOptions = CONTINUOUS_SCALE_VALUES.map((value) => ({
+    value,
+    label: t(SCALE_LABEL_KEYS[value]),
+  }))
+  const layoutOptions = LAYOUT_VALUES.map((value) => ({ value, label: t(LAYOUT_LABEL_KEYS[value]) }))
 
   return (
     <AnimatePresence>
@@ -111,7 +124,7 @@ export function SettingsPanel({
           <motion.aside
             key="panel"
             role="dialog"
-            aria-label="Reader settings"
+            aria-label={t('panel.title')}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
@@ -119,9 +132,9 @@ export function SettingsPanel({
             className="fixed top-0 right-0 z-30 flex h-full w-80 max-w-[85vw] flex-col border-l border-white/10 bg-black/85 text-white backdrop-blur-md"
           >
             <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
-              <h2 className="text-[15px] font-semibold">Reader settings</h2>
+              <h2 className="text-[15px] font-semibold">{t('panel.title')}</h2>
               <IconButton
-                label="Close settings"
+                label={t('panel.close')}
                 className="text-white/80 hover:bg-white/10 hover:text-white"
                 onClick={onClose}
               >
@@ -130,9 +143,9 @@ export function SettingsPanel({
             </div>
 
             <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-4">
-              <Section title="Reading direction">
+              <Section title={t('panel.direction')}>
                 <SegmentedControl
-                  options={DIRECTION_OPTIONS}
+                  options={directionOptions}
                   value={direction}
                   onChange={onDirectionChange}
                   size="sm"
@@ -140,17 +153,17 @@ export function SettingsPanel({
                 />
               </Section>
 
-              <Section title="Scale">
+              <Section title={t('panel.scale')}>
                 {webtoon ? (
                   <SegmentedControl
-                    options={CONTINUOUS_SCALE_OPTIONS}
+                    options={continuousScaleOptions}
                     value={continuousScale}
                     onChange={(v) => update({ continuousScale: v })}
                     size="sm"
                   />
                 ) : (
                   <SegmentedControl
-                    options={PAGED_SCALE_OPTIONS}
+                    options={pagedScaleOptions}
                     value={scale}
                     onChange={(v) => update({ scale: v })}
                     size="sm"
@@ -160,9 +173,9 @@ export function SettingsPanel({
               </Section>
 
               {!webtoon && (
-                <Section title="Page layout">
+                <Section title={t('panel.layout')}>
                   <SegmentedControl
-                    options={LAYOUT_OPTIONS}
+                    options={layoutOptions}
                     value={pageLayout}
                     onChange={(v) => update({ pageLayout: v })}
                     size="sm"
@@ -170,56 +183,56 @@ export function SettingsPanel({
                 </Section>
               )}
 
-              <Section title="Background">
+              <Section title={t('panel.background')}>
                 <div className="flex gap-4">
-                  {BACKGROUNDS.map((b) => (
+                  {BACKGROUND_VALUES.map((value) => (
                     <button
-                      key={b.value}
+                      key={value}
                       type="button"
-                      onClick={() => update({ background: b.value })}
+                      onClick={() => update({ background: value })}
                       className="flex cursor-pointer flex-col items-center gap-1.5 text-[11px] text-white/60"
                     >
                       <span
                         className={cn(
                           'size-8 rounded-full border',
-                          background === b.value ? 'border-accent ring-2 ring-accent/40' : 'border-white/25',
+                          background === value ? 'border-accent ring-2 ring-accent/40' : 'border-white/25',
                         )}
-                        style={{ background: READER_BACKGROUNDS[b.value] }}
+                        style={{ background: READER_BACKGROUNDS[value] }}
                       />
-                      {b.label}
+                      {t(BACKGROUND_LABEL_KEYS[value])}
                     </button>
                   ))}
                 </div>
               </Section>
 
-              <Section title="Behavior">
+              <Section title={t('panel.behavior')}>
                 <div className="space-y-3">
-                  <Row label="Swipe gestures">
-                    <Switch checked={swipe} onCheckedChange={(v) => update({ swipe: v })} label="Swipe gestures" />
+                  <Row label={t('panel.swipe')}>
+                    <Switch checked={swipe} onCheckedChange={(v) => update({ swipe: v })} label={t('panel.swipe')} />
                   </Row>
-                  <Row label="Page turn animation">
+                  <Row label={t('panel.animations')}>
                     <Switch
                       checked={animations}
                       onCheckedChange={(v) => update({ animations: v })}
-                      label="Page turn animation"
+                      label={t('panel.animations')}
                     />
                   </Row>
-                  <Row label="Always fullscreen">
+                  <Row label={t('panel.alwaysFullscreen')}>
                     <Switch
                       checked={alwaysFullscreen}
                       onCheckedChange={onAlwaysFullscreenChange}
-                      label="Always fullscreen"
+                      label={t('panel.alwaysFullscreen')}
                     />
                   </Row>
                 </div>
               </Section>
 
               {webtoon && (
-                <Section title="Webtoon">
+                <Section title={t('common:readingDirection.webtoon')}>
                   <div className="space-y-4">
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-[13px] text-white/80">
-                        <span>Side padding</span>
+                        <span>{t('panel.sidePadding')}</span>
                         <span className="font-mono text-xs text-white/50">{continuousPadding}%</span>
                       </div>
                       <Slider
@@ -228,12 +241,12 @@ export function SettingsPanel({
                         min={0}
                         max={40}
                         step={5}
-                        label="Side padding"
+                        label={t('panel.sidePadding')}
                       />
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-[13px] text-white/80">
-                        <span>Page gap</span>
+                        <span>{t('panel.pageGap')}</span>
                         <span className="font-mono text-xs text-white/50">{continuousMargin}px</span>
                       </div>
                       <Slider
@@ -242,7 +255,7 @@ export function SettingsPanel({
                         min={0}
                         max={15}
                         step={5}
-                        label="Page gap"
+                        label={t('panel.pageGap')}
                       />
                     </div>
                   </div>

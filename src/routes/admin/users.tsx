@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { UserPlus } from '@phosphor-icons/react'
 import { usersApi } from '@/lib/api/users'
 import type { UserDto } from '@/lib/api/types'
 import { useAuthStore } from '@/lib/store/auth'
-import { plural } from '@/lib/utils/format'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ActivitySection } from '@/components/admin/users/ActivitySection'
@@ -21,29 +22,24 @@ type DialogState =
   | null
 
 export function AdminUsersPage() {
+  const { t } = useTranslation('admin-users')
   const me = useAuthStore((s) => s.user)
   const usersQuery = useQuery({ queryKey: ['admin', 'users'], queryFn: usersApi.list })
   const [dialog, setDialog] = useState<DialogState>(null)
 
-  useEffect(() => {
-    document.title = 'Users · KMReader'
-  }, [])
+  useDocumentTitle(t('title'))
 
   const users = usersQuery.data
 
   return (
     <div className="max-w-5xl">
       <PageHeader
-        title="Users"
-        subtitle={
-          users
-            ? `${plural(users.length, 'user')} · roles, library access and content restrictions`
-            : 'Roles, library access and content restrictions'
-        }
+        title={t('title')}
+        subtitle={users ? t('subtitle', { count: users.length }) : t('subtitleEmpty')}
         actions={
           <Button variant="primary" onClick={() => setDialog({ kind: 'add' })}>
             <UserPlus className="size-4" />
-            Add user
+            {t('addUser')}
           </Button>
         }
       />

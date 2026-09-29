@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Books, WarningCircle } from '@phosphor-icons/react'
 import { librariesApi } from '@/lib/api/libraries'
 import { seriesApi } from '@/lib/api/series'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HistoryBackButton } from '@/components/ui/BackButton'
@@ -24,14 +26,13 @@ import { AlphabetBar } from '@/components/browse/AlphabetBar'
 import { SeriesSelectionBar } from '@/components/browse/SeriesSelectionBar'
 
 export function BrowseSeriesPage() {
+  const { t } = useTranslation('browse')
   const { libraryId } = useParams()
   const { data: libraries } = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
   const library = libraries?.find((l) => l.id === libraryId)
-  const title = libraryId ? (library?.name ?? 'Library') : 'All series'
+  const title = libraryId ? (library?.name ?? t('libraryFallback')) : t('series.all')
 
-  useEffect(() => {
-    document.title = `${title} · KMReader`
-  }, [title])
+  useDocumentTitle(title)
 
   const filters = useBrowseFilters()
   const sort = useSortState(`series:${libraryId ?? 'all'}`, SERIES_DEFAULT_SORT)
@@ -106,12 +107,12 @@ export function BrowseSeriesPage() {
       ) : q.isError ? (
         <EmptyState
           icon={<WarningCircle />}
-          title="Couldn't load series"
-          body={q.error?.message || 'Something went wrong.'}
-          action={<Button onClick={() => q.refetch()}>Retry</Button>}
+          title={t('series.loadError')}
+          body={q.error?.message || t('errorFallback')}
+          action={<Button onClick={() => q.refetch()}>{t('common:action.retry')}</Button>}
         />
       ) : items.length === 0 ? (
-        <EmptyState icon={<Books />} title="No series found" body="Try adjusting your filters." />
+        <EmptyState icon={<Books />} title={t('series.empty')} body={t('emptyFilterHint')} />
       ) : (
         <>
           <MediaGrid>

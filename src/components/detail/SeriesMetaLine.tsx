@@ -13,7 +13,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react'
 import type { SeriesMetadataDto } from '@/lib/api/types'
-import { readingDirectionLabel, seriesStatusLabel } from '@/lib/utils/format'
+import { readingDirectionLabel, seriesStatusLabel, languageDisplayName } from '@/lib/utils/format'
 import { cn } from '@/lib/utils/cn'
 
 const iconCls = 'size-3.5 text-ink-3'
@@ -62,7 +62,7 @@ export function SeriesMetaLine({ md, className }: { md: SeriesMetadataDto; class
   if (status) items.push({ key: 'status', label: status, icon: seriesStatusIcon(md.status), to: `/series?seriesStatus=${md.status}` })
   if (md.ageRating != null) items.push({ key: 'age', label: `${md.ageRating}+`, to: `/series?ageRatings=${md.ageRating}` })
   if (md.language)
-    items.push({ key: 'language', label: md.language, icon: <Globe className={iconCls} />, to: `/series?languages=${encodeURIComponent(md.language)}` })
+    items.push({ key: 'language', label: languageDisplayName(md.language), icon: <Globe className={iconCls} />, to: `/series?languages=${encodeURIComponent(md.language)}` })
   const direction = readingDirectionLabel(md.readingDirection)
   if (direction) items.push({ key: 'direction', label: direction, icon: readingDirectionIcon(md.readingDirection) })
   if (items.length === 0) return null

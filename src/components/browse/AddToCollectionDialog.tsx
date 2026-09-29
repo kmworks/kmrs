@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Plus } from '@phosphor-icons/react'
 import { collectionsApi } from '@/lib/api/collections'
-import { plural } from '@/lib/utils/format'
 import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
 import { Button } from '@/components/ui/Button'
@@ -17,6 +17,7 @@ interface AddToCollectionDialogProps {
 }
 
 export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }: AddToCollectionDialogProps) {
+  const { t } = useTranslation('browse')
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [newName, setNewName] = useState('')
@@ -51,18 +52,18 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
     },
     onSuccess: (name) => {
       queryClient.invalidateQueries({ queryKey: ['collections'] })
-      finish(true, `Added to "${name}"`)
+      finish(true, t('addToCollection.added', { name }))
     },
-    onError: (e) => finish(false, e instanceof Error ? e.message : 'Could not add to collection'),
+    onError: (e) => finish(false, e instanceof Error ? e.message : t('addToCollection.addFailed')),
   })
 
   const createMutation = useMutation({
     mutationFn: () => collectionsApi.create({ name: newName.trim(), ordered: false, seriesIds }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['collections'] })
-      finish(true, `Created "${created.name}"`)
+      finish(true, t('addToCollection.created', { name: created.name }))
     },
-    onError: (e) => finish(false, e instanceof Error ? e.message : 'Could not create collection'),
+    onError: (e) => finish(false, e instanceof Error ? e.message : t('addToCollection.createFailed')),
   })
 
   const collections = useMemo(() => listQuery.data?.content ?? [], [listQuery.data])
@@ -75,13 +76,13 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
   const creatingOpen = creating || (listQuery.isSuccess && collections.length === 0)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={`Add ${plural(seriesIds.length, 'series', 'series')} to collection`} size="sm">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('addToCollection.title', { count: seriesIds.length })} size="sm">
       <div className="px-5 pt-4">
         <input
           type="search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter collections…"
+          placeholder={t('addToCollection.filterPlaceholder')}
           className="h-9 w-full rounded-lg border border-line bg-surface px-3 text-base text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
         />
       </div>
@@ -94,14 +95,14 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
           </div>
         ) : listQuery.isError ? (
           <p className="px-5 py-3 text-sm text-ink-3">
-            Couldn't load collections.{' '}
+            {t('collections.loadError')}{' '}
             <button type="button" onClick={() => listQuery.refetch()} className="cursor-pointer text-accent-strong hover:underline">
-              Retry
+              {t('common:action.retry')}
             </button>
           </p>
         ) : visible.length === 0 ? (
           <p className="px-5 py-3 text-sm text-ink-3">
-            {collections.length === 0 ? 'No collections yet' : 'No matching collections'}
+            {collections.length === 0 ? t('collections.empty') : t('addToCollection.noMatch')}
           </p>
         ) : (
           visible.map((c) => (
@@ -114,7 +115,7 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm text-ink">{c.name}</span>
-                <span className="block text-xs text-ink-3">{plural(c.seriesIds.length, 'series', 'series')}</span>
+                <span className="block text-xs text-ink-3">{t('seriesCount', { count: c.seriesIds.length })}</span>
               </span>
               <Plus className="size-4 shrink-0 text-ink-3" />
             </button>
@@ -131,19 +132,19 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
             className="flex items-end gap-2"
           >
             <TextField
-              label="New collection"
+              label={t('addToCollection.newLabel')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Name"
+              placeholder={t('namePlaceholder')}
               className="flex-1"
               autoFocus
             />
             <Button type="submit" variant="primary" loading={createMutation.isPending} disabled={!newName.trim() || pending}>
-              Create
+              {t('common:action.create')}
             </Button>
             {collections.length > 0 && (
               <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
-                Cancel
+                {t('common:action.cancel')}
               </Button>
             )}
           </form>
@@ -154,7 +155,7 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
             className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-2 transition-colors hover:bg-raised hover:text-ink"
           >
             <Plus className="size-4" />
-            New collection
+            {t('addToCollection.newLabel')}
           </button>
         )}
       </div>

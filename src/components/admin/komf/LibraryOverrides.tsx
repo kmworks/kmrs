@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CaretRight, Plus } from '@phosphor-icons/react'
 import type { KomfConfig, LibraryDto } from '@/lib/api/types'
 import { Button } from '@/components/ui/Button'
@@ -42,14 +43,15 @@ function LibraryOverrideDialog({
   onProcessingChange,
   onProvidersChange,
 }: LibraryOverrideDialogProps) {
+  const { t } = useTranslation('admin-komf')
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={library.name} size="lg">
       <div className="px-5 py-4">
-        <FormRow label="Override metadata update" helper="Off inherits the global metadata update settings.">
+        <FormRow label={t('overrides.overrideProcessing')} helper={t('overrides.overrideProcessingHelper')}>
           <Switch
             checked={!!processing}
             onCheckedChange={(on) => onProcessingChange(on ? processingSeed : undefined)}
-            label={`Override metadata update for ${library.name}`}
+            label={t('overrides.overrideProcessingFor', { name: library.name })}
           />
         </FormRow>
         {processing && (
@@ -57,11 +59,11 @@ function LibraryOverrideDialog({
             <ProcessingFields value={processing} onChange={onProcessingChange} />
           </div>
         )}
-        <FormRow label="Override providers" helper="Off inherits the global provider settings.">
+        <FormRow label={t('overrides.overrideProviders')} helper={t('overrides.overrideProvidersHelper')}>
           <Switch
             checked={!!providers}
             onCheckedChange={(on) => onProvidersChange(on ? providersSeed : undefined)}
-            label={`Override providers for ${library.name}`}
+            label={t('overrides.overrideProvidersFor', { name: library.name })}
           />
         </FormRow>
         {providers && (
@@ -71,11 +73,9 @@ function LibraryOverrideDialog({
         )}
       </div>
       <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3.5">
-        <p className="text-xs text-ink-3">
-          Changes join the page&apos;s unsaved changes — save from the bar at the bottom.
-        </p>
+        <p className="text-xs text-ink-3">{t('overrides.dialogFooter')}</p>
         <Button variant="primary" className="shrink-0" onClick={() => onOpenChange(false)}>
-          Done
+          {t('common:action.done')}
         </Button>
       </div>
     </Dialog>
@@ -102,6 +102,7 @@ export function LibraryOverrides({
   onProcessingChange,
   onProvidersChange,
 }: LibraryOverridesProps) {
+  const { t } = useTranslation('admin-komf')
   const [dialogLibId, setDialogLibId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const overridden = libraries.filter((lib) => processing[lib.id] !== undefined || providers[lib.id] !== undefined)
@@ -116,7 +117,7 @@ export function LibraryOverrides({
 
   return (
     <div className="flex flex-col gap-2">
-      {overridden.length === 0 && <p className="text-sm text-ink-3">No library overrides.</p>}
+      {overridden.length === 0 && <p className="text-sm text-ink-3">{t('overrides.empty')}</p>}
       {overridden.map((lib) => {
         const libProcessing = processing[lib.id]
         const libProviders = providers[lib.id]
@@ -131,8 +132,8 @@ export function LibraryOverrides({
             className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-line px-3 py-2.5 text-left transition-colors duration-150 hover:bg-raised"
           >
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{lib.name}</span>
-            {libProcessing && <Chip className="shrink-0 px-2 py-0.5">Metadata update</Chip>}
-            {libProviders && <Chip className="shrink-0 px-2 py-0.5">Providers</Chip>}
+            {libProcessing && <Chip className="shrink-0 px-2 py-0.5">{t('tabs.metadata')}</Chip>}
+            {libProviders && <Chip className="shrink-0 px-2 py-0.5">{t('tabs.providers')}</Chip>}
             {hasProviderErrors && <span className="size-1.5 shrink-0 rounded-full bg-danger" aria-hidden />}
             <CaretRight className="size-3.5 shrink-0 text-ink-3" />
           </button>
@@ -143,7 +144,7 @@ export function LibraryOverrides({
           align="start"
           trigger={
             <Button size="sm" variant="secondary" className="self-start">
-              <Plus className="size-4" /> Add override
+              <Plus className="size-4" /> {t('overrides.add')}
             </Button>
           }
         >

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useReducedMotion } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import type { ReadingDirection } from '@/lib/api/types'
 import { useReaderSettings, type ScaleType } from '@/lib/store/readerSettings'
 import { buildSpreads, type SpreadPage } from '@/lib/utils/spreads'
@@ -51,6 +52,7 @@ export function PagedReader({
   const animations = useReaderSettings((s) => s.animations)
   const swipe = useReaderSettings((s) => s.swipe)
   const reduceMotion = useReducedMotion()
+  const { t } = useTranslation('reader')
 
   const spreads = useMemo(() => buildSpreads(pages, pageLayout), [pages, pageLayout])
   const pageToSpread = useMemo(() => {
@@ -217,7 +219,7 @@ export function PagedReader({
                       <img
                         key={p.number || `blank-${j}`}
                         src={p.url}
-                        alt={p.blank ? '' : `Page ${p.number}`}
+                        alt={p.blank ? '' : t('pageAlt', { page: p.number })}
                         draggable={false}
                         className={cls}
                         style={dim}

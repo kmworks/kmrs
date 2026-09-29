@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 
@@ -11,20 +12,20 @@ interface KomfResetDialogProps {
 }
 
 export function KomfResetDialog({ open, onOpenChange, name, loading, onConfirm }: KomfResetDialogProps) {
+  const { t } = useTranslation('metadata')
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Reset metadata with komf" size="sm">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('detail:menu.resetKomf')} size="sm">
       <div className="px-5 py-4">
         <p className="text-sm text-ink-2">
-          Reset <span className="font-medium text-ink">{name}</span>? komf removes the metadata it wrote, including
-          field locks and uploaded covers.
+          <Trans i18nKey="reset.body" ns="metadata" values={{ name }} components={{ name: <span className="font-medium text-ink" /> }} />
         </p>
       </div>
       <div className="flex justify-end gap-2 border-t border-line px-5 py-3.5">
         <Button variant="ghost" onClick={() => onOpenChange(false)}>
-          Cancel
+          {t('common:action.cancel')}
         </Button>
         <Button variant="danger" loading={loading} onClick={onConfirm}>
-          Reset
+          {t('reset.confirm')}
         </Button>
       </div>
     </Dialog>
