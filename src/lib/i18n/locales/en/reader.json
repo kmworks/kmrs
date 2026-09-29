@@ -34,6 +34,8 @@
     "layoutPaginated": "Paginated",
     "layoutScroll": "Scrolled",
     "typography": "Typography",
+    "fontFamily": "Font",
+    "fontPublisher": "Publisher",
     "fontSize": "Font size",
     "lineHeight": "Line height",
     "default": "Default",

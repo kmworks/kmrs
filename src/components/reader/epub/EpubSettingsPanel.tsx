@@ -1,12 +1,15 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowCounterClockwise, X } from '@phosphor-icons/react'
 import { useReaderSettings, type EpubTheme } from '@/lib/store/readerSettings'
+import { fontsApi } from '@/lib/api/fonts'
 import { IconButton } from '@/components/ui/IconButton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Slider } from '@/components/ui/Slider'
 import { Switch } from '@/components/ui/Switch'
 import { Row, Section } from '@/components/reader/panel'
+import { isServerFont, serverFontValue } from '@/components/reader/epub/fonts'
 import { cn } from '@/lib/utils/cn'
 
 const THEME_VALUES: EpubTheme[] = ['DAY', 'SEPIA', 'NIGHT']
@@ -30,12 +33,15 @@ interface EpubSettingsPanelProps {
 export function EpubSettingsPanel({ open, onAlwaysFullscreenChange, onClose }: EpubSettingsPanelProps) {
   const theme = useReaderSettings((s) => s.epubTheme)
   const scroll = useReaderSettings((s) => s.epubScroll)
+  const fontFamily = useReaderSettings((s) => s.epubFontFamily)
   const fontSize = useReaderSettings((s) => s.epubFontSize)
   const lineHeight = useReaderSettings((s) => s.epubLineHeight)
   const alwaysFullscreen = useReaderSettings((s) => s.alwaysFullscreen)
   const update = useReaderSettings((s) => s.update)
   const reduceMotion = useReducedMotion()
   const { t } = useTranslation('reader')
+  const serverFontsQuery = useQuery({ queryKey: ['fonts', 'families'], queryFn: fontsApi.families, staleTime: Infinity })
+  const serverFonts = serverFontsQuery.data ?? []
 
   const layoutOptions = [
     { value: 'paginated', label: t('epub.layoutPaginated') },
@@ -113,6 +119,38 @@ export function EpubSettingsPanel({ open, onAlwaysFullscreenChange, onClose }: E
 
               <Section title={t('epub.typography')}>
                 <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <div className="text-[13px] text-white/80">{t('epub.fontFamily')}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => update({ epubFontFamily: 'Original' })}
+                        className={cn(
+                          'cursor-pointer rounded-md border px-2.5 py-1 text-[13px] transition-colors',
+                          fontFamily === 'Original'
+                            ? 'border-accent text-white'
+                            : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white/80',
+                        )}
+                      >
+                        {t('epub.fontPublisher')}
+                      </button>
+                      {serverFonts.map((family) => (
+                        <button
+                          key={family}
+                          type="button"
+                          onClick={() => update({ epubFontFamily: serverFontValue(family) })}
+                          className={cn(
+                            'cursor-pointer rounded-md border px-2.5 py-1 text-[13px] transition-colors',
+                            isServerFont(fontFamily) && fontFamily === serverFontValue(family)
+                              ? 'border-accent text-white'
+                              : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white/80',
+                          )}
+                        >
+                          {family}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-[13px] text-white/80">
                       <span className="flex items-center gap-1.5">

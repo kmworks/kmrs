@@ -7,6 +7,8 @@ export type ScaleType = 'SCREEN' | 'WIDTH' | 'WIDTH_SHRINK_ONLY' | 'HEIGHT' | 'O
 export type ContinuousScaleType = 'WIDTH' | 'ORIGINAL'
 export type ReaderBackground = 'BLACK' | 'GRAY' | 'WHITE'
 export type EpubTheme = 'DAY' | 'SEPIA' | 'NIGHT'
+/** server:* values are font families served by the komga fonts API */
+export type EpubFontFamily = 'Original' | `server:${string}`
 
 interface ReaderSettings {
   scale: ScaleType
@@ -23,6 +25,7 @@ interface ReaderSettings {
   background: ReaderBackground
   epubTheme: EpubTheme
   epubScroll: boolean
+  epubFontFamily: EpubFontFamily
   /** multiplier over the publisher font size, 1 keeps the book default */
   epubFontSize: number
   /** null keeps the publisher default */
@@ -54,6 +57,7 @@ export const useReaderSettings = create<ReaderSettingsState>()(
       background: 'BLACK',
       epubTheme: 'DAY',
       epubScroll: false,
+      epubFontFamily: 'Original',
       epubFontSize: 1,
       epubLineHeight: null,
       update: (patch) => set(patch),

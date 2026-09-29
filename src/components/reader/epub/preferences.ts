@@ -1,6 +1,7 @@
 import { EpubPreferences, type IEpubPreferences } from '@readium/navigator'
 import { Locator, type Publication } from '@readium/shared'
-import type { EpubTheme } from '@/lib/store/readerSettings'
+import type { EpubFontFamily, EpubTheme } from '@/lib/store/readerSettings'
+import { epubFontStack } from './fonts'
 
 type ThemeColors = Pick<IEpubPreferences, 'backgroundColor' | 'textColor' | 'linkColor' | 'visitedColor'>
 
@@ -16,11 +17,13 @@ export function buildEpubPreferences(s: {
   epubScroll: boolean
   epubFontSize: number
   epubLineHeight: number | null
+  epubFontFamily: EpubFontFamily
 }): EpubPreferences {
   return new EpubPreferences({
     ...THEME_COLORS[s.epubTheme],
     // multiply blend merges image backgrounds into the page color on light themes
     blendFilter: s.epubTheme !== 'NIGHT' || null,
+    fontFamily: epubFontStack(s.epubFontFamily),
     scroll: s.epubScroll,
     fontSize: s.epubFontSize === 1 ? null : s.epubFontSize,
     lineHeight: s.epubLineHeight,

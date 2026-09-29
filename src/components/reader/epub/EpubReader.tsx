@@ -4,6 +4,7 @@ import { CircleNotch, Warning } from '@phosphor-icons/react'
 import { HttpFetcher, Link, Locator, Manifest, Publication } from '@readium/shared'
 import { EpubNavigator, type EpubNavigatorListeners } from '@readium/navigator'
 import { booksApi } from '@/lib/api/books'
+import { fontsApi } from '@/lib/api/fonts'
 import type { BookDto } from '@/lib/api/types'
 import { canDownload, useAuthStore } from '@/lib/store/auth'
 import { useReaderSettings } from '@/lib/store/readerSettings'
@@ -108,6 +109,8 @@ export function EpubReader({ book }: { book: BookDto }) {
         if (stored)
           initialPosition = resolvePositionLocator(alignLocatorHref(stored, publication), positions)
       }
+      // server fonts are optional; a server without the fonts API degrades to publisher fonts
+      const serverFonts = await fontsApi.families().catch(() => [] as string[])
       if (cancelled) return
 
       // the interface marks every listener required; tap/click/handleLocator return false to keep the default behavior
@@ -138,6 +141,22 @@ export function EpubReader({ book }: { book: BookDto }) {
       instance = new EpubNavigator(containerRef.current!, publication, listeners, positions, initialPosition, {
         preferences: buildEpubPreferences(useReaderSettings.getState()),
         defaults: {},
+        injectables: {
+          rules: [
+            {
+              resources: [/\.x?html$/],
+              append: serverFonts.map((family) => ({
+                id: `kmweb-font-${family}`,
+                as: 'link' as const,
+                rel: 'stylesheet',
+                target: 'head' as const,
+                url: fontsApi.cssUrl(family),
+              })),
+            },
+          ],
+          // url injectables are validated against this list; the fonts API is same-origin
+          allowedDomains: [window.location.origin],
+        },
         keyboardPeripherals: [
           { type: 'forward', keyCombos: [{ keyCode: 39 }, { keyCode: 32 }] },
           { type: 'backward', keyCombos: [{ keyCode: 37 }, { keyCode: 32, shift: true }] },
