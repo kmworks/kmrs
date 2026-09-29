@@ -19,6 +19,8 @@ export function buildEpubPreferences(s: {
 }): EpubPreferences {
   return new EpubPreferences({
     ...THEME_COLORS[s.epubTheme],
+    // multiply blend merges image backgrounds into the page color on light themes
+    blendFilter: s.epubTheme !== 'NIGHT' || null,
     scroll: s.epubScroll,
     fontSize: s.epubFontSize === 1 ? null : s.epubFontSize,
     lineHeight: s.epubLineHeight,
