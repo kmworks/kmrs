@@ -48,7 +48,6 @@ import { usersApi } from '@/lib/api/users'
 import { serverApi } from '@/lib/api/users'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
 import { useUiStore } from '@/lib/store/ui'
-import { useLibraryPrefs } from '@/lib/store/libraryPrefs'
 import { usePinnedLibraries } from '@/lib/store/clientSettings'
 import { useTaskQueue } from '@/lib/store/taskQueue'
 import { queryClient } from '@/lib/queryClient'
@@ -153,7 +152,6 @@ function NavGroup({
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation('layout')
   const { data: libraries, isLoading } = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list })
-  const preferredTab = useLibraryPrefs((s) => s.tab)
   const user = useAuthStore((s) => s.user)
   const { pinned } = usePinnedLibraries()
   const [pinDialogOpen, setPinDialogOpen] = useState(false)
@@ -210,7 +208,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             {sortedLibraries?.map((lib) => (
               <NavItem
                 key={lib.id}
-                to={`/libraries/${lib.id}/${preferredTab[lib.id] ?? 'series'}`}
+                to={`/libraries/${lib.id}/series`}
                 icon={<BookBookmark />}
                 onClick={onNavigate}
                 trailing={

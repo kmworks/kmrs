@@ -125,7 +125,7 @@ export function DashboardPage() {
   return (
     <div>
       <div className="mb-6 flex items-center gap-2">
-        {libraries && libraries.length > 1 ? (
+        {libraries && libraries.length > 1 && (
           <div className="min-w-0 flex-1 overflow-x-auto">
             <LibraryScopeSwitcher
               libraries={libraries}
@@ -134,8 +134,6 @@ export function DashboardPage() {
               onChange={(v) => navigate(v === 'all' ? '/dashboard' : `/libraries/${v}/recommended`)}
             />
           </div>
-        ) : (
-          <div className="flex-1" />
         )}
         <IconButton label={t('customizeSections')} onClick={() => setSectionsDialogOpen(true)}>
           <SlidersHorizontal className="size-5" />

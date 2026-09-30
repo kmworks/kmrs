@@ -278,7 +278,7 @@ export function ReadListDetailPage() {
             activeCount={activeFilterCount(filters.state)}
             onToggleValue={filters.toggleValue}
             onToggleAuthor={filters.toggleAuthor}
-            onClearQ={() => filters.setQ('')}
+            onQChange={filters.setQ}
             onOpenFilters={() => setDrawerOpen(true)}
             sortOptions={READLIST_BOOK_SORT_OPTIONS}
             sort={sort.current}

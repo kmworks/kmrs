@@ -6,7 +6,11 @@
     "books_one": "<num>{{count, number}}</num> book",
     "books_other": "<num>{{count, number}}</num> books",
     "series_one": "<num>{{count, number}}</num> series",
-    "series_other": "<num>{{count, number}}</num> series"
+    "series_other": "<num>{{count, number}}</num> series",
+    "collections_one": "<num>{{count, number}}</num> collection",
+    "collections_other": "<num>{{count, number}}</num> collections",
+    "readlists_one": "<num>{{count, number}}</num> read list",
+    "readlists_other": "<num>{{count, number}}</num> read lists"
   },
   "chip": {
     "remove": "Remove filter: {{label}}",
@@ -93,5 +97,11 @@
     "searchPlaceholder": "Search authors…",
     "noMatch": "No matching authors.",
     "moreHint": "and more, keep typing to narrow down"
+  },
+  "search": {
+    "books": "Search books…",
+    "series": "Search series…",
+    "collections": "Search collections…",
+    "readlists": "Search read lists…"
   }
 }

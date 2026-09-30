@@ -12,6 +12,10 @@ import { BrowseSeriesPage } from '@/routes/browse/series'
 import { BrowseBooksPage } from '@/routes/browse/books'
 import { BrowseCollectionsPage } from '@/routes/browse/collections'
 import { BrowseReadListsPage } from '@/routes/browse/readlists'
+import { LibrarySeriesPage } from '@/routes/library/series'
+import { LibraryBooksPage } from '@/routes/library/books'
+import { LibraryCollectionsPage } from '@/routes/library/collections'
+import { LibraryReadListsPage } from '@/routes/library/readlists'
 import { SeriesDetailPage } from '@/routes/detail/series'
 import { BookDetailPage } from '@/routes/detail/book'
 import { CollectionDetailPage } from '@/routes/detail/collection'
@@ -64,10 +68,10 @@ export const router = createBrowserRouter([
           { path: '/libraries/:libraryId', element: <LibraryRedirect /> },
           { path: '/libraries/:libraryId/recommended', element: <DashboardPage /> },
           { path: '/libraries/:libraryId/sections/:sectionKey', element: <DashboardSectionPage /> },
-          { path: '/libraries/:libraryId/series', element: <BrowseSeriesPage /> },
-          { path: '/libraries/:libraryId/books', element: <BrowseBooksPage /> },
-          { path: '/libraries/:libraryId/collections', element: <BrowseCollectionsPage /> },
-          { path: '/libraries/:libraryId/readlists', element: <BrowseReadListsPage /> },
+          { path: '/libraries/:libraryId/series', element: <LibrarySeriesPage /> },
+          { path: '/libraries/:libraryId/books', element: <LibraryBooksPage /> },
+          { path: '/libraries/:libraryId/collections', element: <LibraryCollectionsPage /> },
+          { path: '/libraries/:libraryId/readlists', element: <LibraryReadListsPage /> },
           { path: '/series', element: <BrowseSeriesPage /> },
           { path: '/books', element: <BrowseBooksPage /> },
           { path: '/collections', element: <BrowseCollectionsPage /> },

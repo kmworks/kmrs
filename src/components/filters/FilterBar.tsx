@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Funnel, X } from '@phosphor-icons/react'
+import { Funnel, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
 import { describeActiveFilters, parseAuthor, type ActiveFilterItem } from './filterUrl'
 import { SortMenu } from './SortMenu'
@@ -13,7 +14,7 @@ interface FilterBarProps {
   activeCount: number
   onToggleValue: (key: GroupKey, value: string) => void
   onToggleAuthor: (author: AuthorFilter) => void
-  onClearQ: () => void
+  onQChange: (q: string) => void
   onOpenFilters: () => void
   sortOptions: SortOption[]
   sort: SortState
@@ -43,17 +44,32 @@ export function FilterBar({
   activeCount,
   onToggleValue,
   onToggleAuthor,
-  onClearQ,
+  onQChange,
   onOpenFilters,
   sortOptions,
   sort,
   onSortChange,
 }: FilterBarProps) {
   const { t } = useTranslation('filters')
-  const items = describeActiveFilters(state, groups)
-  const remove = (item: ActiveFilterItem) => {
-    if (item.group === 'q') onClearQ()
-    else if (item.group === 'authors') onToggleAuthor(parseAuthor(item.value))
+  // the search box represents q, so the q chip would just duplicate it
+  type ChipItem = ActiveFilterItem & { group: GroupKey }
+  const items = describeActiveFilters(state, groups).filter((i): i is ChipItem => i.group !== 'q')
+  const [text, setText] = useState(state.q)
+  // external changes (shared links, clear-all) resync the input during render
+  const [prevQ, setPrevQ] = useState(state.q)
+  if (prevQ !== state.q) {
+    setPrevQ(state.q)
+    setText(state.q)
+  }
+
+  useEffect(() => {
+    if (text === state.q) return
+    const t = setTimeout(() => onQChange(text), 300)
+    return () => clearTimeout(t)
+  }, [text, state.q, onQChange])
+
+  const remove = (item: ChipItem) => {
+    if (item.group === 'authors') onToggleAuthor(parseAuthor(item.value))
     else onToggleValue(item.group, item.value)
   }
 
@@ -65,6 +81,16 @@ export function FilterBar({
         )}
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+        <div className="relative w-full max-w-56">
+          <MagnifyingGlass className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
+          <input
+            type="search"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={t(`search.${noun}`)}
+            className="h-8 w-full rounded-lg border border-line bg-surface pr-3 pl-9 text-sm text-ink transition-colors placeholder:text-ink-3 focus:border-accent/70 focus:outline-none"
+          />
+        </div>
         {items.map((item) => (
           <FilterChip key={item.key} label={item.label} onRemove={() => remove(item)} />
         ))}

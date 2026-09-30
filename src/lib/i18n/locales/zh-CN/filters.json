@@ -4,7 +4,9 @@
   "close": "关闭筛选",
   "noun": {
     "books_other": "<num>{{count, number}}</num> 本书",
-    "series_other": "<num>{{count, number}}</num> 个系列"
+    "series_other": "<num>{{count, number}}</num> 个系列",
+    "collections_other": "<num>{{count, number}}</num> 个合集",
+    "readlists_other": "<num>{{count, number}}</num> 个阅读列表"
   },
   "chip": {
     "remove": "移除筛选：{{label}}",
@@ -91,5 +93,11 @@
     "searchPlaceholder": "搜索作者…",
     "noMatch": "没有匹配的作者。",
     "moreHint": "还有更多结果，继续输入可缩小范围"
+  },
+  "search": {
+    "books": "搜索书籍…",
+    "series": "搜索系列…",
+    "collections": "搜索合集…",
+    "readlists": "搜索阅读列表…"
   }
 }

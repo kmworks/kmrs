@@ -3,6 +3,12 @@
   "errorFallback": "出错了。",
   "emptyFilterHint": "试试调整筛选条件。",
   "tryDifferentSearch": "换个关键词试试。",
+  "tabs": {
+    "series": "系列",
+    "books": "书籍",
+    "collections": "合集",
+    "readlists": "阅读列表"
+  },
   "namePlaceholder": "名称",
   "bookCount_other": "{{count}} 本书",
   "seriesCount_other": "{{count}} 个系列",
@@ -18,14 +24,12 @@
   },
   "collections": {
     "title": "合集",
-    "searchPlaceholder": "搜索合集…",
     "loadError": "无法加载合集",
     "empty": "还没有合集",
     "count_other": "个合集"
   },
   "readlists": {
     "title": "阅读列表",
-    "searchPlaceholder": "搜索阅读列表…",
     "loadError": "无法加载阅读列表",
     "empty": "还没有阅读列表",
     "count_other": "个阅读列表"

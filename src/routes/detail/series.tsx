@@ -379,7 +379,7 @@ export function SeriesDetailPage() {
           activeCount={activeFilterCount(filters.state)}
           onToggleValue={filters.toggleValue}
           onToggleAuthor={filters.toggleAuthor}
-          onClearQ={() => filters.setQ('')}
+          onQChange={filters.setQ}
           onOpenFilters={() => setDrawerOpen(true)}
           sortOptions={SERIES_BOOK_SORT_OPTIONS}
           sort={sort.current}

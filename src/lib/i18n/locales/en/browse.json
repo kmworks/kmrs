@@ -3,6 +3,12 @@
   "errorFallback": "Something went wrong.",
   "emptyFilterHint": "Try adjusting your filters.",
   "tryDifferentSearch": "Try a different search.",
+  "tabs": {
+    "series": "Series",
+    "books": "Books",
+    "collections": "Collections",
+    "readlists": "Read lists"
+  },
   "namePlaceholder": "Name",
   "bookCount_one": "{{count}} book",
   "bookCount_other": "{{count}} books",
@@ -20,7 +26,6 @@
   },
   "collections": {
     "title": "Collections",
-    "searchPlaceholder": "Search collections…",
     "loadError": "Couldn't load collections",
     "empty": "No collections yet",
     "count_one": "collection",
@@ -28,7 +33,6 @@
   },
   "readlists": {
     "title": "Read lists",
-    "searchPlaceholder": "Search read lists…",
     "loadError": "Couldn't load read lists",
     "empty": "No read lists yet",
     "count_one": "read list",
