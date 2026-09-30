@@ -129,13 +129,18 @@ impl KomfClient {
             .await
     }
 
-    /// Forwards to a job's SSE event stream. Same error split as `proxy_metadata`.
-    pub async fn proxy_job_events(&self, path: &str) -> anyhow::Result<reqwest::Response> {
-        Ok(self
-            .http_stream
-            .get(format!("{}{path}", self.base_url))
-            .send()
-            .await?)
+    /// Forwards to a job-events SSE stream. Same error split as `proxy_metadata`.
+    pub async fn proxy_job_events(
+        &self,
+        path: &str,
+        query: Option<&str>,
+    ) -> anyhow::Result<reqwest::Response> {
+        let mut url = format!("{}{path}", self.base_url);
+        if let Some(query) = query.filter(|q| !q.is_empty()) {
+            url.push('?');
+            url.push_str(query);
+        }
+        Ok(self.http_stream.get(url).send().await?)
     }
 
     /// Forwards to komf's OAuth API (`/api/oauth`). Same error split as
