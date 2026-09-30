@@ -62,7 +62,7 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
         selection?.active ? undefined : (
           <SeriesCardMenu
             series={series}
-            onSelect={() => selection?.onToggle()}
+            onSelect={selection ? () => selection.onToggle() : undefined}
             trigger={<CardMenuButton aria-label={t('card.actionsFor', { title })} />}
           />
         )
