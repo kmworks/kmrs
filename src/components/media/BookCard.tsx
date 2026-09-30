@@ -8,7 +8,7 @@ import { useBust } from '@/lib/store/thumbnails'
 import { useUiStore } from '@/lib/store/ui'
 import { CoverImage } from './CoverImage'
 import { CardFrame, CardMenuButton, CardText, CardOverlayText } from './CardFrame'
-import { ProgressCapsule, CompletedBadge, OneshotLine } from './badges'
+import { ProgressCapsule, OneshotLine } from './badges'
 import { BookCardMenu } from './BookCardMenu'
 import { MenuItem } from '@/components/ui/Menu'
 import { SelectBadge } from '@/components/selection/SelectBadge'
@@ -112,7 +112,6 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
           className={cn(selection?.selected && 'ring-2 ring-accent')}
         />
         {selection?.active && <SelectBadge {...selection} label={title} />}
-        <CompletedBadge show={!!book.readProgress?.completed} />
         <CardOverlayText title={title} overline={overline} secondary={secondaryText} titleLines={titleLines} />
       </div>
       <ProgressCapsule value={progress} />

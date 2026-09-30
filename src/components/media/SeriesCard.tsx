@@ -77,7 +77,7 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
           className={cn(selection?.selected && 'ring-2 ring-accent')}
         />
         {selection?.active && <SelectBadge {...selection} label={title} />}
-        <UnreadBadge count={series.booksUnreadCount} />
+        <UnreadBadge count={series.booksUnreadCount} show={!selection?.active} />
         <CardOverlayText title={title} secondary={secondary} />
       </div>
       <ProgressCapsule

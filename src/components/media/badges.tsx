@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Book, Check } from '@phosphor-icons/react'
+import { Book } from '@phosphor-icons/react'
 import type { AuthorDto } from '@/lib/api/types'
 import { primaryAuthor } from '@/lib/utils/authors'
 import { cn } from '@/lib/utils/cn'
@@ -22,38 +22,19 @@ export function ProgressCapsule({ value, className }: { value: number; className
   )
 }
 
-/** Completed-book checkmark, slightly smaller than the UnreadBadge it shares the corner
-    with; the accent family is fine here because the check glyph vs. the count is what
-    tells "read" apart from "unread" at a glance. */
-export function CompletedBadge({ show = true, className }: { show?: boolean; className?: string }) {
+/** Floating unread-count capsule, overlapping the cover's top-right corner. `show` lets the
+    card suppress it in selection mode, where it fights the SelectBadge for attention. */
+export function UnreadBadge({ count, show = true, className }: { count: number; show?: boolean; className?: string }) {
+  const visible = show && count > 0
   return (
     <span
-      aria-hidden
-      className={cn(
-        'pointer-events-none absolute -top-1.5 -right-1.5 flex size-5 origin-top-right items-center justify-center rounded-full',
-        'bg-accent text-white shadow-[0_1px_4px_rgb(0_0_0/0.45),inset_0_1px_0_rgb(255_255_255/0.25)] ring-2 ring-bg',
-        'transition-[opacity,transform] duration-200 ease-out-expo',
-        show ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
-        className,
-      )}
-    >
-      <Check className="size-2.5" weight="bold" />
-    </span>
-  )
-}
-
-/** Floating unread-count capsule, overlapping the cover's top-right corner. */
-export function UnreadBadge({ count, className }: { count: number; className?: string }) {
-  const show = count > 0
-  return (
-    <span
-      aria-hidden={!show}
+      aria-hidden={!visible}
       className={cn(
         'pointer-events-none absolute -top-1.5 -right-1.5 flex h-5.5 min-w-5.5 origin-top-right items-center justify-center rounded-full px-1.5',
         'bg-accent text-[11px] font-semibold text-white tabular-nums',
         'shadow-[0_1px_4px_rgb(0_0_0/0.45),inset_0_1px_0_rgb(255_255_255/0.25)] ring-2 ring-bg',
         'transition-[opacity,transform] duration-200 ease-out-expo',
-        show ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
+        visible ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
         className,
       )}
     >
