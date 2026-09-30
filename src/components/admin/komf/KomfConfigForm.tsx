@@ -21,6 +21,7 @@ import {
 import { EventListenerFields } from './EventListenerFields'
 import { LibraryOverrides } from './LibraryOverrides'
 import { NotificationsFields } from './NotificationsFields'
+import { OAuthAccountsFields } from './OAuthAccountsFields'
 import {
   ChineseConversionFields,
   MylarFields,
@@ -168,6 +169,9 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
           </Section>
           <Section title={t('section.providerCredentials')}>
             <ProviderCredentialsFields value={draft} onChange={patch} searchLimitError={errors.comicVineSearchLimit} />
+          </Section>
+          <Section title={t('oauth.title')}>
+            <OAuthAccountsFields />
           </Section>
         </>
       )}

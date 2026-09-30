@@ -22,6 +22,20 @@
     "eventListener": "Event listener",
     "libraryOverrides": "Library overrides"
   },
+  "oauth": {
+    "title": "Account login",
+    "description": "Log in to your tracker accounts so komf can access them on your behalf.",
+    "login": "Log in",
+    "logout": "Log out",
+    "loggedInAs": "Logged in as {{name}}",
+    "loggedIn": "Logged in",
+    "notLoggedIn": "Not logged in",
+    "success": "Logged in successfully.",
+    "error": "Login failed.",
+    "loadFailed": "Could not load account login status.",
+    "logoutFailed": "Could not log out.",
+    "upgradeHint": "Account login requires a newer komf version — upgrade komf to use it."
+  },
   "enabled": "Enabled",
   "noOverride": "No override",
   "nameMatching": {

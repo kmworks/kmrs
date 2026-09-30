@@ -829,6 +829,14 @@ export interface KomfMetadataJobResponse {
   id: string
 }
 
+export type KomfOAuthProvider = 'anilist' | 'mal' | 'bangumi'
+
+// komf's own schema, passed through verbatim
+export interface KomfOAuthStatus {
+  logged_in: boolean
+  username: string | null
+}
+
 // ---- Komf configuration ----
 
 export type KomfLibraryType = 'MANGA' | 'NOVEL' | 'COMIC' | 'WEBTOON'

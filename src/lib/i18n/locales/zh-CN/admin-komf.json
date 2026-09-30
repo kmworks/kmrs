@@ -22,6 +22,20 @@
     "eventListener": "事件监听器",
     "libraryOverrides": "按库覆盖"
   },
+  "oauth": {
+    "title": "账号登录",
+    "description": "登录你的追踪服务账号，授权 komf 以你的身份访问。",
+    "login": "登录",
+    "logout": "退出登录",
+    "loggedInAs": "已登录：{{name}}",
+    "loggedIn": "已登录",
+    "notLoggedIn": "未登录",
+    "success": "登录成功。",
+    "error": "登录失败。",
+    "loadFailed": "无法加载账号登录状态。",
+    "logoutFailed": "无法退出登录。",
+    "upgradeHint": "账号登录需要更新版本的 komf，请升级 komf 后使用。"
+  },
   "enabled": "启用",
   "noOverride": "不覆盖",
   "nameMatching": {

@@ -4,6 +4,7 @@ import { RequireAuth } from '@/components/layout/RequireAuth'
 import { RequireAdmin } from '@/components/layout/RequireAdmin'
 import { AppShell } from '@/components/layout/AppShell'
 import { LibraryRedirect } from '@/components/layout/LibraryRedirect'
+import { RootRedirect } from '@/components/layout/RootRedirect'
 import { LoginPage } from '@/routes/login'
 import { DashboardPage } from '@/routes/dashboard'
 import { DashboardSectionPage } from '@/routes/dashboard-section'
@@ -57,7 +58,7 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/', element: <Navigate to="/dashboard" replace /> },
+          { path: '/', element: <RootRedirect /> },
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/dashboard/sections/:sectionKey', element: <DashboardSectionPage /> },
           { path: '/libraries/:libraryId', element: <LibraryRedirect /> },
