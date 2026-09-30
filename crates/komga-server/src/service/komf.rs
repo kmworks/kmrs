@@ -12,9 +12,9 @@ use std::time::Duration;
 
 pub const API_KEY_COMMENT: &str = "Integration · komf";
 
-/// Search crawls external providers, so proxied metadata calls get a more generous
-/// budget than the client default.
-const METADATA_PROXY_TIMEOUT: Duration = Duration::from_secs(30);
+/// Proxied calls that fan out to external providers (metadata search, the OAuth
+/// token exchange) get a more generous budget than the client default.
+pub const METADATA_PROXY_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Serializes provision/disconnect so a manual reconfigure racing the reconciliation
 /// loop cannot mint two keys and orphan one of them.
@@ -140,22 +140,23 @@ impl KomfClient {
 
     /// Forwards to komf's OAuth API (`/api/oauth`). Same error split as
     /// `proxy_metadata`. komf builds the OAuth callback URL from the request's host
-    /// headers, so they are copied from the incoming browser request; the
-    /// integration's `base_url` is the internal komf→kmrs address and must not end
-    /// up in the redirect the browser follows.
+    /// headers, so they are copied from the incoming browser request: komf's own
+    /// instance address is internal and must not end up in the redirect the browser
+    /// follows.
     pub async fn proxy_oauth(
         &self,
         method: reqwest::Method,
         path: &str,
         query: Option<&str>,
         headers: &axum::http::HeaderMap,
+        timeout: Duration,
     ) -> anyhow::Result<reqwest::Response> {
         let mut url = format!("{}{path}", self.base_url);
         if let Some(query) = query.filter(|q| !q.is_empty()) {
             url.push('?');
             url.push_str(query);
         }
-        let mut request = self.http_no_redirect.request(method, url);
+        let mut request = self.http_no_redirect.request(method, url).timeout(timeout);
         for name in ["host", "x-forwarded-host", "x-forwarded-proto"] {
             if let Some(value) = headers.get(name) {
                 request = request.header(name, value.clone());
