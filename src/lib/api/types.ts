@@ -1178,17 +1178,18 @@ export interface KomfJobPage {
 }
 
 export type KomfJobEvent = {
-  /** injected by the aggregate stream (/komf/jobs/events) so events can be routed to their job */
+  /** the firehose (/komf/jobs/events) tags every frame with its job and series */
   jobId?: string
+  seriesId?: string
 } & (
+  | { type: 'JobCreatedEvent'; startedAt?: string }
+  | { type: 'JobFinishedEvent'; status: string; message?: string | null; finishedAt?: string }
   | { type: 'ProviderSeriesEvent'; provider: string }
   | { type: 'ProviderBookEvent'; provider: string; totalBooks: number; bookProgress: number }
   | { type: 'ProviderCompletedEvent'; provider: string }
   | { type: 'ProviderErrorEvent'; provider: string; message: string }
   | { type: 'PostProcessingStartEvent' }
   | { type: 'ProcessingErrorEvent'; message: string }
-  | { type: 'EventStreamNotFoundEvent' }
-  | { type: 'JobStreamClosedEvent' }
 )
 
 /** Readium position list; locator payloads stay opaque, @readium/shared parses them. */

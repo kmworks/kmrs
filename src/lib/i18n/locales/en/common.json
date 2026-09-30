@@ -61,6 +61,10 @@
     "jobsSummary_one": "{{count}} match",
     "jobsSummary_other": "{{count}} matches",
     "moreFailed_one": "+{{count}} failed",
-    "moreFailed_other": "+{{count}} failed"
+    "moreFailed_other": "+{{count}} failed",
+    "matching": "Matching…",
+    "matchCompleted": "match completed",
+    "postProcessing": "Post-processing…",
+    "seriesFallback": "Series match"
   }
 }

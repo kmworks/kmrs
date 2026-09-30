@@ -1,7 +1,9 @@
+import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { CircleNotch, X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
-import { useKomfJobs, type TrackedJob } from '@/lib/store/komfJobs'
+import { useKomfIntegration } from '@/lib/hooks/useKomfIntegration'
+import { startKomfFirehose, stopKomfFirehose, useKomfJobs, type TrackedJob } from '@/lib/store/komfJobs'
 import { IconButton } from '@/components/ui/IconButton'
 
 /** Beyond this many non-failed jobs the panel collapses them into a summary card. */
@@ -12,6 +14,11 @@ export function KomfJobsPanel() {
   const { t } = useTranslation()
   const jobs = useKomfJobs((s) => s.jobs)
   const dismiss = useKomfJobs((s) => s.dismiss)
+  const komfReady = useKomfIntegration()
+  useEffect(() => {
+    if (komfReady) startKomfFirehose()
+    else stopKomfFirehose()
+  }, [komfReady])
   const list = Object.values(jobs)
   if (list.length === 0) return null
 

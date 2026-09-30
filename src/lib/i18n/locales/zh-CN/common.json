@@ -59,6 +59,10 @@
   "oneshot": "单篇",
   "komf": {
     "jobsSummary_other": "{{count}} 个匹配",
-    "moreFailed_other": "另有 {{count}} 个失败"
+    "moreFailed_other": "另有 {{count}} 个失败",
+    "matching": "匹配中…",
+    "matchCompleted": "匹配完成",
+    "postProcessing": "后处理中…",
+    "seriesFallback": "系列匹配"
   }
 }
