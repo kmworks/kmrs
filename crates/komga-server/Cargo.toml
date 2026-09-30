@@ -34,6 +34,7 @@ tracing-appender.workspace = true
 time.workspace = true
 bcrypt.workspace = true
 sha2.workspace = true
+hex.workspace = true
 md5.workspace = true
 uuid.workspace = true
 moka.workspace = true

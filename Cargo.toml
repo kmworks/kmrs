@@ -34,6 +34,7 @@ quick-xml = { version = "0.42", features = ["serialize"] }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 md5 = "0.8"
 sha2 = "0.11"
+hex = "0.4"
 bcrypt = "0.19"
 flate2 = "1"
 tar = "0.4"
