@@ -2,7 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 
-const TABS = ['series', 'books', 'collections', 'readlists'] as const
+const TABS = ['series', 'books'] as const
 type Tab = (typeof TABS)[number]
 
 /** komga-style navigation between a library's browse views. */
