@@ -61,6 +61,15 @@ impl KomfClient {
         }
     }
 
+    fn url(&self, path: &str, query: Option<&str>) -> String {
+        let mut url = format!("{}{path}", self.base_url);
+        if let Some(query) = query.filter(|q| !q.is_empty()) {
+            url.push('?');
+            url.push_str(query);
+        }
+        url
+    }
+
     /// komf serves a plain 200 at its root; used for the live reachability probe.
     pub async fn health(&self) -> anyhow::Result<()> {
         self.http
@@ -135,12 +144,7 @@ impl KomfClient {
         path: &str,
         query: Option<&str>,
     ) -> anyhow::Result<reqwest::Response> {
-        let mut url = format!("{}{path}", self.base_url);
-        if let Some(query) = query.filter(|q| !q.is_empty()) {
-            url.push('?');
-            url.push_str(query);
-        }
-        Ok(self.http_stream.get(url).send().await?)
+        Ok(self.http_stream.get(self.url(path, query)).send().await?)
     }
 
     /// Forwards to komf's OAuth API (`/api/oauth`). Same error split as
@@ -156,11 +160,7 @@ impl KomfClient {
         headers: &axum::http::HeaderMap,
         timeout: Duration,
     ) -> anyhow::Result<reqwest::Response> {
-        let mut url = format!("{}{path}", self.base_url);
-        if let Some(query) = query.filter(|q| !q.is_empty()) {
-            url.push('?');
-            url.push_str(query);
-        }
+        let url = self.url(path, query);
         let mut request = self.http_no_redirect.request(method, url).timeout(timeout);
         for name in ["host", "x-forwarded-host", "x-forwarded-proto"] {
             if let Some(value) = headers.get(name) {
@@ -178,11 +178,7 @@ impl KomfClient {
         body: Option<&serde_json::Value>,
         timeout: Duration,
     ) -> anyhow::Result<reqwest::Response> {
-        let mut url = format!("{}{path}", self.base_url);
-        if let Some(query) = query.filter(|q| !q.is_empty()) {
-            url.push('?');
-            url.push_str(query);
-        }
+        let url = self.url(path, query);
         let mut request = self.http.request(method, url).timeout(timeout);
         if let Some(body) = body {
             request = request.json(body);

@@ -338,8 +338,8 @@ async fn get_job(
     json_or_passthrough::<KomfJobDto>(response).await
 }
 
-/// SSE streams are relayed as raw bytes: they stay open indefinitely, so a buffered
-/// typed response is not an option.
+/// SSE responses are relayed as raw bytes: a live event stream cannot be buffered
+/// into a typed response.
 fn sse_stream_response(response: reqwest::Response) -> Response {
     Response::builder()
         .header(axum::http::header::CONTENT_TYPE, "text/event-stream")
@@ -348,8 +348,6 @@ fn sse_stream_response(response: reqwest::Response) -> Response {
         .unwrap()
 }
 
-/// komf closes the event stream itself when the job finishes, so the raw byte stream
-/// is relayed instead of a buffered typed response.
 async fn get_job_events(
     State(state): State<AppState>,
     auth: RequireAuth,
