@@ -829,7 +829,7 @@ export interface KomfMetadataJobResponse {
   id: string
 }
 
-export type KomfOAuthProvider = 'anilist' | 'mal' | 'bangumi'
+export type KomfOAuthProvider = 'anilist' | 'mal' | 'bangumi' | 'mangabaka'
 
 // komf's own schema, passed through verbatim
 export interface KomfOAuthStatus {

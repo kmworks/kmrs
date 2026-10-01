@@ -13,6 +13,7 @@ const OAUTH_PROVIDERS: ReadonlyArray<{ id: KomfOAuthProvider; label: string }> =
   { id: 'anilist', label: PROVIDER_LABELS.aniList },
   { id: 'mal', label: PROVIDER_LABELS.mal },
   { id: 'bangumi', label: PROVIDER_LABELS.bangumi },
+  { id: 'mangabaka', label: PROVIDER_LABELS.mangaBaka },
 ]
 
 export function OAuthAccountsFields() {
