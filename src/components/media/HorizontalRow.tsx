@@ -64,7 +64,7 @@ export function HorizontalRow({ title, to, children, className, onEndReached }: 
       viewport={{ once: true, margin: '-40px' }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="mb-3 flex items-center justify-between gap-4">
+      <div className="mb-4 flex items-center justify-between gap-4">
         {to ? (
           <Link to={to} className="group/title flex items-center gap-1.5 outline-none">
             <h2 className="font-display text-[22px] font-semibold tracking-tight text-ink transition-colors group-hover/title:text-accent-strong">

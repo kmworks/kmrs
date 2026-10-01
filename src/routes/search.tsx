@@ -161,7 +161,7 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
 
   return (
     <motion.div
-      className="space-y-9"
+      className="space-y-8"
       initial={reduce ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
@@ -329,10 +329,10 @@ function SearchError({ error, onRetry }: { error: unknown; onRetry: () => void }
 function PreviewSkeleton() {
   const width = useDensityCardWidth()
   return (
-    <div className="space-y-9">
+    <div className="space-y-8">
       {[0, 1].map((i) => (
         <div key={i}>
-          <Skeleton className="mb-3 h-7 w-44" />
+          <Skeleton className="mb-4 h-7 w-44" />
           <div className="flex gap-4 overflow-hidden">
             {Array.from({ length: 6 }, (_, j) => (
               <div key={j} className="shrink-0" style={{ width }}>

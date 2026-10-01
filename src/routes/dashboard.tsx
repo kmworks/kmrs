@@ -160,7 +160,7 @@ export function DashboardPage() {
           body={t('empty.body')}
         />
       ) : (
-        <div className="space-y-10">
+        <div className="space-y-8">
           {rows.map(({ key, query }) => (
             <DashboardRow
               key={key}
