@@ -64,18 +64,18 @@ export function HorizontalRow({ title, to, children, className, onEndReached }: 
       viewport={{ once: true, margin: '-40px' }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="mb-4 flex items-center justify-between gap-4">
+      <div className="relative mb-4 flex items-center gap-4">
         {to ? (
           <Link to={to} className="group/title flex items-center gap-1.5 outline-none">
-            <h2 className="font-display text-[22px] font-semibold tracking-tight text-ink transition-colors group-hover/title:text-accent-strong">
+            <h2 className="font-display text-[22px] leading-none font-semibold tracking-tight text-ink transition-colors group-hover/title:text-accent-strong">
               {title}
             </h2>
             <CaretRight className="size-4 text-ink-3 transition-all group-hover/title:translate-x-0.5 group-hover/title:text-accent" />
           </Link>
         ) : (
-          <h2 className="font-display text-[22px] font-semibold tracking-tight text-ink">{title}</h2>
+          <h2 className="font-display text-[22px] leading-none font-semibold tracking-tight text-ink">{title}</h2>
         )}
-        <div className="hidden gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 md:flex">
+        <div className="absolute top-1/2 right-0 hidden -translate-y-1/2 gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 md:flex">
           <IconButton label={t('row.scrollLeft')} onClick={() => scrollBy(-1)} disabled={!canLeft}>
             <CaretLeft className="size-4" />
           </IconButton>
@@ -90,7 +90,9 @@ export function HorizontalRow({ title, to, children, className, onEndReached }: 
         // overflow-x makes overflow-y compute to auto, letting diagonal trackpad swipes rubber-band
         // the row vertically; hidden clips the same but is not user-scrollable, so vertical swipes
         // still chain to the page (overscroll-behavior would swallow them)
-        className="no-scrollbar -mx-2 -mt-2 flex snap-x gap-4 overflow-x-auto overflow-y-hidden px-2 pt-3.5 pb-2"
+        // negative margins cancel the padding exactly (like -mx-2/px-2) so the title
+        // margin and section gap measure true: pt-3.5 is headroom for the hover shadow
+        className="no-scrollbar -mx-2 -mt-3.5 -mb-2 flex snap-x gap-4 overflow-x-auto overflow-y-hidden px-2 pt-3.5 pb-2"
       >
         {children}
       </div>

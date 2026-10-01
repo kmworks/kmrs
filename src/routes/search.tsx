@@ -332,7 +332,7 @@ function PreviewSkeleton() {
     <div className="space-y-8">
       {[0, 1].map((i) => (
         <div key={i}>
-          <Skeleton className="mb-4 h-7 w-44" />
+          <Skeleton className="mb-4 h-5.5 w-44" />
           <div className="flex gap-4 overflow-hidden">
             {Array.from({ length: 6 }, (_, j) => (
               <div key={j} className="shrink-0" style={{ width }}>
