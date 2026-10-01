@@ -1024,11 +1024,13 @@ export interface KomfProviderConfig {
   /** aniList */
   tagsScoreThreshold?: number
   tagsSizeLimit?: number
-  /** mangaDex */
+  /** mangaDex / mangaBaka */
   coverLanguages?: string[]
   links?: KomfMangaDexLink[]
   /** mangaBaka */
   mode?: KomfMangaBakaMode
+  /** mangaBaka / bookWalker local database update interval in hours; 0 = manual only (komf-rs extension) */
+  updateIntervalHours?: number
   /** bangumi / eHentai offline archive (komf-rs extension) */
   archive?: KomfBangumiArchiveConfig | KomfEHentaiArchiveConfig
   /** eHentai */

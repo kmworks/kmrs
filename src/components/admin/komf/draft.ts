@@ -294,11 +294,13 @@ export interface ProviderDraft {
   /** aniList */
   tagsScoreThreshold: string
   tagsSizeLimit: string
-  /** mangaDex */
+  /** mangaDex / mangaBaka */
   coverLanguages: string[]
   links: KomfMangaDexLink[]
   /** mangaBaka */
   mode: KomfMangaBakaMode
+  /** mangaBaka / bookWalker local database update interval in hours */
+  updateIntervalHours: string
   /** bangumi */
   tagWhitelist: string[]
   tagWhitelistFile: string
@@ -344,6 +346,7 @@ export function providerDraftFromConfig(key: KomfProviderKey, p: KomfProviderCon
     coverLanguages: p?.coverLanguages ? [...p.coverLanguages] : ['en', 'ja'],
     links: p?.links ? [...p.links] : [...MANGADEX_LINK_OPTIONS],
     mode: p?.mode ?? 'API',
+    updateIntervalHours: (p?.updateIntervalHours ?? 24).toString(),
     tagWhitelist: p?.tagWhitelist ? [...p.tagWhitelist] : [],
     tagWhitelistFile: p?.tagWhitelistFile ?? '',
     archiveEnabled: archive?.enabled ?? false,
@@ -586,6 +589,9 @@ function validateProvider(key: KomfProviderKey, d: ProviderDraft): string | unde
   if (!positiveInt(d.priority.trim())) return PRIORITY_ERROR
   if (key === 'aniList') {
     if (!nonNegativeInt(d.tagsScoreThreshold.trim()) || !nonNegativeInt(d.tagsSizeLimit.trim())) return NUMBER_ERROR
+  }
+  if (key === 'mangaBaka' || key === 'bookWalker') {
+    if (!nonNegativeInt(d.updateIntervalHours.trim())) return NUMBER_ERROR
   }
   if (key === 'bangumi' || key === 'eHentai') {
     if (!nonNegativeInt(d.archiveUpdateIntervalHours.trim()) || !nonNegativeInt(d.archiveIdleReleaseSecs.trim()))
@@ -866,10 +872,19 @@ function providerChanges(key: KomfProviderKey, src: KomfProviderConfig, d: Provi
     if (tsl !== (src.tagsSizeLimit ?? 15).toString() && nonNegativeInt(tsl)) out.tagsSizeLimit = Number(tsl)
   }
 
-  if (key === 'mangaDex') {
+  if (key === 'mangaDex' || key === 'mangaBaka') {
     if (!sameStringSet(cleanList(d.coverLanguages), src.coverLanguages ?? ['en', 'ja']))
       out.coverLanguages = cleanList(d.coverLanguages)
+  }
+
+  if (key === 'mangaDex') {
     if (!sameStringSet(d.links, src.links ?? MANGADEX_LINK_OPTIONS)) out.links = d.links
+  }
+
+  if (key === 'mangaBaka' || key === 'bookWalker') {
+    const hours = d.updateIntervalHours.trim()
+    if (hours !== (src.updateIntervalHours ?? 24).toString() && nonNegativeInt(hours))
+      out.updateIntervalHours = Number(hours)
   }
 
   if (key === 'mangaBaka' && d.mode !== (src.mode ?? 'API')) out.mode = d.mode
@@ -954,10 +969,9 @@ function providerDraftToConfig(key: KomfProviderKey, d: ProviderDraft): KomfProv
     config.tagsScoreThreshold = Number(d.tagsScoreThreshold)
     config.tagsSizeLimit = Number(d.tagsSizeLimit)
   }
-  if (key === 'mangaDex') {
-    config.coverLanguages = cleanList(d.coverLanguages)
-    config.links = d.links
-  }
+  if (key === 'mangaDex' || key === 'mangaBaka') config.coverLanguages = cleanList(d.coverLanguages)
+  if (key === 'mangaDex') config.links = d.links
+  if (key === 'mangaBaka' || key === 'bookWalker') config.updateIntervalHours = Number(d.updateIntervalHours)
   if (key === 'mangaBaka') config.mode = d.mode
   if (key === 'bangumi') {
     config.tagWhitelist = cleanList(d.tagWhitelist)

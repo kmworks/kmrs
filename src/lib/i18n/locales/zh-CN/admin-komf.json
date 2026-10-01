@@ -232,6 +232,8 @@
     "mode": "模式",
     "modeHelper": "DATABASE 模式匹配离线的 MangaBaka 数据包。",
     "modeDatabase": "数据库",
+    "updateInterval": "更新间隔（小时）",
+    "updateIntervalHelper": "本地数据库刷新间隔（小时）；0 表示仅手动刷新。",
     "tagWhitelist": "标签白名单",
     "tagWhitelistHelper": "只导入这些标签，每行一个。",
     "tagWhitelistFile": "标签白名单文件",

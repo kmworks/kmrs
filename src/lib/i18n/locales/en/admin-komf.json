@@ -233,6 +233,8 @@
     "mode": "Mode",
     "modeHelper": "DATABASE matches against the offline MangaBaka dump.",
     "modeDatabase": "Database",
+    "updateInterval": "Update interval (hours)",
+    "updateIntervalHelper": "Hours between local database refreshes; 0 means manual only.",
     "tagWhitelist": "Tag whitelist",
     "tagWhitelistHelper": "Only these tags are imported, one per line.",
     "tagWhitelistFile": "Tag whitelist file",

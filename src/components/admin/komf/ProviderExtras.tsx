@@ -163,14 +163,48 @@ export function ProviderExtras({ provider, value, onChange }: ProviderExtrasProp
       )
     case 'mangaBaka':
       return (
-        <FormRow label={t('extras.mode')} helper={t('extras.modeHelper')}>
-          <SegmentedControl
-            options={[
-              { value: 'API', label: 'API' },
-              { value: 'DATABASE', label: t('extras.modeDatabase') },
-            ]}
-            value={value.mode}
-            onChange={(v) => set({ mode: v })}
+        <>
+          <FormRow label={t('extras.mode')} helper={t('extras.modeHelper')}>
+            <SegmentedControl
+              options={[
+                { value: 'API', label: 'API' },
+                { value: 'DATABASE', label: t('extras.modeDatabase') },
+              ]}
+              value={value.mode}
+              onChange={(v) => set({ mode: v })}
+            />
+          </FormRow>
+          <div className="py-3">
+            <p className="text-sm text-ink-2">{t('extras.coverLanguages')}</p>
+            <p className="mt-0.5 text-xs text-ink-3">{t('processing.bcp47Helper')}</p>
+            <div className="mt-2">
+              <StringListInput
+                aria-label={t('extras.coverLanguages')}
+                value={value.coverLanguages}
+                onChange={(v) => set({ coverLanguages: v })}
+              />
+            </div>
+          </div>
+          <FormRow label={t('extras.updateInterval')} helper={t('extras.updateIntervalHelper')}>
+            <FieldInput
+              aria-label={t('extras.updateInterval')}
+              className="w-24 text-right"
+              inputMode="numeric"
+              value={value.updateIntervalHours}
+              onChange={(e) => set({ updateIntervalHours: e.target.value })}
+            />
+          </FormRow>
+        </>
+      )
+    case 'bookWalker':
+      return (
+        <FormRow label={t('extras.updateInterval')} helper={t('extras.updateIntervalHelper')}>
+          <FieldInput
+            aria-label={t('extras.updateInterval')}
+            className="w-24 text-right"
+            inputMode="numeric"
+            value={value.updateIntervalHours}
+            onChange={(e) => set({ updateIntervalHours: e.target.value })}
           />
         </FormRow>
       )
