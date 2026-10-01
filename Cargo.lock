@@ -2079,6 +2079,7 @@ dependencies = [
  "form_urlencoded",
  "futures-util",
  "hex",
+ "http-body",
  "http-body-util",
  "image",
  "komga-core",
