@@ -9,6 +9,6 @@ export function isServerFont(value: EpubFontFamily): value is `server:${string}`
 /** CSS font-family stack for a setting value; null keeps the publisher's fonts. */
 export function epubFontStack(value: EpubFontFamily): string | null {
   if (value === 'Original') return null
-  if (isServerFont(value)) return `'${value.slice('server:'.length)}', Georgia, serif`
+  if (isServerFont(value)) return `'${value.slice('server:'.length)}', Georgia, 'Songti SC', 'Noto Serif CJK SC', serif`
   return null
 }

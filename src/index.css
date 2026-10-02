@@ -68,9 +68,15 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-ink: var(--accent-ink);
   --color-danger: var(--danger);
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
-  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* CJK entries cover the zh-CN UI and CJK book metadata; SC norms lead since en/zh-CN are the UI locales */
+  --font-sans:
+    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC',
+    'Source Han Sans SC', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  --font-display:
+    'Newsreader Variable', Georgia, 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Noto Serif SC',
+    'Source Han Serif SC', 'SimSun', 'Times New Roman', serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
