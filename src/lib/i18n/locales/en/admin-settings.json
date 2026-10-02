@@ -127,7 +127,9 @@
     "active": "Active",
     "kick": "Kick",
     "kickHint": "Kicking a session signs that device out — the user has to log in again.",
-    "kickFailed": "Could not kick the session."
+    "kickFailed": "Could not kick the session.",
+    "showAll_one": "Show all {{count}} session",
+    "showAll_other": "Show all {{count}} sessions"
   },
   "danger": {
     "title": "Danger zone",

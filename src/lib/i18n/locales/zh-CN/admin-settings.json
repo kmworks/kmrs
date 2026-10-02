@@ -118,7 +118,8 @@
     "active": "活跃",
     "kick": "强制下线",
     "kickHint": "将会话强制下线后，对应设备会退出登录，用户需要重新登录。",
-    "kickFailed": "无法将该会话强制下线。"
+    "kickFailed": "无法将该会话强制下线。",
+    "showAll_other": "显示全部 {{count}} 个会话"
   },
   "danger": {
     "title": "危险操作",
