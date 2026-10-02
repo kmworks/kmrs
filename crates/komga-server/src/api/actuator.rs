@@ -849,7 +849,11 @@ fn multi_gauge_rows(state: &AppState, name: &str) -> Vec<(String, f64)> {
     };
     let conn = match state.db.ro() {
         Ok(conn) => conn,
-        Err(_) => return vec![],
+        Err(e) => {
+            // an empty series would pass for an empty library on the scrape
+            tracing::warn!("read pool unavailable for metrics: {e}");
+            return vec![];
+        }
     };
     let mut stmt = match conn.prepare(sql) {
         Ok(stmt) => stmt,
@@ -877,6 +881,7 @@ fn name_static(name: &str) -> &'static str {
 
 fn count_of(state: &AppState, table: &str) -> f64 {
     let Ok(conn) = state.db.ro() else {
+        tracing::warn!("read pool unavailable for metrics");
         return 0.0;
     };
     conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| {
