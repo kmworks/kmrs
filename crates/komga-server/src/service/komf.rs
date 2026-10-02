@@ -240,9 +240,9 @@ pub fn client(state: &AppState, row: &KomfIntegration) -> KomfClient {
 /// komf-rs's auth gate answers 401 when the presented key is missing or wrong; without
 /// a hint that surfaces as a bare HTTP status while the health probe keeps reporting
 /// the login page's 200 as "reachable".
-fn with_auth_hint(result: anyhow::Result<()>) -> anyhow::Result<()> {
+fn with_auth_hint<T>(result: anyhow::Result<T>) -> anyhow::Result<T> {
     match result {
-        Ok(()) => Ok(()),
+        Ok(v) => Ok(v),
         Err(e) => {
             let unauthorized = e
                 .chain()
@@ -251,7 +251,7 @@ fn with_auth_hint(result: anyhow::Result<()>) -> anyhow::Result<()> {
                 .is_some_and(|s| s == reqwest::StatusCode::UNAUTHORIZED);
             Err(if unauthorized {
                 e.context(
-                    "komf answered 401; check that komf.auth-key (KOMGA_KOMF_AUTHKEY) matches komf's KOMF_AUTH_KEY",
+                    "komf answered 401; check the integration's auth key (per-integration override when set, else komf.auth-key / KOMGA_KOMF_AUTHKEY) against komf's KOMF_AUTH_KEY",
                 )
             } else {
                 e
@@ -374,7 +374,7 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
             }
         }
         KomfIntegrationState::Connected => {
-            let komga = client(state, &row).get_config().await?;
+            let komga = with_auth_hint(client(state, &row).get_config().await)?;
             if komga.base_uri.as_deref() != Some(row.base_url.as_str()) {
                 tracing::info!("komf baseUri drifted from the integration row, re-provisioning");
                 if let Some(owner) = &row.owner_user_id {
@@ -391,6 +391,7 @@ mod tests {
     use super::*;
     use crate::api::libraries::test_support::{insert_user, test_config, TestApp};
     use axum::http::StatusCode;
+    use axum::response::IntoResponse;
     use axum::routing::get;
     use axum::{Json, Router};
 
@@ -411,24 +412,34 @@ mod tests {
         patches: Arc<Mutex<Vec<serde_json::Value>>>,
         base_uri: Arc<Mutex<Option<String>>>,
         authorization: Arc<Mutex<Vec<Option<String>>>>,
+        get_status: Arc<Mutex<StatusCode>>,
     }
 
     async fn serve_komf(patch_status: StatusCode) -> MockKomf {
         let patches = Arc::new(Mutex::new(vec![]));
         let base_uri = Arc::new(Mutex::new(None));
         let authorization = Arc::new(Mutex::new(vec![]));
+        let get_status = Arc::new(Mutex::new(StatusCode::OK));
         let app = {
             let patches = patches.clone();
             let base_uri = base_uri.clone();
             let authorization = authorization.clone();
+            let get_status = get_status.clone();
             Router::new().route("/", get(|| async { "komf-rs" })).route(
                 "/api/config",
                 get(move || {
                     let base_uri = base_uri.clone();
+                    let get_status = get_status.clone();
                     async move {
-                        Json(serde_json::json!({
-                            "komga": { "baseUri": base_uri.lock().unwrap().clone() }
-                        }))
+                        let status = *get_status.lock().unwrap();
+                        if status == StatusCode::OK {
+                            Json(serde_json::json!({
+                                "komga": { "baseUri": base_uri.lock().unwrap().clone() }
+                            }))
+                            .into_response()
+                        } else {
+                            status.into_response()
+                        }
                     }
                 })
                 .patch(
@@ -459,6 +470,7 @@ mod tests {
             patches,
             base_uri,
             authorization,
+            get_status,
         }
     }
     fn seed_integration(state: &AppState, url: &str) {
@@ -686,6 +698,22 @@ mod tests {
         reconcile_once(&state).await.unwrap();
 
         assert_eq!(komf.patches.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn connected_reconcile_hints_at_auth_key_mismatch() {
+        let state = test_state();
+        let admin = insert_user(&state.db, "admin@x.c", true, true, &[]);
+        let komf = serve_komf(StatusCode::NO_CONTENT).await;
+        seed_integration(&state, &komf.url);
+        provision(&state, &admin).await.unwrap();
+        *komf.get_status.lock().unwrap() = StatusCode::UNAUTHORIZED;
+
+        let error = reconcile_once(&state).await.unwrap_err();
+
+        let error = format!("{error:#}");
+        assert!(error.contains("401"), "unexpected error: {error}");
+        assert!(error.contains("KOMF_AUTH_KEY"), "unexpected error: {error}");
     }
 
     #[tokio::test]
