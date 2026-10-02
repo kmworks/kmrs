@@ -24,6 +24,7 @@ import { AccountProfilePage } from '@/routes/account/profile'
 import { AccountSecurityPage } from '@/routes/account/security'
 import { AccountApiKeysPage } from '@/routes/account/api-keys'
 import { AccountReaderPage } from '@/routes/account/reader'
+import { AccountStatsPage } from '@/routes/account/stats'
 import { AdminLibrariesPage } from '@/routes/admin/libraries'
 import { AdminUsersPage } from '@/routes/admin/users'
 import { AdminSettingsPage } from '@/routes/admin/settings'
@@ -83,6 +84,7 @@ export const router = createBrowserRouter([
           { path: '/account/security', element: <AccountSecurityPage /> },
           { path: '/account/api-keys', element: <AccountApiKeysPage /> },
           { path: '/account/reader', element: <AccountReaderPage /> },
+          { path: '/account/stats', element: <AccountStatsPage /> },
           {
             element: <RequireAdmin />,
             children: [

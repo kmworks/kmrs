@@ -1209,3 +1209,50 @@ export interface R2ProgressionDto {
   device: { id: string; name: string }
   locator: unknown
 }
+
+// kmrs-private reading statistics, not part of the Komga API surface
+export interface NamedValueDto {
+  name: string
+  value: number
+}
+
+export interface ReadingSummaryDto {
+  totalBooks: number
+  booksStarted: number
+  booksCompleted: number
+  pagesRead: number
+  averagePagesPerBook: number
+  readingDays: number
+  lastReadAt: string | null
+  currentStreakDays: number
+  longestStreakDays: number
+  /** fixed read → inProgress → unread order, zero values included */
+  statusDistribution: NamedValueDto[]
+  generatedAt: string
+}
+
+export interface ReadingTimeSeriesPointDto {
+  /** yyyy-MM-dd, UTC */
+  date: string
+  pagesRead: number
+  booksCompleted: number
+}
+
+export interface ReadingActivityDto {
+  /** 7 counts, index 0 = Sunday .. 6 = Saturday */
+  weekdayDistribution: number[]
+  /** 24 counts, index = hour of day */
+  hourlyDistribution: number[]
+  /** sparse: only days with activity, covering the full history */
+  readingTimeSeries: ReadingTimeSeriesPointDto[]
+  generatedAt: string
+}
+
+export interface ReadingTopsDto {
+  topAuthors: NamedValueDto[]
+  topGenres: NamedValueDto[]
+  topTags: NamedValueDto[]
+  genreDistribution: NamedValueDto[]
+  tagDistribution: NamedValueDto[]
+  generatedAt: string
+}

@@ -9,6 +9,7 @@ import {
   Books,
   CaretDown,
   CaretRight,
+  ChartBar,
   ClockCounterClockwise,
   Copy,
   Database,
@@ -314,6 +315,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </NavItem>
             <NavItem to="/account/reader" icon={<BookOpen />} onClick={onNavigate}>
               {t('nav.reader')}
+            </NavItem>
+            <NavItem to="/account/stats" icon={<ChartBar />} onClick={onNavigate}>
+              {t('nav.statistics')}
             </NavItem>
           </NavGroup>
         </div>

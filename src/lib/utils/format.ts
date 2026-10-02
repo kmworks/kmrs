@@ -35,6 +35,35 @@ export function relativeTime(iso?: string): string {
   return rtf.format(-Math.floor(mo / 12), 'year')
 }
 
+export function formatNumber(n: number): string {
+  return new Intl.NumberFormat(i18n.language).format(n)
+}
+
+// yyyy-MM-dd values are calendar days: parsing them as ISO strings would make the
+// rendered day shift for users behind UTC, so they are rebuilt as local dates
+function parseDay(day: string): Date {
+  const [y, m, d] = day.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+export function formatDay(day: string): string {
+  return parseDay(day).toLocaleDateString(i18n.language, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+export function monthShort(day: string): string {
+  return parseDay(day).toLocaleDateString(i18n.language, { month: 'short' })
+}
+
+/** day index 0 = Sunday, matching the stats API's weekday buckets */
+export function weekdayShort(day: number): string {
+  // 2024-01-07 was a Sunday
+  return new Date(2024, 0, 7 + day).toLocaleDateString(i18n.language, { weekday: 'short' })
+}
+
+export function hourLabel(hour: number): string {
+  return new Date(2024, 0, 1, hour).toLocaleTimeString(i18n.language, { hour: 'numeric' })
+}
+
 // book urls are `file:/…` URLs; display the decoded plain path, falling back to the raw value
 export function filePathFromUrl(url: string): string {
   const path = url.replace(/^file:(\/\/)?/, '')
