@@ -6,7 +6,7 @@ import { BookCard } from '@/components/media/BookCard'
 import { KeepReadingCard } from '@/components/media/KeepReadingCard'
 import { SeriesCard } from '@/components/media/SeriesCard'
 import { HorizontalCardSkeleton } from '@/components/ui/Skeleton'
-import { useDensityCardWidth } from '@/lib/store/ui'
+import { BookRowCard, SeriesRowCard } from './row-cards'
 
 const PAGE_SIZE = 20
 
@@ -45,24 +45,6 @@ function libraryConditions(libraryIds: string[] | undefined): SearchCondition[] 
   if (!libraryIds || libraryIds.length === 0) return []
   if (libraryIds.length === 1) return [{ libraryId: { operator: 'is', value: libraryIds[0] } }]
   return [{ anyOf: libraryIds.map((id) => ({ libraryId: { operator: 'is', value: id } }) as SearchCondition) }]
-}
-
-function BookRowCard({ book }: { book: BookDto }) {
-  const width = useDensityCardWidth()
-  return (
-    <div className="shrink-0 snap-start" style={{ width }}>
-      <BookCard book={book} showSeries />
-    </div>
-  )
-}
-
-function SeriesRowCard({ series }: { series: SeriesDto }) {
-  const width = useDensityCardWidth()
-  return (
-    <div className="shrink-0 snap-start" style={{ width }}>
-      <SeriesCard series={series} />
-    </div>
-  )
 }
 
 const bookRow = (b: BookDto) => <BookRowCard book={b} />

@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { RequireAuth } from '@/components/layout/RequireAuth'
 import { RequireAdmin } from '@/components/layout/RequireAdmin'
@@ -42,8 +42,7 @@ import { ImportBooksPage } from '@/routes/import/books'
 import { ImportReadListPage } from '@/routes/import/readlist'
 import { NotFoundPage } from '@/routes/not-found'
 import { ReaderSplash } from '@/components/reader/ReaderSplash'
-
-const ReaderPage = lazy(() => import('@/routes/read').then((m) => ({ default: m.ReaderPage })))
+import { ReaderPage } from '@/routes/read-lazy'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
