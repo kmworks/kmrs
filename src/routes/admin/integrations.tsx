@@ -48,6 +48,8 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
   const navigate = useNavigate()
   const [url, setUrl] = useState(integration.url ?? '')
   const [baseUrl, setBaseUrl] = useState(integration.baseUrl ?? window.location.origin)
+  // write-only: blank means "keep the stored key" (or "no override" when none is set)
+  const [authKey, setAuthKey] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [editing, setEditing] = useState(false)
 
@@ -55,16 +57,32 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
   useEffect(() => {
     setUrl(integration.url ?? '')
     setBaseUrl(integration.baseUrl ?? window.location.origin)
+    setAuthKey('')
   }, [integration])
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['admin', 'komf-integration'] })
 
   const connect = useMutation({
-    mutationFn: () => komfApi.updateIntegration({ url: url.trim(), baseUrl: baseUrl.trim() }),
+    mutationFn: () =>
+      komfApi.updateIntegration({
+        url: url.trim(),
+        baseUrl: baseUrl.trim(),
+        ...(authKey.trim() ? { authKey: authKey.trim() } : {}),
+      }),
     onSuccess: () => {
       setEditing(false)
       invalidate()
     },
+  })
+  const clearAuthKey = useMutation({
+    // blank clears the override so the kmrs config preset applies again
+    mutationFn: () =>
+      komfApi.updateIntegration({
+        url: (integration.url ?? url).trim(),
+        baseUrl: (integration.baseUrl ?? baseUrl).trim(),
+        authKey: '',
+      }),
+    onSuccess: invalidate,
   })
   const disconnect = useMutation({
     mutationFn: komfApi.disconnect,
@@ -78,8 +96,10 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
   const cancelEdit = () => {
     setUrl(integration.url ?? '')
     setBaseUrl(integration.baseUrl ?? window.location.origin)
+    setAuthKey('')
     setEditing(false)
     connect.reset()
+    clearAuthKey.reset()
   }
 
   // a configured integration shows its saved values read-only; Edit unlocks them so a
@@ -88,7 +108,7 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
 
   const violations = connect.error ? violationMessages(connect.error) : []
   const violationFor = (field: string) => violations.find((v) => v.field === field)?.message
-  const otherViolations = violations.filter((v) => v.field !== 'url' && v.field !== 'baseUrl')
+  const otherViolations = violations.filter((v) => v.field !== 'url' && v.field !== 'baseUrl' && v.field !== 'authKey')
   const connectError =
     connect.error && violations.length === 0
       ? connect.error instanceof Error
@@ -138,6 +158,34 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
             error={violationFor('baseUrl')}
             disabled={locked}
           />
+          <TextField
+            type="password"
+            autoComplete="off"
+            label={t('integrations.authKey')}
+            helper={t(integration.authKeySet ? 'integrations.authKeyHelperSet' : 'integrations.authKeyHelper')}
+            placeholder={integration.authKeySet ? t('integrations.authKeyPlaceholderSet') : undefined}
+            value={authKey}
+            onChange={(e) => setAuthKey(e.target.value)}
+            error={violationFor('authKey')}
+            disabled={locked}
+            trailing={
+              integration.authKeySet && !locked ? (
+                <button
+                  type="button"
+                  className="cursor-pointer text-xs text-ink-3 transition-colors hover:text-danger disabled:opacity-50"
+                  disabled={clearAuthKey.isPending}
+                  onClick={() => clearAuthKey.mutate()}
+                >
+                  {t('integrations.clearAuthKey')}
+                </button>
+              ) : undefined
+            }
+          />
+          {clearAuthKey.isError && (
+            <p className="text-sm text-danger">
+              {clearAuthKey.error instanceof Error ? clearAuthKey.error.message : t('integrations.connectFailed')}
+            </p>
+          )}
           <div className="flex items-center gap-2">
             {locked ? (
               <Button variant="primary" onClick={() => setEditing(true)}>

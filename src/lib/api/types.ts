@@ -797,6 +797,8 @@ export interface KomfIntegrationDto {
   /** unset when unconfigured and no preset exists in the kmrs config */
   url?: string
   baseUrl?: string
+  /** whether a per-integration auth key is stored; the value itself is write-only */
+  authKeySet: boolean
   /** absent until the integration is configured */
   state?: KomfIntegrationState
   lastError?: string
@@ -806,6 +808,8 @@ export interface KomfIntegrationDto {
 export interface KomfIntegrationUpdateDto {
   url?: string
   baseUrl?: string
+  /** blank clears the stored override; omit the field to keep it */
+  authKey?: string
 }
 
 export interface KomfSeriesSearchResult {
