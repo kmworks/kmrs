@@ -12,6 +12,16 @@ const THEME_COLORS: Record<EpubTheme, ThemeColors> = {
   NIGHT: { backgroundColor: '#000000', textColor: '#fefefe', linkColor: '#63caff', visitedColor: '#0099e5' },
 }
 
+// the navigator caps the container to its line-length layout, so the slack around it shows this backdrop
+export const EPUB_BACKDROP: Record<EpubTheme, string> = {
+  DAY: '#ffffff',
+  SEPIA: '#e9ddc8',
+  NIGHT: '#000000',
+}
+
+// Readium's 65-char default line length is tuned for Latin; at ~1em per glyph it puts the two-column threshold past tablet widths for CJK books
+export const CJK_OPTIMAL_LINE_LENGTH = 40
+
 export function buildEpubPreferences(s: {
   epubTheme: EpubTheme
   epubScroll: boolean

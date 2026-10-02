@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CircleNotch, Warning } from '@phosphor-icons/react'
 import { HttpFetcher, Link, Locator, Manifest, Publication } from '@readium/shared'
-import { EpubNavigator, type EpubNavigatorListeners } from '@readium/navigator'
+import { EpubNavigator, getScriptMode, type EpubNavigatorListeners } from '@readium/navigator'
 import { booksApi } from '@/lib/api/books'
 import { fontsApi } from '@/lib/api/fonts'
 import type { BookDto } from '@/lib/api/types'
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useWindowKeys } from '@/components/reader/keys'
 import { useReaderNav } from '@/components/reader/useReaderNav'
-import { alignLocatorHref, buildEpubPreferences, manifestEntries, positionOf, progressionLocator, resolvePositionLocator, type TocEntry } from './preferences'
+import { alignLocatorHref, buildEpubPreferences, CJK_OPTIMAL_LINE_LENGTH, EPUB_BACKDROP, manifestEntries, positionOf, progressionLocator, resolvePositionLocator, type TocEntry } from './preferences'
 import { EpubChrome } from './EpubChrome'
 import { EpubSettingsPanel } from './EpubSettingsPanel'
 import { EpubTocDrawer } from './EpubTocDrawer'
@@ -27,6 +27,7 @@ export function EpubReader({ book }: { book: BookDto }) {
   const { t } = useTranslation('reader')
   const nav = useReaderNav(bookId)
   const user = useAuthStore((s) => s.user)
+  const backdrop = EPUB_BACKDROP[useReaderSettings((s) => s.epubTheme)]
 
   const containerRef = useRef<HTMLDivElement>(null)
   const navRef = useRef<EpubNavigator | null>(null)
@@ -94,6 +95,7 @@ export function EpubReader({ book }: { book: BookDto }) {
       if (!manifest) throw new Error('Invalid manifest')
       manifest.setSelfLink(manifestUrl)
       const publication = new Publication({ manifest, fetcher })
+      const cjk = getScriptMode(manifest.metadata).startsWith('cjk')
 
       const rawPositions = await booksApi.positions(bookId)
       const positions = rawPositions.positions
@@ -140,7 +142,7 @@ export function EpubReader({ book }: { book: BookDto }) {
 
       instance = new EpubNavigator(containerRef.current!, publication, listeners, positions, initialPosition, {
         preferences: buildEpubPreferences(useReaderSettings.getState()),
-        defaults: {},
+        defaults: { optimalLineLength: cjk ? CJK_OPTIMAL_LINE_LENGTH : null },
         injectables: {
           rules: [
             {
@@ -270,9 +272,9 @@ export function EpubReader({ book }: { book: BookDto }) {
   }
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black select-none">
-      {/* the navigator rewrites the container's size itself and observes its parent */}
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className="fixed inset-0 overflow-hidden select-none" style={{ backgroundColor: backdrop }}>
+      {/* the navigator rewrites the container's size itself and observes its parent; mx-auto splits the slack into even side margins */}
+      <div ref={containerRef} className="absolute inset-0 mx-auto" />
 
       {phase === 'loading' && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-black text-white">
