@@ -341,20 +341,22 @@ fn match_book_requests(
              INNER JOIN BOOK_METADATA bd ON b.ID = bd.BOOK_ID \
                AND ltrim(bd.NUMBER, '0') = ltrim(req.number, '0') COLLATE NOCASE"
         );
-        let conn = state.db.ro();
-        let rows: Vec<_> = match conn.prepare(&sql) {
-            Ok(mut stmt) => match stmt.query_map([], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                ))
-            }) {
-                Ok(iter) => iter.flatten().collect(),
+        let rows: Vec<_> = match state.db.ro() {
+            Ok(conn) => match conn.prepare(&sql) {
+                Ok(mut stmt) => match stmt.query_map([], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                    ))
+                }) {
+                    Ok(iter) => iter.flatten().collect(),
+                    Err(_) => vec![],
+                },
                 Err(_) => vec![],
             },
             Err(_) => vec![],
