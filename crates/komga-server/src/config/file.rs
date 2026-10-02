@@ -633,10 +633,10 @@ fn render_database(
     );
     match db.pool_size {
         Some(n) => out.push_str(&format!(
-            "pool-size = {n} # read pool size; default min(CPU cores, max-pool-size). env: {env_prefix}_POOLSIZE\n"
+            "pool-size = {n} # read pool size; default clamp(CPU cores, 8, max-pool-size). env: {env_prefix}_POOLSIZE\n"
         )),
         None => out.push_str(&format!(
-            "# pool-size = 4 # read pool size; default min(CPU cores, max-pool-size). env: {env_prefix}_POOLSIZE\n"
+            "# pool-size = 8 # read pool size; default clamp(CPU cores, 8, max-pool-size). env: {env_prefix}_POOLSIZE\n"
         )),
     }
     push_line(
