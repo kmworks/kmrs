@@ -141,13 +141,12 @@ function Reader({ bookId }: { bookId: string }) {
   const pendingPage = useRef<number | null>(null)
 
   // initial page: ?page= wins, then unread progress, else first page
-  useEffect(() => {
-    if (page !== null || !book || !pages || pages.length === 0) return
+  if (page === null && book && pages && pages.length > 0) {
     if (initialPageParam >= 1 && initialPageParam <= pages.length) setPage(Math.floor(initialPageParam))
     else if (book.readProgress && !book.readProgress.completed)
       setPage(Math.min(Math.max(1, book.readProgress.page), pages.length))
     else setPage(1)
-  }, [page, book, pages, initialPageParam])
+  }
 
   // reflect the page in the URL so refresh and shares land on the same page
   useEffect(() => {
@@ -185,17 +184,20 @@ function Reader({ bookId }: { bookId: string }) {
     [bookId],
   )
 
+  const series = seriesQuery.data
+  const meta = series?.metadata.readingDirection
+  const [metaChecked, setMetaChecked] = useState(false)
+  if (series && !metaChecked) {
+    setMetaChecked(true)
+    if (meta && meta !== settingsDirection) setSessionDirection(meta)
+  }
+
   const metaNotified = useRef(false)
   useEffect(() => {
-    const series = seriesQuery.data
     if (!series || metaNotified.current) return
     metaNotified.current = true
-    const meta = series.metadata.readingDirection
-    if (meta && meta !== settingsDirection) {
-      setSessionDirection(meta)
-      showToast(t('toast.directionFromMetadata'))
-    }
-  }, [seriesQuery.data, settingsDirection, t])
+    if (meta && meta !== settingsDirection) showToast(t('toast.directionFromMetadata'))
+  }, [series, meta, settingsDirection, t])
 
   useDocumentTitle(book ? book.metadata.title || book.name : undefined)
 

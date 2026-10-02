@@ -3,6 +3,7 @@ import { Reorder, useDragControls } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { DotsSixVertical } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils/cn'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Dialog } from '@/components/ui/Dialog'
 import { Switch } from '@/components/ui/Switch'
 import { Button } from '@/components/ui/Button'
@@ -62,12 +63,11 @@ export function DashboardSectionsDialog({ libraryId, open, onOpenChange }: Dashb
   const [draft, setDraft] = useState<ResolvedDashboardSection[]>(sections)
   const draftRef = useRef(draft)
 
+  if (useChanged([open, sections]) && open) setDraft(sections)
+
   useEffect(() => {
-    if (open) {
-      draftRef.current = sections
-      setDraft(sections)
-    }
-  }, [open, sections])
+    draftRef.current = draft
+  }, [draft])
 
   const handleReorder = (next: ResolvedDashboardSection[]) => {
     draftRef.current = next

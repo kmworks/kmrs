@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Check, MagnifyingGlass } from '@phosphor-icons/react'
 import { seriesApi } from '@/lib/api/series'
 import type { SeriesDto } from '@/lib/api/types'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { urls } from '@/lib/utils/urls'
 import { cn } from '@/lib/utils/cn'
 import { Dialog } from '@/components/ui/Dialog'
@@ -44,13 +45,11 @@ export function SeriesPickerDialog({
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Map<string, SeriesDto>>(new Map())
 
-  useEffect(() => {
-    if (open) {
-      setText('')
-      setSearch('')
-      setSelected(new Map())
-    }
-  }, [open])
+  if (useChanged([open]) && open) {
+    setText('')
+    setSearch('')
+    setSelected(new Map())
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(text.trim()), 300)

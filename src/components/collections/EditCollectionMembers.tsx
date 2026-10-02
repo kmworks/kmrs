@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Reorder, useDragControls } from 'motion/react'
 import { useTranslation } from 'react-i18next'
@@ -34,12 +34,10 @@ export function EditCollectionMembers({ collection, onExit }: EditCollectionMemb
     queryFn: () => collectionsApi.series(collection.id, { unpaged: true }),
   })
 
-  useEffect(() => {
-    if (membersQuery.data && !initialized) {
-      setMembers(membersQuery.data.content)
-      setInitialized(true)
-    }
-  }, [membersQuery.data, initialized])
+  if (membersQuery.data && !initialized) {
+    setMembers(membersQuery.data.content)
+    setInitialized(true)
+  }
 
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members])
   const memberIds = useMemo(() => members.map((m) => m.id), [members])

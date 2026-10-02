@@ -70,8 +70,18 @@ export function PagedReader({
   // hugging the content keeps horizontal overflow reachable by scroll while small content stays centered
   const hugContent = scale === 'ORIGINAL' || scale === 'HEIGHT'
 
-  const pinch = usePinchZoom({ zoomedTouchAction: 'none' })
-  const { reset: resetPinch } = pinch
+  const {
+    targetRef,
+    zoomed,
+    touchAction,
+    onPointerDown: pinchPointerDown,
+    onPointerMove,
+    onPointerUp: pinchPointerUp,
+    onPointerCancel: pinchPointerCancel,
+    gestureConsumed,
+    consumeClick,
+    reset: resetPinch,
+  } = usePinchZoom({ zoomedTouchAction: 'none' })
   // layout shifts (page turn, fit mode, direction) leave stale pan offsets behind
   useLayoutEffect(() => {
     resetPinch()
@@ -126,16 +136,16 @@ export function PagedReader({
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
   const swipedRef = useRef(false)
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    pinch.onPointerDown(e)
+    pinchPointerDown(e)
     if (!swipe || !e.isPrimary) return
     pointerRef.current = { x: e.clientX, y: e.clientY }
   }
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    pinch.onPointerUp(e)
+    pinchPointerUp(e)
     const start = pointerRef.current
     pointerRef.current = null
     if (!start) return
-    if (pinch.gestureConsumed()) return
+    if (gestureConsumed()) return
     const dx = e.clientX - start.x
     const dy = e.clientY - start.y
     if (vertical) {
@@ -149,7 +159,7 @@ export function PagedReader({
     }
   }
   const onPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
-    pinch.onPointerCancel(e)
+    pinchPointerCancel(e)
     pointerRef.current = null
   }
 
@@ -159,9 +169,9 @@ export function PagedReader({
       swipedRef.current = false
       return
     }
-    if (pinch.consumeClick()) return
+    if (consumeClick()) return
     // while zoomed a tap only toggles chrome; a page turn would dump the zoom
-    if (pinch.zoomed) {
+    if (zoomed) {
       onToggleChrome()
       return
     }
@@ -179,17 +189,17 @@ export function PagedReader({
   return (
     <div
       className="h-full w-full overflow-hidden"
-      style={{ touchAction: pinch.touchAction }}
+      style={{ touchAction }}
       onClick={onClick}
       onPointerDown={onPointerDown}
-      onPointerMove={pinch.onPointerMove}
+      onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
       <div
-        ref={pinch.targetRef}
+        ref={targetRef}
         className="h-full w-full"
-        style={{ transformOrigin: '0 0', willChange: pinch.zoomed ? 'transform' : undefined }}
+        style={{ transformOrigin: '0 0', willChange: zoomed ? 'transform' : undefined }}
       >
         <div
           className={cn(

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
 import { komfApi } from '@/lib/api/komf'
 import type { KomfConfig, KomfConfigPatch, KomfNameMatchingMode, LibraryDto } from '@/lib/api/types'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Section } from '@/components/account/Section'
 import { Button } from '@/components/ui/Button'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
@@ -60,9 +61,7 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
   const [draft, setDraft] = useState<KomfConfigDraft>(() => draftFromConfig(config))
 
   // structural sharing keeps the reference stable unless values actually changed (e.g. after save)
-  useEffect(() => {
-    setDraft(draftFromConfig(config))
-  }, [config])
+  if (useChanged([config])) setDraft(draftFromConfig(config))
 
   const changes = useMemo(() => computeChanges(config, draft), [config, draft])
   const errors = useMemo(() => validateDraft(draft), [draft])

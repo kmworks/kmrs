@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
 import { settingsApi } from '@/lib/api/settings'
 import type { SettingsDto, SettingsUpdateDto, ThumbnailSize } from '@/lib/api/types'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Button } from '@/components/ui/Button'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Switch } from '@/components/ui/Switch'
@@ -38,9 +39,7 @@ export function SettingsForm({ settings }: { settings: SettingsDto }) {
   const [draft, setDraft] = useState<SettingsDraft>(() => draftFromSettings(settings))
 
   // structural sharing keeps the reference stable unless values actually changed (e.g. after save)
-  useEffect(() => {
-    setDraft(draftFromSettings(settings))
-  }, [settings])
+  if (useChanged([settings])) setDraft(draftFromSettings(settings))
 
   const changes = useMemo(() => computeChanges(settings, draft), [settings, draft])
   const errors = useMemo(() => validateDraft(draft), [draft])

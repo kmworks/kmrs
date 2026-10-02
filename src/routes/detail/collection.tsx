@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,7 @@ import { seriesApi } from '@/lib/api/series'
 import type { CollectionDto } from '@/lib/api/types'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Button } from '@/components/ui/Button'
 import { BackButton } from '@/components/ui/BackButton'
 import { Dialog } from '@/components/ui/Dialog'
@@ -53,9 +54,7 @@ function RenameCollectionDialog({
   const queryClient = useQueryClient()
   const { t } = useTranslation('detail')
 
-  useEffect(() => {
-    if (open) setName(collection.name)
-  }, [open, collection.name])
+  if (useChanged([open, collection.name]) && open) setName(collection.name)
 
   const mutation = useMutation({
     mutationFn: () => collectionsApi.update(collection.id, { name: name.trim() }),

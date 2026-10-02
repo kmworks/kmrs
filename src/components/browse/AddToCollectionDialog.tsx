@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Plus } from '@phosphor-icons/react'
 import { collectionsApi } from '@/lib/api/collections'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
 import { Button } from '@/components/ui/Button'
@@ -23,13 +24,11 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    if (open) {
-      setFilter('')
-      setNewName('')
-      setCreating(false)
-    }
-  }, [open])
+  if (useChanged([open]) && open) {
+    setFilter('')
+    setNewName('')
+    setCreating(false)
+  }
 
   const listQuery = useQuery({
     queryKey: ['collections', 'all'],

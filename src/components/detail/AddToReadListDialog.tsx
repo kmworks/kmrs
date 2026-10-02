@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Plus } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
 import { booksApi } from '@/lib/api/books'
 import type { ReadListDto } from '@/lib/api/types'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
 import { Button } from '@/components/ui/Button'
@@ -23,12 +24,10 @@ export function AddToReadListDialog({ bookId, open, onOpenChange }: AddToReadLis
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    if (open) {
-      setNewName('')
-      setCreating(false)
-    }
-  }, [open])
+  if (useChanged([open]) && open) {
+    setNewName('')
+    setCreating(false)
+  }
 
   const listsQuery = useQuery({
     queryKey: ['readlists', 'all'],

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/api/client'
 import { librariesApi } from '@/lib/api/libraries'
 import { usersApi } from '@/lib/api/users'
 import type { AgeRestrictionDto, Role, UserCreationDto, UserDto, UserUpdateDto } from '@/lib/api/types'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -69,8 +70,7 @@ export function UserFormDialog({
 
   const librariesQuery = useQuery({ queryKey: ['libraries'], queryFn: librariesApi.list, enabled: open })
 
-  useEffect(() => {
-    if (!open) return
+  if (useChanged([open, user]) && open) {
     setErrors({})
     setEmail('')
     setPassword('')
@@ -81,7 +81,7 @@ export function UserFormDialog({
     setAge(user?.ageRestriction ? String(user.ageRestriction.age) : '')
     setLabelsAllow(user?.labelsAllow ?? [])
     setLabelsExclude(user?.labelsExclude ?? [])
-  }, [open, user])
+  }
 
   const saveMutation = useMutation({
     mutationFn: async (payload: SavePayload) => {

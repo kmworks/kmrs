@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowUp, Folder, WarningCircle } from '@phosphor-icons/react'
 import { filesystemApi } from '@/lib/api/settings'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
@@ -21,9 +22,7 @@ export function FilesystemDialog({ open, onOpenChange, initialPath, onSelect }: 
   const { t } = useTranslation('admin-maintenance')
   const [path, setPath] = useState<string | undefined>(initialPath)
 
-  useEffect(() => {
-    if (open) setPath(initialPath || undefined)
-  }, [open, initialPath])
+  if (useChanged([open, initialPath]) && open) setPath(initialPath || undefined)
 
   const q = useQuery({
     queryKey: ['admin', 'filesystem', path ?? ''],

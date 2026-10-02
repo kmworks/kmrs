@@ -30,8 +30,17 @@ export function ContinuousReader({
   const reduceMotion = useReducedMotion()
   const { t } = useTranslation('reader')
 
-  const pinch = usePinchZoom({ zoomedTouchAction: 'pan-y' })
-  const { reset: resetPinch } = pinch
+  const {
+    targetRef,
+    zoomed,
+    touchAction,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+    consumeClick,
+    reset: resetPinch,
+  } = usePinchZoom({ zoomedTouchAction: 'pan-y' })
   // fit/padding changes shift the strip geometry and leave stale pan offsets behind
   useLayoutEffect(() => {
     resetPinch()
@@ -45,7 +54,9 @@ export function ContinuousReader({
   const [seen, setSeen] = useState<boolean[]>(() => pages.map(() => false))
 
   const onPageChangeRef = useRef(onPageChange)
-  onPageChangeRef.current = onPageChange
+  useEffect(() => {
+    onPageChangeRef.current = onPageChange
+  })
 
   const markSeen = useCallback((i: number) => {
     setSeen((prev) => (prev[i] ? prev : prev.map((v, j) => (j === i ? true : v))))
@@ -120,9 +131,9 @@ export function ContinuousReader({
 
   // click regions instead of overlay zones: overlays would swallow wheel scrolling
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (pinch.consumeClick()) return
+    if (consumeClick()) return
     // while zoomed a tap only toggles chrome; a scroll jump would dump the zoom
-    if (pinch.zoomed) {
+    if (zoomed) {
       onToggleChrome()
       return
     }
@@ -136,17 +147,17 @@ export function ContinuousReader({
   return (
     <div
       className="h-full overflow-hidden"
-      style={{ touchAction: pinch.touchAction }}
+      style={{ touchAction }}
       onClick={onClick}
-      onPointerDown={pinch.onPointerDown}
-      onPointerMove={pinch.onPointerMove}
-      onPointerUp={pinch.onPointerUp}
-      onPointerCancel={pinch.onPointerCancel}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
     >
       <div
-        ref={pinch.targetRef}
+        ref={targetRef}
         className="h-full"
-        style={{ transformOrigin: '0 0', willChange: pinch.zoomed ? 'transform' : undefined }}
+        style={{ transformOrigin: '0 0', willChange: zoomed ? 'transform' : undefined }}
       >
         <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto overscroll-none no-scrollbar">
           {pages.map((p, i) => {

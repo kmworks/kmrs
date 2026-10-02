@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { usersApi } from '@/lib/api/users'
 import type { UserDto } from '@/lib/api/types'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
@@ -12,12 +13,10 @@ export function ChangePasswordDialog({ user, onOpenChange }: { user: UserDto | n
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
 
-  useEffect(() => {
-    if (user) {
-      setPassword('')
-      setConfirm('')
-    }
-  }, [user])
+  if (useChanged([user]) && user) {
+    setPassword('')
+    setConfirm('')
+  }
 
   const mutation = useMutation({
     mutationFn: ({ id, password: pw }: { id: string; password: string }) => usersApi.updatePasswordFor(id, pw),

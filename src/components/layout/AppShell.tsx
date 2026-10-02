@@ -64,6 +64,7 @@ import { PinLibrariesDialog } from '@/components/layout/PinLibrariesDialog'
 import { SidebarLibraryMenu } from '@/components/layout/SidebarLibraryMenu'
 import { SearchScopeMenu } from '@/components/search/SearchScopeMenu'
 import { useSearchScopeDefault } from '@/components/search/scope'
+import { useChanged } from '@/lib/hooks/useChanged'
 
 function NavItem({
   to,
@@ -127,9 +128,7 @@ function NavGroup({
   const containsActive = match.some((m) => pathname.startsWith(m))
   const [open, setOpen] = useState(containsActive)
 
-  useEffect(() => {
-    if (containsActive) setOpen(true)
-  }, [containsActive])
+  if (useChanged([containsActive]) && containsActive) setOpen(true)
 
   return (
     <div>

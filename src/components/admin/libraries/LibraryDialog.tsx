@@ -1,9 +1,10 @@
-import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useId, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CaretDown, CaretUp, WarningCircle, X } from '@phosphor-icons/react'
 import { librariesApi } from '@/lib/api/libraries'
 import type { LibraryDto, ScanInterval, SeriesCover } from '@/lib/api/types'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -42,13 +43,11 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [browsingRoot, setBrowsingRoot] = useState(false)
 
-  useEffect(() => {
-    if (open) {
-      setForm(library ? formFromLibrary(library) : { ...DEFAULTS, scanDirectoryExclusions: [] })
-      setAdvancedOpen(false)
-      setBrowsingRoot(false)
-    }
-  }, [open, library])
+  if (useChanged([open, library]) && open) {
+    setForm(library ? formFromLibrary(library) : { ...DEFAULTS, scanDirectoryExclusions: [] })
+    setAdvancedOpen(false)
+    setBrowsingRoot(false)
+  }
 
   const set = <K extends keyof LibraryFormState>(key: K, value: LibraryFormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))

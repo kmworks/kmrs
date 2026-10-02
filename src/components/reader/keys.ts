@@ -16,7 +16,9 @@ export function isInteractiveKeyTarget(target: EventTarget | null, key: string):
 /** Window-level keydown subscription that always sees the latest handler. */
 export function useWindowKeys(handler: (e: KeyboardEvent) => void): void {
   const ref = useRef(handler)
-  ref.current = handler
+  useEffect(() => {
+    ref.current = handler
+  })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return

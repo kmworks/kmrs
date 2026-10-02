@@ -8,6 +8,7 @@ import { usersApi } from '@/lib/api/users'
 import { clientSettingsApi } from '@/lib/api/clientSettings'
 import { useAuthStore } from '@/lib/store/auth'
 import { cn } from '@/lib/utils/cn'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { LogoMark } from '@/components/LogoMark'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/Button'
@@ -28,7 +29,10 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(() => localStorage.getItem(REMEMBER_KEY) !== 'false')
-  const [error, setError] = useState<string | null>(null)
+  const errorParam = params.get('error')
+  const [error, setError] = useState<string | null>(() =>
+    errorParam ? t('signInFailedWithReason', { reason: errorParam }) : null,
+  )
   const [busy, setBusy] = useState(false)
 
   const { data: claim } = useQuery({ queryKey: ['claim'], queryFn: usersApi.claimStatus, retry: false })
@@ -48,10 +52,7 @@ export function LoginPage() {
     if (status === 'authenticated') navigate(params.get('redirect') || '/dashboard', { replace: true })
   }, [status, navigate, params])
 
-  useEffect(() => {
-    const err = params.get('error')
-    if (err) setError(t('signInFailedWithReason', { reason: err }))
-  }, [params, t])
+  if (useChanged([errorParam, t]) && errorParam) setError(t('signInFailedWithReason', { reason: errorParam }))
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()

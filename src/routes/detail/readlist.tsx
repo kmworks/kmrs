@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,7 @@ import { booksApi } from '@/lib/api/books'
 import type { ReadListDto } from '@/lib/api/types'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { readRoute } from '@/lib/utils/nav'
 import { Button } from '@/components/ui/Button'
 import { BackButton } from '@/components/ui/BackButton'
@@ -51,12 +52,10 @@ function EditReadListDialog({
   const queryClient = useQueryClient()
   const { t } = useTranslation('detail')
 
-  useEffect(() => {
-    if (open) {
-      setName(readlist.name)
-      setSummary(readlist.summary)
-    }
-  }, [open, readlist.name, readlist.summary])
+  if (useChanged([open, readlist.name, readlist.summary]) && open) {
+    setName(readlist.name)
+    setSummary(readlist.summary)
+  }
 
   const mutation = useMutation({
     mutationFn: () => readlistsApi.update(readlist.id, { name: name.trim(), summary: summary.trim() }),

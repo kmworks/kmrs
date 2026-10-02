@@ -67,12 +67,15 @@ function extractTint(img: HTMLImageElement): string | null {
 export function useCoverTint(src: string): string | null {
   const [tint, setTint] = useState<string | null>(() => cache.get(src) ?? null)
 
-  useEffect(() => {
+  const [prevSrc, setPrevSrc] = useState(src)
+  if (prevSrc !== src) {
+    setPrevSrc(src)
     const hit = cache.get(src)
-    if (hit) {
-      setTint(hit)
-      return
-    }
+    if (hit) setTint(hit)
+  }
+
+  useEffect(() => {
+    if (cache.get(src)) return
     let cancelled = false
     const img = new Image()
     img.onload = () => {

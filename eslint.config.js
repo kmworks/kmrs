@@ -19,11 +19,10 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // new in react-hooks v7; existing code doesn't comply yet, keep advisory until cleaned up
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      // both options are load-bearing: allowConstantExport for route modules exporting
+      // constants, argsIgnorePattern for react-markdown's discarded `node` prop
+      'react-refresh/only-export-components': ['error', { allowConstantExport: true }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
 )

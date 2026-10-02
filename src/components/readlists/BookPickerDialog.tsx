@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Check, MagnifyingGlass } from '@phosphor-icons/react'
 import { booksApi } from '@/lib/api/books'
 import type { BookDto } from '@/lib/api/types'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { urls } from '@/lib/utils/urls'
 import { cn } from '@/lib/utils/cn'
 import { Dialog } from '@/components/ui/Dialog'
@@ -44,13 +45,11 @@ export function BookPickerDialog({
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Map<string, BookDto>>(new Map())
 
-  useEffect(() => {
-    if (open) {
-      setText('')
-      setSearch('')
-      setSelected(new Map())
-    }
-  }, [open])
+  if (useChanged([open]) && open) {
+    setText('')
+    setSearch('')
+    setSelected(new Map())
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(text.trim()), 300)

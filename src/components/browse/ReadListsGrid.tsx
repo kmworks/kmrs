@@ -4,6 +4,7 @@ import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { BookmarkSimple, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react'
 import { readlistsApi } from '@/lib/api/collections'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { CardSkeleton, GridSkeleton } from '@/components/ui/Skeleton'
@@ -20,9 +21,7 @@ export function ReadListsGrid({ libraryId, searchable }: { libraryId?: string; s
   const [text, setText] = useState(qParam)
 
   // external URL changes (back/forward, shared links) sync back into the input
-  useEffect(() => {
-    if (searchable) setText(qParam)
-  }, [qParam, searchable])
+  if (useChanged([qParam, searchable]) && searchable) setText(qParam)
 
   useEffect(() => {
     if (!searchable || text === qParam) return

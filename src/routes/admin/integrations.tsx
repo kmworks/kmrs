@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +7,7 @@ import { komfApi } from '@/lib/api/komf'
 import type { KomfIntegrationDto, KomfIntegrationState } from '@/lib/api/types'
 import { cn } from '@/lib/utils/cn'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
+import { useChanged } from '@/lib/hooks/useChanged'
 import { Section } from '@/components/account/Section'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -54,11 +55,11 @@ function IntegrationForm({ integration }: { integration: KomfIntegrationDto }) {
   const [editing, setEditing] = useState(false)
 
   // structural sharing keeps the reference stable across refetches, so in-progress edits survive
-  useEffect(() => {
+  if (useChanged([integration])) {
     setUrl(integration.url ?? '')
     setBaseUrl(integration.baseUrl ?? window.location.origin)
     setAuthKey('')
-  }, [integration])
+  }
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['admin', 'komf-integration'] })
 
