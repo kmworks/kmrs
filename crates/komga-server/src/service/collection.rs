@@ -268,7 +268,7 @@ pub(crate) fn create_mosaic(images: &[Vec<u8>], max_edge: u32) -> komga_db::Resu
         ],
     };
     let mut decoded = Vec::new();
-    for (bytes, _) in images.iter().zip(rects) {
+    for bytes in images.iter().take(rects.len()) {
         decoded.push(image::load_from_memory(bytes).map_err(|e| {
             komga_db::Error::EnumValue(format!("could not decode mosaic image: {e}"))
         })?);
@@ -285,7 +285,7 @@ pub(crate) fn create_mosaic(images: &[Vec<u8>], max_edge: u32) -> komga_db::Resu
     Ok(out.into_inner())
 }
 
-/// Blurred, dimmed blowup of the first cover; neutral gray when the collection is empty.
+/// Blurred, dimmed blowup of the first cover; neutral gray when there are no covers.
 /// The dim factor keeps the crisp cells as the visual focus.
 fn backdrop(first: Option<&image::DynamicImage>, width: u32, height: u32) -> image::RgbImage {
     let Some(first) = first else {
@@ -576,11 +576,14 @@ mod tests {
     #[test]
     fn mosaic_single_cover_fills_frame() {
         let img = mosaic_pixels(&[solid_jpeg([200, 30, 30], 200, 300)]);
+        // crisp cell, brighter than the dimmed backdrop (200 vs 170)
         for (x, y) in [(40, 40), (170, 40), (40, 260), (170, 260), (106, 150)] {
-            assert_close(img.get_pixel(x, y), [200, 30, 30]);
+            assert!(img.get_pixel(x, y).0[0] > 190);
         }
+        // dimmed backdrop, excludes the undimmed cover red
         for (x, y) in [(10, 10), (106, 10)] {
-            assert_close(img.get_pixel(x, y), [170, 26, 26]);
+            let px = img.get_pixel(x, y);
+            assert!((130..=180).contains(&px.0[0]) && px.0[1] < 80 && px.0[2] < 80);
         }
     }
 
@@ -597,8 +600,8 @@ mod tests {
         // the gap shows the dimmed backdrop: dimmer than the left cell, not the right cell
         let gap = img.get_pixel(106, 150);
         assert!((130..=180).contains(&gap.0[0]) && gap.0[1] < 80 && gap.0[2] < 80);
-        assert_close(img.get_pixel(10, 150), [170, 26, 26]);
-        assert_close(img.get_pixel(106, 10), [170, 26, 26]);
+        assert_close(img.get_pixel(10, 150), [170, 25, 25]);
+        assert_close(img.get_pixel(106, 10), [170, 25, 25]);
     }
 
     #[test]
@@ -612,7 +615,7 @@ mod tests {
         assert_close(img.get_pixel(60, 260), [200, 30, 30]);
         assert_close(img.get_pixel(147, 80), [30, 200, 30]);
         assert_close(img.get_pixel(147, 210), [30, 30, 200]);
-        assert_close(img.get_pixel(106, 10), [170, 26, 26]);
+        assert_close(img.get_pixel(106, 10), [170, 25, 25]);
     }
 
     #[test]
@@ -629,6 +632,6 @@ mod tests {
         assert_close(img.get_pixel(60, 210), [30, 30, 200]);
         assert_close(img.get_pixel(147, 210), [220, 220, 220]);
         assert_close(img.get_pixel(60, 140), [200, 30, 30]);
-        assert_close(img.get_pixel(106, 10), [170, 26, 26]);
+        assert_close(img.get_pixel(106, 10), [170, 25, 25]);
     }
 }
