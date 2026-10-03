@@ -43,7 +43,7 @@ User docs live in the kmworks/website repo (`docs/server/`); edit them there. Th
 
 ## Tests
 
-- Pin contracts, not pixels. For visual output (cover collages and other generated images), assert the no-crash contract — any input renders a valid image of the expected size — plus spec'd constants (e.g. empty collage → neutral gray). Pixel-level layout assertions couple the suite to geometry constants and encoder behavior, and rot with every visual redesign.
+- Pin contracts, not internals. A test asserts what callers and users observe — output shape and validity, spec'd constants, error paths — never the implementation's own geometry, layout, or encoder details; those rot with every refactor and turn the suite into a mechanical-update ritual. For generated visual output (cover collages and the like) the contract is just the no-crash guarantee: any input renders a valid image of the expected size, plus spec'd constants (e.g. empty collage → neutral gray).
 - A regression test is trusted only after it has been shown to fail against the pre-fix behavior.
 
 ## Checks and workflow
