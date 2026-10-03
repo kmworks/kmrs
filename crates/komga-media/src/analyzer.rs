@@ -763,7 +763,7 @@ pub(crate) fn zip_entries_from<R: std::io::Read + std::io::Seek>(
         if entry.is_dir() {
             continue;
         }
-        let name = entry.name().to_string();
+        let name = crate::zip::java_entry_name(entry.name_raw());
         let file_size = entry.size() as i64;
 
         // sniff the first 64 KiB; a read error leaves the entry without a media type
@@ -983,7 +983,7 @@ impl EpubPackage {
         for i in 0..self.archive.len() {
             if let Ok(e) = self.archive.by_index(i) {
                 out.push(ZipEntryMeta {
-                    name: e.name().to_string(),
+                    name: crate::zip::java_entry_name(e.name_raw()),
                     size: e.size() as i64,
                     compressed_size: e.compressed_size() as i64,
                 });
@@ -3543,11 +3543,8 @@ mod tests {
         let analysis = a.analyze(&path, true);
         assert_eq!(analysis.media.status, MediaStatus::Ready);
         assert_eq!(analysis.media.page_count, 1);
-        assert_ne!(
-            analysis.media.pages[0].file_name.as_bytes(),
-            name_gbk,
-            "fixture must store the decoded (mojibake) name"
-        );
+        // the stored page name is the commons-compress decoding of the raw bytes
+        assert_eq!(analysis.media.pages[0].file_name, "????.jpg");
 
         let thumb = a.generate_thumbnail(&path, &analysis.media).unwrap();
         assert_eq!(thumb.media_type, detect::IMAGE_JPEG);
