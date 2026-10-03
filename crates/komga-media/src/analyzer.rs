@@ -763,7 +763,7 @@ pub(crate) fn zip_entries_from<R: std::io::Read + std::io::Seek>(
         if entry.is_dir() {
             continue;
         }
-        let name = crate::zip::java_entry_name(entry.name_raw());
+        let name = zip_utils::java_entry_name(entry.name_raw());
         let file_size = entry.size() as i64;
 
         // sniff the first 64 KiB; a read error leaves the entry without a media type
@@ -983,7 +983,7 @@ impl EpubPackage {
         for i in 0..self.archive.len() {
             if let Ok(e) = self.archive.by_index(i) {
                 out.push(ZipEntryMeta {
-                    name: crate::zip::java_entry_name(e.name_raw()),
+                    name: zip_utils::java_entry_name(e.name_raw()),
                     size: e.size() as i64,
                     compressed_size: e.compressed_size() as i64,
                 });
@@ -996,7 +996,7 @@ impl EpubPackage {
     fn read_entry_string(&mut self, name: &str) -> Option<String> {
         let trimmed = name.trim_start_matches('/');
         for candidate in std::iter::once(name).chain((trimmed != name).then_some(trimmed)) {
-            if let Ok(mut entry) = crate::zip::by_name_decoded(&mut self.archive, candidate) {
+            if let Ok(mut entry) = zip_utils::by_name_decoded(&mut self.archive, candidate) {
                 let mut content = String::new();
                 entry.read_to_string(&mut content).ok()?;
                 return Some(content);
@@ -1008,7 +1008,7 @@ impl EpubPackage {
     fn read_entry_bytes(&mut self, name: &str) -> Option<Vec<u8>> {
         let trimmed = name.trim_start_matches('/');
         for candidate in std::iter::once(name).chain((trimmed != name).then_some(trimmed)) {
-            if let Ok(mut entry) = crate::zip::by_name_decoded(&mut self.archive, candidate) {
+            if let Ok(mut entry) = zip_utils::by_name_decoded(&mut self.archive, candidate) {
                 let mut buf = Vec::with_capacity(entry.size() as usize);
                 entry.read_to_end(&mut buf).ok()?;
                 return Some(buf);
@@ -1018,7 +1018,7 @@ impl EpubPackage {
     }
 
     fn read_entry_head(&mut self, name: &str, max: usize) -> Option<Vec<u8>> {
-        let mut entry = crate::zip::by_name_decoded(&mut self.archive, name).ok()?;
+        let mut entry = zip_utils::by_name_decoded(&mut self.archive, name).ok()?;
         let mut buf = vec![0u8; max.min(entry.size() as usize)];
         let n = read_full(&mut entry, &mut buf).ok()?;
         buf.truncate(n);
@@ -1055,7 +1055,7 @@ fn open_epub(book_path: &Path) -> Result<EpubPackage> {
     };
 
     let opf_content = {
-        let mut entry = crate::zip::by_name_decoded(&mut archive, &opf_path)
+        let mut entry = zip_utils::by_name_decoded(&mut archive, &opf_path)
             .map_err(|_| MediaError::unsupported("Could not open OPF resource"))?;
         let mut content = String::new();
         entry
@@ -3537,7 +3537,7 @@ mod tests {
         let path = dir.join("gbk.zip");
         // GBK "封面.jpg"
         let name_gbk: &[u8] = &[0xB7, 0xE2, 0xC3, 0xE6, 0x2E, 0x6A, 0x70, 0x67];
-        crate::zip::write_zip_raw(&path, &[(name_gbk, &make_jpeg(48, 48))]);
+        zip_utils::write_zip_raw(&path, &[(name_gbk, &make_jpeg(48, 48))]);
 
         let a = analyzer();
         let analysis = a.analyze(&path, true);
