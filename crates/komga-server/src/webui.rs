@@ -382,4 +382,29 @@ mod tests {
             .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
             .is_none());
     }
+
+    #[tokio::test]
+    async fn cors_headers_survive_an_unauthorized_actual_request() {
+        let mut state = test_state(None);
+        let mut config = (*state.config).clone();
+        config.cors_allowed_origins = vec!["https://a.example".to_string()];
+        state.config = Arc::new(config);
+        let app = crate::build_router(state);
+
+        // the layer wraps auth: a cross-origin browser client must see the 401
+        let response = app
+            .oneshot(
+                Request::get("/api/v2/users/me")
+                    .header(header::ORIGIN, "https://a.example")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+            Some(&HeaderValue::from_static("https://a.example"))
+        );
+    }
 }

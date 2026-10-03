@@ -17,30 +17,37 @@ use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
 
 use crate::auth::SESSION_HEADER_NAME;
 
+/// Spring trims a trailing slash before comparing origins; the trim must happen
+/// before validation, not after — `"*/"` trimmed down to `"*"` would otherwise
+/// pass the wildcard check and panic tower-http's `AllowOrigin::list`.
+fn parse_origins(origins: &[String]) -> anyhow::Result<Vec<HeaderValue>> {
+    origins
+        .iter()
+        .map(|raw| {
+            let origin = raw.strip_suffix('/').unwrap_or(raw);
+            anyhow::ensure!(
+                origin != "*",
+                "cors.allowed-origins: the wildcard '*' cannot be combined with credentialed requests; list origins explicitly"
+            );
+            anyhow::ensure!(
+                !origin.is_empty(),
+                "cors.allowed-origins: {raw:?} is not a valid origin"
+            );
+            HeaderValue::from_str(origin)
+                .map_err(|_| anyhow::anyhow!("cors.allowed-origins: {raw:?} is not a valid origin"))
+        })
+        .collect()
+}
+
 pub fn validate_origins(origins: &[String]) -> anyhow::Result<()> {
-    for origin in origins {
-        anyhow::ensure!(
-            origin != "*",
-            "cors.allowed-origins: the wildcard '*' cannot be combined with credentialed requests; list origins explicitly"
-        );
-        anyhow::ensure!(
-            !origin.is_empty() && HeaderValue::from_str(origin).is_ok(),
-            "cors.allowed-origins: {origin:?} is not a valid origin"
-        );
-    }
-    Ok(())
+    parse_origins(origins).map(|_| ())
 }
 
 pub fn layer(origins: &[String]) -> Option<CorsLayer> {
     if origins.is_empty() {
         return None;
     }
-    let allowed = origins
-        .iter()
-        // a trailing slash never matches the Origin header; Spring trims it too
-        .map(|origin| origin.strip_suffix('/').unwrap_or(origin))
-        .map(|origin| HeaderValue::from_str(origin).expect("origins are validated at config load"))
-        .collect::<Vec<_>>();
+    let allowed = parse_origins(origins).expect("origins are validated at config load");
     Some(
         CorsLayer::new()
             .allow_origin(AllowOrigin::list(allowed))
@@ -188,12 +195,15 @@ mod tests {
     fn wildcard_origin_is_rejected() {
         assert!(validate_origins(&["*".to_string()]).is_err());
         assert!(validate_origins(&["https://a.example".to_string(), "*".to_string()]).is_err());
+        // a wildcard smuggled past the check by a trailing slash panics tower-http
+        assert!(validate_origins(&["*/".to_string()]).is_err());
     }
 
     #[test]
     fn invalid_origin_is_rejected() {
         assert!(validate_origins(&["https://a.example".to_string()]).is_ok());
         assert!(validate_origins(&[String::new()]).is_err());
+        assert!(validate_origins(&["/".to_string()]).is_err());
         assert!(validate_origins(&["bad\norigin".to_string()]).is_err());
     }
 }
