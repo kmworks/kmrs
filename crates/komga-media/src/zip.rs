@@ -1,8 +1,7 @@
 //! ZIP entry extraction, ported from `ZipFileUtils.kt` (`getZipEntryBytes`).
 //!
-//! The rust `zip` crate resolves names from the central directory only; the commons-compress
-//! slow path that re-reads local file headers for unicode extra fields has no equivalent.
-//! That only affects archives whose central directory names are mojibake, which is accepted.
+//! Entry names come from the central directory only: UTF-8 when the flag bit or a unicode
+//! path extra field is present there, CP437 otherwise.
 
 use crate::error::{MediaError, Result};
 use std::io::Read;
@@ -49,7 +48,8 @@ pub fn get_entries_bytes(path: &Path, entry_names: &[&str]) -> Result<Vec<Vec<u8
 /// decoded name (`ZipFile::name`, as stored in MEDIA_PAGE): for non-ASCII names without
 /// the UTF-8 flag, the CP437-decoded string's bytes differ from the raw ones and the raw
 /// lookup misses. commons-compress keys its name map by the decoded name, so such archives
-/// work in Java komga; fall back to a decoded-name scan to match.
+/// work in Java komga; fall back to a decoded-name scan to match. A raw hit wins over a
+/// decoded-name collision; duplicate-name archives are degenerate either way.
 pub(crate) fn by_name_decoded<'a, R: std::io::Read + std::io::Seek>(
     archive: &'a mut zip::ZipArchive<R>,
     entry_name: &str,
