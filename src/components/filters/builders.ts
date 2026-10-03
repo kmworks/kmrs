@@ -16,9 +16,16 @@ function push(out: SearchCondition[], condition: SearchCondition | undefined) {
 }
 
 function yearConditions(years: string[]): SearchCondition[] {
-  return years.map((y) => ({
-    allOf: [leaf('releaseDate', 'after', `${y}-01-01`), leaf('releaseDate', 'before', `${y}-12-31`)],
-  }))
+  return years.map((y) => {
+    const year = Number(y)
+    // date ops compare strict against the UTC date, so the bounds sit just outside the year
+    return {
+      allOf: [
+        { releaseDate: { operator: 'after', dateTime: `${year - 1}-12-31T00:00:00Z` } },
+        { releaseDate: { operator: 'before', dateTime: `${year + 1}-01-01T00:00:00Z` } },
+      ],
+    }
+  })
 }
 
 function authorConditions(authors: AuthorFilter[]): SearchCondition[] {

@@ -47,6 +47,13 @@ function libraryConditions(libraryIds: string[] | undefined): SearchCondition[] 
   return [{ anyOf: libraryIds.map((id) => ({ libraryId: { operator: 'is', value: id } }) as SearchCondition) }]
 }
 
+// parity with the legacy komga UI: the section covers only the last month of releases
+function oneMonthAgo(): string {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 1)
+  return d.toISOString()
+}
+
 const bookRow = (b: BookDto) => <BookRowCard book={b} />
 const bookGrid = (b: BookDto) => <BookCard book={b} showSeries />
 const seriesRow = (s: SeriesDto) => <SeriesRowCard series={s} />
@@ -81,7 +88,11 @@ export const DASHBOARD_SECTIONS = {
     titleKey: 'sections.recentlyReleasedBooks',
     fetchPage: (libraryIds, page) =>
       booksApi.list({
-        search: { condition: { allOf: [{ releaseDate: { operator: 'isNotNull' } }, ...libraryConditions(libraryIds)] } },
+        search: {
+          condition: {
+            allOf: [{ releaseDate: { operator: 'after', dateTime: oneMonthAgo() } }, ...libraryConditions(libraryIds)],
+          },
+        },
         page,
         size: PAGE_SIZE,
         sort: ['metadata.releaseDate,desc'],
@@ -91,29 +102,29 @@ export const DASHBOARD_SECTIONS = {
   }),
   'recently-added-books': bookSection({
     titleKey: 'sections.recentlyAddedBooks',
-    fetchPage: (libraryIds, page) =>
-      libraryIds?.length
-        ? booksApi.list({
-            search: { condition: { allOf: libraryConditions(libraryIds) } },
-            page,
-            size: PAGE_SIZE,
-            sort: ['createdDate,desc'],
-          })
-        : booksApi.latest({ page, size: PAGE_SIZE }),
+    fetchPage: (libraryIds, page) => {
+      const conditions = libraryConditions(libraryIds)
+      return booksApi.list({
+        search: conditions.length ? { condition: { allOf: conditions } } : {},
+        page,
+        size: PAGE_SIZE,
+        sort: ['createdDate,desc'],
+      })
+    },
     renderRow: bookRow,
     renderGrid: bookGrid,
   }),
   'recently-added-series': seriesSection({
     titleKey: 'sections.recentlyAddedSeries',
     fetchPage: (libraryIds, page) =>
-      seriesApi.new({ libraryId: libraryIds, page, size: PAGE_SIZE }),
+      seriesApi.new({ libraryId: libraryIds, oneshot: false, page, size: PAGE_SIZE }),
     renderRow: seriesRow,
     renderGrid: seriesGrid,
   }),
   'recently-updated-series': seriesSection({
     titleKey: 'sections.recentlyUpdatedSeries',
     fetchPage: (libraryIds, page) =>
-      seriesApi.updated({ libraryId: libraryIds, page, size: PAGE_SIZE }),
+      seriesApi.updated({ libraryId: libraryIds, oneshot: false, page, size: PAGE_SIZE }),
     renderRow: seriesRow,
     renderGrid: seriesGrid,
   }),
