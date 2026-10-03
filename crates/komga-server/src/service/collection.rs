@@ -250,6 +250,7 @@ pub(crate) fn create_mosaic(images: &[Vec<u8>], max_edge: u32) -> komga_db::Resu
     let right = width - margin - cell_w;
     let bottom = height - margin - cell_h;
     let rects: &[(u32, u32, u32, u32)] = match images.len().min(4) {
+        0 => &[],
         1 => &[(margin, margin, width - 2 * margin, height - 2 * margin)],
         2 => &[
             (margin, margin, cell_w, height - 2 * margin),
@@ -545,13 +546,14 @@ mod tests {
         }
     }
 
+    // probe coordinates assume the 300px canvas: width 212, margin 25 (height/12),
+    // gap 6 (margin/4), cells 78x122
     #[test]
     fn mosaic_single_cover_fills_frame() {
         let img = mosaic_pixels(&[solid_jpeg([200, 30, 30], 200, 300)]);
         for (x, y) in [(40, 40), (170, 40), (40, 260), (170, 260), (106, 150)] {
             assert_close(img.get_pixel(x, y), [200, 30, 30]);
         }
-        // the outer margin stays dark against the cover
         for (x, y) in [(10, 10), (10, 150)] {
             assert!(img.get_pixel(x, y).0.iter().all(|&c| c < 60));
         }
@@ -566,7 +568,6 @@ mod tests {
         assert_close(img.get_pixel(60, 150), [200, 30, 30]);
         assert_close(img.get_pixel(60, 260), [200, 30, 30]);
         assert_close(img.get_pixel(147, 150), [30, 30, 200]);
-        // the gap column and the outer margin stay dark between the two halves
         assert!(img.get_pixel(106, 150).0.iter().all(|&c| c < 150));
         assert!(img.get_pixel(104, 150).0.iter().all(|&c| c < 150));
         assert!(img.get_pixel(108, 150).0.iter().all(|&c| c < 150));
