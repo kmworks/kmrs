@@ -248,7 +248,7 @@ function IdentifyContent({
                     className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left disabled:cursor-default"
                   >
                     {r.imageUrl ? (
-                      <CoverImage src={r.imageUrl} alt={r.title} className="w-11 shrink-0" />
+                      <CoverImage src={r.imageUrl} alt={r.title} className="w-11 shrink-0" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="cover-aspect flex w-11 shrink-0 items-center justify-center rounded-lg bg-raised text-ink-3">
                         <BookOpen className="size-5" weight="duotone" />

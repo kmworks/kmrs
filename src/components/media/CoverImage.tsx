@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { BookOpen } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils/cn'
 import { useImageCrossfade } from '@/lib/hooks/useImageCrossfade'
@@ -9,10 +10,12 @@ interface CoverImageProps {
   /** spoiler blur (unread blur preference) */
   blurred?: boolean
   eager?: boolean
+  /** pass-through to the underlying <img>; 'no-referrer' makes provider CDNs serve real covers */
+  referrerPolicy?: ComponentProps<'img'>['referrerPolicy']
 }
 
 /** √2 cover with shimmer placeholder, fade-in on load and icon fallback. */
-export function CoverImage({ src, alt, className, blurred, eager }: CoverImageProps) {
+export function CoverImage({ src, alt, className, blurred, eager, referrerPolicy }: CoverImageProps) {
   const xf = useImageCrossfade(src)
 
   return (
@@ -24,6 +27,7 @@ export function CoverImage({ src, alt, className, blurred, eager }: CoverImagePr
           alt=""
           aria-hidden
           draggable={false}
+          referrerPolicy={referrerPolicy}
           className={cn('absolute inset-0 size-full object-cover', blurred && 'blur-[5px] scale-[1.04]')}
         />
       )}
@@ -37,6 +41,7 @@ export function CoverImage({ src, alt, className, blurred, eager }: CoverImagePr
           alt={alt}
           loading={eager ? 'eager' : 'lazy'}
           draggable={false}
+          referrerPolicy={referrerPolicy}
           onLoad={xf.onLoad}
           onError={xf.onError}
           onTransitionEnd={xf.onTransitionEnd}
