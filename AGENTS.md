@@ -41,6 +41,11 @@ User docs live in the kmworks/website repo (`docs/server/`); edit them there. Th
 - Comments say why, never what. No migration history ("no longer", "previously", dates, codenames) — the code and git history already say that.
 - Assertions about dependency behavior (stdlib, crates) must be checked against the dependency's source before writing them down.
 
+## Tests
+
+- Pin contracts, not pixels. For visual output (cover collages and other generated images), assert the no-crash contract — any input renders a valid image of the expected size — plus spec'd constants (e.g. empty collage → neutral gray). Pixel-level layout assertions couple the suite to geometry constants and encoder behavior, and rot with every visual redesign.
+- A regression test is trusted only after it has been shown to fail against the pre-fix behavior.
+
 ## Checks and workflow
 
 - CI: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`, builds on ubuntu/macos/windows, docker. Keep clippy warning-free.
