@@ -45,8 +45,26 @@ pub fn get_entries_bytes(path: &Path, entry_names: &[&str]) -> Result<Vec<Vec<u8
     entry_names.iter().map(|name| entries.read(name)).collect()
 }
 
+/// `ZipArchive::by_name` matches the raw central-directory bytes, but callers pass the
+/// decoded name (`ZipFile::name`, as stored in MEDIA_PAGE): for non-ASCII names without
+/// the UTF-8 flag, the CP437-decoded string's bytes differ from the raw ones and the raw
+/// lookup misses. commons-compress keys its name map by the decoded name, so such archives
+/// work in Java komga; fall back to a decoded-name scan to match.
+pub(crate) fn by_name_decoded<'a, R: std::io::Read + std::io::Seek>(
+    archive: &'a mut zip::ZipArchive<R>,
+    entry_name: &str,
+) -> std::result::Result<zip::read::ZipFile<'a, R>, zip::result::ZipError> {
+    match archive
+        .index_for_name(entry_name)
+        .or_else(|| (0..archive.len()).find(|&i| archive.name_for_index(i) == Some(entry_name)))
+    {
+        Some(index) => archive.by_index(index),
+        None => Err(zip::result::ZipError::FileNotFound),
+    }
+}
+
 fn read_entry(archive: &mut zip::ZipArchive<std::fs::File>, entry_name: &str) -> Result<Vec<u8>> {
-    let mut entry = match archive.by_name(entry_name) {
+    let mut entry = match by_name_decoded(archive, entry_name) {
         Ok(entry) => entry,
         Err(zip::result::ZipError::FileNotFound) => {
             return Err(MediaError::EntryNotFound(entry_name.to_string()))
@@ -62,6 +80,64 @@ fn read_entry(archive: &mut zip::ZipArchive<std::fs::File>, entry_name: &str) ->
         MediaError::unsupported(format!("could not extract zip entry {entry_name}: {e}"))
     })?;
     Ok(buf)
+}
+
+#[cfg(test)]
+pub(crate) fn write_zip_raw(path: &Path, entries: &[(&[u8], &[u8])]) {
+    fn crc32(data: &[u8]) -> u32 {
+        let mut crc: u32 = 0xFFFF_FFFF;
+        for &b in data {
+            crc ^= b as u32;
+            for _ in 0..8 {
+                crc = if crc & 1 != 0 {
+                    (crc >> 1) ^ 0xEDB8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        !crc
+    }
+
+    // minimal stored zip: local headers, then the central directory, then EOCD; flags stay
+    // 0, so non-ASCII raw names are written without the UTF-8 flag, like Windows tools do
+    let mut out: Vec<u8> = Vec::new();
+    let mut central: Vec<u8> = Vec::new();
+    for (name, data) in entries {
+        let crc = crc32(data);
+        let offset = out.len() as u32;
+        out.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+        out.extend_from_slice(&20u16.to_le_bytes());
+        out.extend_from_slice(&[0; 8]);
+        out.extend_from_slice(&crc.to_le_bytes());
+        out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(name);
+        out.extend_from_slice(data);
+
+        central.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+        central.extend_from_slice(&[0; 4]);
+        central.extend_from_slice(&[0; 8]);
+        central.extend_from_slice(&crc.to_le_bytes());
+        central.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        central.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        central.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        central.extend_from_slice(&[0; 12]);
+        central.extend_from_slice(&offset.to_le_bytes());
+        central.extend_from_slice(name);
+    }
+    let cd_offset = out.len() as u32;
+    out.extend_from_slice(&central);
+    out.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+    out.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+    out.extend_from_slice(&(central.len() as u32).to_le_bytes());
+    out.extend_from_slice(&cd_offset.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    std::fs::write(path, out).unwrap();
 }
 
 #[cfg(test)]
@@ -115,5 +191,48 @@ mod tests {
             get_entries_bytes(&path, &["nope.png"]),
             Err(MediaError::EntryNotFound(_))
         ));
+    }
+
+    /// GBK "封面.jpg": Windows tools write non-ASCII entry names without the UTF-8 flag;
+    /// the central directory then decodes (CP437) to a mojibake string whose bytes differ
+    /// from the raw ones. Readers look entries up by that decoded name (as stored in
+    /// MEDIA_PAGE), like commons-compress's name map.
+    #[test]
+    fn read_by_decoded_name_when_raw_bytes_are_not_utf8() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("gbk.zip");
+        let name_gbk: &[u8] = &[0xB7, 0xE2, 0xC3, 0xE6, 0x2E, 0x6A, 0x70, 0x67];
+        write_zip_raw(&path, &[(name_gbk, b"jpeg-bytes")]);
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+        let decoded = archive.by_index(0).unwrap().name().to_string();
+        assert_ne!(decoded.as_bytes(), name_gbk, "fixture must decode the name");
+
+        assert_eq!(get_entry_bytes(&path, &decoded).unwrap(), b"jpeg-bytes");
+        assert_eq!(
+            get_entries_bytes(&path, &[decoded.as_str()]).unwrap(),
+            vec![b"jpeg-bytes".to_vec()]
+        );
+        // no charset guessing: the UTF-8 spelling of the same text is not a key
+        assert!(matches!(
+            get_entry_bytes(&path, "封面.jpg"),
+            Err(MediaError::EntryNotFound(_))
+        ));
+    }
+
+    /// The same failure shape with UTF-8 name bytes but no UTF-8 flag (old/buggy writers):
+    /// the reader still decodes CP437 (the flag, not validity, picks the charset), so the
+    /// stored name is mojibake and only the decoded name resolves the entry.
+    #[test]
+    fn read_by_decoded_name_when_utf8_name_lacks_the_flag() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("utf8-no-flag.zip");
+        write_zip_raw(&path, &[("封面.jpg".as_bytes(), b"jpeg-bytes")]);
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+        let decoded = archive.by_index(0).unwrap().name().to_string();
+        assert_ne!(decoded, "封面.jpg", "fixture must decode as CP437");
+
+        assert_eq!(get_entry_bytes(&path, &decoded).unwrap(), b"jpeg-bytes");
     }
 }
