@@ -44,9 +44,9 @@ pub const DEFAULT_AUX_READERS: u32 = 2;
 /// Statements at or above this duration are logged by [`profile_slow_query`].
 const SLOW_QUERY: Duration = Duration::from_millis(500);
 
-/// rusqlite profile hook, registered on every pooled connection. Lock waits
-/// count toward statement time, so writers starved by another pool's
-/// transaction show up too.
+/// rusqlite profile hook, registered on every pooled connection. The clock
+/// spans first step to statement completion, so lock waits and slow row-by-row
+/// reads count too — a writer starved by another pool's transaction shows up.
 fn profile_slow_query(sql: &str, duration: Duration) {
     if let Some(line) = slow_query_line(sql, duration) {
         tracing::warn!(target: "komga_db::slow_query", "{line}");
@@ -298,7 +298,7 @@ mod tests {
             let sum: i64 = conn
                 .query_row(
                     "WITH RECURSIVE r(x) AS \
-                     (SELECT 1 UNION ALL SELECT x + 1 FROM r WHERE x < 10000000) \
+                     (SELECT 1 UNION ALL SELECT x + 1 FROM r WHERE x < 30000000) \
                      SELECT sum(x) FROM r",
                     [],
                     |row| row.get(0),
