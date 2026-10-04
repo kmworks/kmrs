@@ -81,7 +81,8 @@ pub struct FileCors {
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct FileDatabase {
     pub file: Option<PathBuf>,
-    /// read pool size; None = clamp(CPU cores, 8, max-pool-size)
+    /// read pool size; None = clamp(CPU cores, 8, max-pool-size) for [database],
+    /// 2 for the auxiliary [tasks-db]/[kmrs-db] pools
     pub pool_size: Option<u32>,
     pub max_pool_size: Option<u32>,
     pub journal_mode: Option<String>,
@@ -309,6 +310,7 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         file.database.as_ref(),
         &config.database,
         "KOMGA_DATABASE",
+        false,
     );
     render_database(
         &mut out,
@@ -316,6 +318,7 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         file.tasks_db.as_ref(),
         &config.tasks_db,
         "KOMGA_TASKSDB",
+        true,
     );
     render_database(
         &mut out,
@@ -323,6 +326,7 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         file.kmrs_db.as_ref(),
         &config.kmrs_db,
         "KOMGA_KMRSDB",
+        true,
     );
 
     out.push_str("[search]\n");
@@ -621,6 +625,7 @@ fn render_database(
     f: Option<&FileDatabase>,
     db: &DatabaseConfig,
     env_prefix: &str,
+    aux: bool,
 ) {
     out.push_str(&format!("[{section}]\n"));
     push_line(
@@ -631,12 +636,18 @@ fn render_database(
             q(&db.file.display().to_string())
         ),
     );
+    let default_desc = if aux {
+        "2 for the tasks/kmrs databases"
+    } else {
+        "clamp(CPU cores, 8, max-pool-size)"
+    };
     match db.pool_size {
         Some(n) => out.push_str(&format!(
-            "pool-size = {n} # read pool size; default clamp(CPU cores, 8, max-pool-size). env: {env_prefix}_POOLSIZE\n"
+            "pool-size = {n} # read pool size; default {default_desc}. env: {env_prefix}_POOLSIZE\n"
         )),
         None => out.push_str(&format!(
-            "# pool-size = 8 # read pool size; default clamp(CPU cores, 8, max-pool-size). env: {env_prefix}_POOLSIZE\n"
+            "# pool-size = {} # read pool size; default {default_desc}. env: {env_prefix}_POOLSIZE\n",
+            if aux { 2 } else { 8 }
         )),
     }
     push_line(

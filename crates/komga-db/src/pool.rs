@@ -12,6 +12,11 @@
 //!   API connections for pool slots. The task write pool is a second writer on
 //!   the file, hence the default busy timeout. (Without WAL, RO and RW share one
 //!   pool inside each `Database`; the task/API split still holds.)
+//! - The task-side main database, the tasks queue and the kmrs database are
+//!   auxiliary pools: their work is serial per worker (`TASK_POOL_SIZE` defaults
+//!   to 1) or light API queries, so their read pool defaults to
+//!   [`DEFAULT_AUX_READERS`] — build their config with
+//!   [`DatabaseConfig::aux_pools`].
 //! - Page cache: each `Database` splits a fixed budget (default 16 MiB) between
 //!   its connections. Per-connection caches duplicate one another, so the budget
 //!   — not the connection count — is what bounds cache memory (up to the 512 KiB
@@ -33,6 +38,9 @@ const CACHE_BUDGET_KIB: u32 = 16 * 1024;
 /// resident on large pools, the ceiling stops tiny pools from over-allocating.
 const MIN_CONN_CACHE_KIB: u32 = 512;
 const MAX_CONN_CACHE_KIB: u32 = 2048;
+/// Default read-pool size for auxiliary pools (task-side main DB, tasks DB,
+/// kmrs DB); an explicit `pool_size` always wins.
+pub const DEFAULT_AUX_READERS: u32 = 2;
 
 /// A connection's share of the cache budget; `None` when `pragmas` already pins
 /// `cache_size` — an explicit per-connection value always wins.
@@ -115,6 +123,17 @@ impl DatabaseConfig {
 
     fn should_separate_read_from_writes(&self) -> bool {
         !self.is_memory() && self.journal_mode == JournalMode::Wal
+    }
+
+    /// Config for an auxiliary pool set (task-side main DB, tasks DB, kmrs DB):
+    /// same settings, but the read pool defaults to [`DEFAULT_AUX_READERS`]
+    /// instead of the CPU-based sizing the API side needs.
+    pub fn aux_pools(&self) -> Self {
+        let mut config = self.clone();
+        if config.pool_size.is_none() {
+            config.pool_size = Some(DEFAULT_AUX_READERS.min(config.max_pool_size));
+        }
+        config
     }
 }
 
@@ -240,6 +259,37 @@ mod tests {
         config.pragmas = vec![("main.cache_size".into(), "-4096".into())];
         let db = Database::open(&config).unwrap();
         assert_eq!(cache_size(&db), -4096);
+    }
+
+    #[test]
+    fn aux_pools_default_readers() {
+        // unset pool-size falls back to the small auxiliary default
+        let config = DatabaseConfig::default();
+        assert_eq!(config.aux_pools().pool_size, Some(DEFAULT_AUX_READERS));
+
+        // explicit pool-size applies to auxiliary pools too
+        let config = DatabaseConfig {
+            pool_size: Some(6),
+            ..Default::default()
+        };
+        assert_eq!(config.aux_pools().pool_size, Some(6));
+
+        // a smaller max-pool-size caps the auxiliary default
+        let config = DatabaseConfig {
+            max_pool_size: 1,
+            ..Default::default()
+        };
+        assert_eq!(config.aux_pools().pool_size, Some(1));
+    }
+
+    #[test]
+    fn aux_pools_cache_share_is_capped() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = file_config(dir.path(), 8);
+        config.pool_size = None;
+        let db = Database::open(&config.aux_pools()).unwrap();
+        // 16 MiB split between 2 readers + 1 writer exceeds the 2048 KiB ceiling
+        assert_eq!(cache_size(&db), -2048);
     }
 
     #[test]
