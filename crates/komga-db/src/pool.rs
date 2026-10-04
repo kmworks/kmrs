@@ -41,6 +41,30 @@ const MAX_CONN_CACHE_KIB: u32 = 2048;
 /// kmrs DB); an explicit `pool_size` always wins.
 pub const DEFAULT_AUX_READERS: u32 = 2;
 
+/// Statements at or above this duration are logged by [`profile_slow_query`].
+const SLOW_QUERY: Duration = Duration::from_millis(500);
+
+/// rusqlite profile hook, registered on every pooled connection. Lock waits
+/// count toward statement time, so writers starved by another pool's
+/// transaction show up too.
+fn profile_slow_query(sql: &str, duration: Duration) {
+    if let Some(line) = slow_query_line(sql, duration) {
+        tracing::warn!(target: "komga_db::slow_query", "{line}");
+    }
+}
+
+fn slow_query_line(sql: &str, duration: Duration) -> Option<String> {
+    if duration < SLOW_QUERY {
+        return None;
+    }
+    let one_line: String = sql.split_whitespace().collect::<Vec<_>>().join(" ");
+    let truncated: String = one_line.chars().take(200).collect();
+    Some(format!(
+        "slow query ({} ms): {truncated}",
+        duration.as_millis()
+    ))
+}
+
 /// A connection's share of the cache budget; `None` when `pragmas` already pins
 /// `cache_size` — an explicit per-connection value always wins.
 fn conn_cache_kib(config: &DatabaseConfig, pool_size: u32) -> Option<u32> {
@@ -178,6 +202,7 @@ impl Database {
                 if let Some(kib) = cache_kib {
                     conn.execute_batch(&format!("PRAGMA cache_size=-{kib};"))?;
                 }
+                conn.profile(Some(profile_slow_query));
                 if config.register_udfs {
                     udf::register_all(conn)?;
                 }
@@ -198,6 +223,7 @@ impl Database {
     pub fn open_in_memory(register_udfs: bool) -> Result<Self, r2d2::Error> {
         let manager = SqliteConnectionManager::memory().with_init(move |conn| {
             conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+            conn.profile(Some(profile_slow_query));
             if register_udfs {
                 udf::register_all(conn)?;
             }
@@ -242,6 +268,53 @@ mod tests {
     }
 
     #[test]
+    fn slow_query_is_logged() {
+        use std::sync::{Arc, Mutex};
+        struct Buf(Arc<Mutex<Vec<u8>>>);
+        impl std::io::Write for Buf {
+            fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(data);
+                Ok(data.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let buf = Arc::new(Mutex::new(Vec::new()));
+        let writer = {
+            let buf = buf.clone();
+            move || Buf(buf.clone())
+        };
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(writer)
+            .with_ansi(false)
+            .finish();
+
+        tracing::subscriber::with_default(subscriber, || {
+            let dir = tempfile::tempdir().unwrap();
+            let db = Database::open(&file_config(dir.path(), 1)).unwrap();
+            let conn = db.rw().unwrap();
+            // a deliberately slow statement: tens of millions of recursive steps
+            let sum: i64 = conn
+                .query_row(
+                    "WITH RECURSIVE r(x) AS \
+                     (SELECT 1 UNION ALL SELECT x + 1 FROM r WHERE x < 10000000) \
+                     SELECT sum(x) FROM r",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(sum > 0);
+        });
+
+        let logs = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+        assert!(
+            logs.contains("slow query") && logs.contains("WITH RECURSIVE"),
+            "slow query was not logged: {logs}"
+        );
+    }
+
+    #[test]
     fn budget_divided_between_connections() {
         let dir = tempfile::tempdir().unwrap();
         let db = Database::open(&file_config(dir.path(), 8)).unwrap();
@@ -263,6 +336,32 @@ mod tests {
         config.pragmas = vec![("main.cache_size".into(), "-4096".into())];
         let db = Database::open(&config).unwrap();
         assert_eq!(cache_size(&db), -4096);
+    }
+
+    #[test]
+    fn slow_query_line_threshold_and_format() {
+        // below the threshold: silence
+        assert_eq!(
+            slow_query_line("SELECT 1", Duration::from_millis(499)),
+            None
+        );
+
+        // whitespace is collapsed so the log line stays single-line
+        let line = slow_query_line(
+            "SELECT  BOOK.ID\nFROM BOOK  JOIN MEDIA ON BOOK.ID = MEDIA.BOOK_ID",
+            Duration::from_millis(1500),
+        )
+        .unwrap();
+        assert_eq!(
+            line,
+            "slow query (1500 ms): SELECT BOOK.ID FROM BOOK JOIN MEDIA ON BOOK.ID = MEDIA.BOOK_ID"
+        );
+
+        // long SQL is truncated for the log line
+        let long = format!("SELECT {} FROM T", "X".repeat(400));
+        let line = slow_query_line(&long, Duration::from_secs(2)).unwrap();
+        assert!(line.len() <= 200 + "slow query (2000 ms): ".len());
+        assert!(line.starts_with("slow query (2000 ms): SELECT XXX"));
     }
 
     #[test]
