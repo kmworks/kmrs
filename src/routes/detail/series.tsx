@@ -370,7 +370,7 @@ export function SeriesDetailPage() {
       </p>
 
       {collections.length > 0 && (
-        <HorizontalRow title={t('inCollections')} className="mt-10">
+        <HorizontalRow title={t('inCollections')} collapsible className="mt-10">
           {collections.map((c) => (
             <div key={c.id} className="shrink-0" style={{ width: rowCardWidth }}>
               <CollectionCard
