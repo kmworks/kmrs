@@ -1,6 +1,6 @@
 //! The `<config-dir>/config.toml` file format, and rendering of the generated file.
 
-use komga_db::pool::{DatabaseConfig, JournalMode};
+use komga_db::pool::{DatabaseConfig, JournalMode, DEFAULT_AUX_READERS};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -82,7 +82,7 @@ pub struct FileCors {
 pub struct FileDatabase {
     pub file: Option<PathBuf>,
     /// read pool size; None = min(CPU cores, max-pool-size) for [database],
-    /// 2 for the auxiliary [tasks-db]/[kmrs-db] pools
+    /// [`DEFAULT_AUX_READERS`] for the auxiliary [tasks-db]/[kmrs-db] pools
     pub pool_size: Option<u32>,
     pub max_pool_size: Option<u32>,
     pub journal_mode: Option<String>,
@@ -310,7 +310,7 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         file.database.as_ref(),
         &config.database,
         "KOMGA_DATABASE",
-        false,
+        None,
     );
     render_database(
         &mut out,
@@ -318,7 +318,7 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         file.tasks_db.as_ref(),
         &config.tasks_db,
         "KOMGA_TASKSDB",
-        true,
+        Some(DEFAULT_AUX_READERS),
     );
     render_database(
         &mut out,
@@ -326,7 +326,7 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         file.kmrs_db.as_ref(),
         &config.kmrs_db,
         "KOMGA_KMRSDB",
-        true,
+        Some(DEFAULT_AUX_READERS),
     );
 
     out.push_str("[search]\n");
@@ -625,7 +625,7 @@ fn render_database(
     f: Option<&FileDatabase>,
     db: &DatabaseConfig,
     env_prefix: &str,
-    aux: bool,
+    aux_readers: Option<u32>,
 ) {
     out.push_str(&format!("[{section}]\n"));
     push_line(
@@ -636,22 +636,22 @@ fn render_database(
             q(&db.file.display().to_string())
         ),
     );
-    let default_desc = if aux {
-        "2 for the tasks/kmrs databases"
-    } else {
-        "min(CPU cores, max-pool-size)"
+    let (default_desc, default_size) = match aux_readers {
+        Some(n) => (
+            format!("{n} for the tasks/kmrs databases"),
+            db.aux_pools().read_pool_size(),
+        ),
+        None => (
+            "min(CPU cores, max-pool-size)".to_string(),
+            db.read_pool_size(),
+        ),
     };
     match db.pool_size {
         Some(n) => out.push_str(&format!(
             "pool-size = {n} # read pool size; default {default_desc}. env: {env_prefix}_POOLSIZE\n"
         )),
         None => out.push_str(&format!(
-            "# pool-size = {} # read pool size; default {default_desc}. env: {env_prefix}_POOLSIZE\n",
-            if aux {
-                db.aux_pools().read_pool_size()
-            } else {
-                db.read_pool_size()
-            }
+            "# pool-size = {default_size} # read pool size; default {default_desc}. env: {env_prefix}_POOLSIZE\n"
         )),
     }
     push_line(
@@ -794,5 +794,36 @@ mod tests {
         assert_eq!(format_duration(Duration::from_secs(7 * 86400)), "7d");
         assert_eq!(format_duration(Duration::from_secs(90)), "90s");
         assert_eq!(format_duration(Duration::from_secs(120)), "2m");
+    }
+
+    #[test]
+    fn render_database_pool_defaults_per_section() {
+        let db = DatabaseConfig::default();
+
+        let mut api = String::new();
+        render_database(&mut api, "database", None, &db, "KOMGA_DATABASE", None);
+        assert!(
+            api.contains(&format!(
+                "# pool-size = {} # read pool size; default min(CPU cores, max-pool-size).",
+                db.read_pool_size()
+            )),
+            "api section:\n{api}"
+        );
+
+        let mut aux = String::new();
+        render_database(
+            &mut aux,
+            "tasks-db",
+            None,
+            &db,
+            "KOMGA_TASKSDB",
+            Some(DEFAULT_AUX_READERS),
+        );
+        assert!(
+            aux.contains(
+                "# pool-size = 2 # read pool size; default 2 for the tasks/kmrs databases."
+            ),
+            "aux section:\n{aux}"
+        );
     }
 }
