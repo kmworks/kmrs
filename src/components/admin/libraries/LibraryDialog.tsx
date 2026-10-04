@@ -39,7 +39,10 @@ export function LibraryDialog({ open, onOpenChange, library }: LibraryDialogProp
   const { t } = useTranslation('admin-maintenance')
   const queryClient = useQueryClient()
   const isEdit = !!library
-  const [form, setForm] = useState<LibraryFormState>(DEFAULTS)
+  // edit mode mounts fresh with open=true, so useChanged never fires on mount — seed from props here
+  const [form, setForm] = useState<LibraryFormState>(() =>
+    library ? formFromLibrary(library) : { ...DEFAULTS, scanDirectoryExclusions: [] },
+  )
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [browsingRoot, setBrowsingRoot] = useState(false)
 
