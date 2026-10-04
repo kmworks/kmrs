@@ -198,21 +198,20 @@ impl SeriesDtoDao {
         }
 
         let (join_sql, join_params) = render_collection_joins(&w.joins);
+        // the grouping expression needs SERIES_METADATA even when the WHERE fragment does not
+        let mut count_joins = w.joins.clone();
+        count_joins.insert(RequiredJoin::SeriesMetadata);
+        let (from, from_params) = count_from(&count_joins, user_id);
         let first_char = "LOWER(SUBSTR(SERIES_METADATA.TITLE_SORT, 1, 1))";
         let sql = format!(
-            "SELECT {first_char}, COUNT(*) {FROM_BASE} {join_sql} {} GROUP BY {first_char}",
+            "SELECT {first_char}, COUNT(*) {from} {join_sql} {} GROUP BY {first_char}",
             where_clause(&w)
         );
         let conn = self.db.ro()?;
         let mut stmt = conn.prepare(&sql)?;
         let groups = stmt
             .query_map(
-                params_from_iter(
-                    [Value::Text(user_id.to_string())]
-                        .into_iter()
-                        .chain(join_params)
-                        .chain(w.params),
-                ),
+                params_from_iter(from_params.into_iter().chain(join_params).chain(w.params)),
                 |row| {
                     Ok(GroupCountDto {
                         group: row.get(0)?,
@@ -258,12 +257,21 @@ impl SeriesDtoDao {
                 .chain(w.params.clone())
         };
 
+        let (count_from_sql, count_from_params) = count_from(&w.joins, user_id);
         let count_sql = format!(
-            "SELECT COUNT(DISTINCT SERIES.ID) {FROM_BASE} {join_sql} {}",
+            "SELECT COUNT(DISTINCT SERIES.ID) {count_from_sql} {join_sql} {}",
             where_clause(&w)
         );
-        let total: i64 =
-            conn.query_row(&count_sql, params_from_iter(base_params()), |r| r.get(0))?;
+        let total: i64 = conn.query_row(
+            &count_sql,
+            params_from_iter(
+                count_from_params
+                    .into_iter()
+                    .chain(join_params.clone())
+                    .chain(w.params.clone()),
+            ),
+            |r| r.get(0),
+        )?;
 
         let (order_sql, order_params) = build_order_by(&page.sort, &w.joins, lucene_ids);
         let sorted = !order_sql.is_empty();
@@ -318,6 +326,34 @@ fn render_collection_joins(joins: &BTreeSet<RequiredJoin>) -> (String, Vec<Value
             ));
             params.push(Value::Text(id.clone()));
         }
+    }
+    (sql, params)
+}
+
+/// The count variant of `FROM_BASE`: every join hits the joined table's primary key
+/// (1:1), so a join the WHERE fragment does not reference cannot change the count and
+/// is skipped — with an unrestricted search the count is a bare SERIES scan. The
+/// read-progress user id binds only when that join renders.
+fn count_from(joins: &BTreeSet<RequiredJoin>, user_id: &str) -> (String, Vec<Value>) {
+    let mut sql = String::from("FROM SERIES");
+    let mut params = vec![];
+    if joins.contains(&RequiredJoin::SeriesMetadata) {
+        sql.push_str(" LEFT JOIN SERIES_METADATA ON (SERIES.ID = SERIES_METADATA.SERIES_ID)");
+    }
+    if joins.contains(&RequiredJoin::BookMetadataAggregation) {
+        sql.push_str(
+            " LEFT JOIN BOOK_METADATA_AGGREGATION ON (SERIES.ID = BOOK_METADATA_AGGREGATION.SERIES_ID)",
+        );
+    }
+    if joins
+        .iter()
+        .any(|j| matches!(j, RequiredJoin::ReadProgress(_)))
+    {
+        sql.push_str(
+            " LEFT JOIN READ_PROGRESS_SERIES ON (SERIES.ID = READ_PROGRESS_SERIES.SERIES_ID \
+             AND (READ_PROGRESS_SERIES.USER_ID = ? OR READ_PROGRESS_SERIES.USER_ID IS NULL))",
+        );
+        params.push(Value::Text(user_id.to_string()));
     }
     (sql, params)
 }
@@ -1240,5 +1276,57 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result.total, 0);
+    }
+
+    #[test]
+    fn count_from_joins_only_tables_the_where_references() {
+        let has = |sql: &str, table: &str| sql.contains(&format!(" LEFT JOIN {table} ON"));
+
+        // unrestricted search: the count is a bare SERIES scan
+        let (sql, params) = count_from(&BTreeSet::new(), "u1");
+        assert_eq!(sql, "FROM SERIES");
+        assert!(params.is_empty());
+
+        // read status pulls in READ_PROGRESS_SERIES only, binding the user id
+        let w = series_condition(
+            Some(&SearchConditionSeries::ReadStatus {
+                operator: Equality::Is {
+                    value: ReadStatus::Read,
+                },
+            }),
+            &ctx("u1"),
+        );
+        let (sql, params) = count_from(&w.joins, "u1");
+        assert!(has(&sql, "READ_PROGRESS_SERIES"));
+        assert!(!has(&sql, "SERIES_METADATA"));
+        assert!(!has(&sql, "BOOK_METADATA_AGGREGATION"));
+        assert_eq!(params, [Value::Text("u1".to_string())]);
+
+        // series status and release date pull in their own tables
+        let w = series_condition(
+            Some(&SearchConditionSeries::AllOf {
+                conditions: vec![
+                    SearchConditionSeries::SeriesStatus {
+                        operator: Equality::Is {
+                            value: SeriesStatus::Ended,
+                        },
+                    },
+                    SearchConditionSeries::ReleaseDate {
+                        operator: DateOp::IsInTheLast {
+                            duration: Duration {
+                                seconds: 30 * 86_400,
+                                nanos: 0,
+                            },
+                        },
+                    },
+                ],
+            }),
+            &ctx("u1"),
+        );
+        let (sql, params) = count_from(&w.joins, "u1");
+        assert!(has(&sql, "SERIES_METADATA"));
+        assert!(has(&sql, "BOOK_METADATA_AGGREGATION"));
+        assert!(!has(&sql, "READ_PROGRESS_SERIES"));
+        assert!(params.is_empty());
     }
 }

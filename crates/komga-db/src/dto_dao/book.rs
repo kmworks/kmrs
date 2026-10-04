@@ -639,7 +639,7 @@ fn select_from(user_id: &str, joins: &BTreeSet<RequiredJoin>) -> (String, Vec<Va
 
 /// jOOQ `fetchCount` over the grouped id subquery
 fn count(conn: &Connection, conditions: &SqlWhere, user_id: &str) -> Result<i64> {
-    let (from, mut params) = select_from(user_id, &conditions.joins);
+    let (from, mut params) = count_from(user_id, &conditions.joins);
     let mut sql = format!("SELECT COUNT(*) FROM (SELECT BOOK.ID {from}");
     if !conditions.sql.is_empty() {
         sql.push_str(&format!(" WHERE {}", conditions.sql));
@@ -648,6 +648,45 @@ fn count(conn: &Connection, conditions: &SqlWhere, user_id: &str) -> Result<i64>
     params.extend(conditions.params.iter().cloned());
     let total = conn.query_row(&sql, params_from_iter(params), |r| r.get(0))?;
     Ok(total)
+}
+
+/// The count variant of `select_from`: every join of the base select hits the joined
+/// table's primary key (1:1), so a join the WHERE fragment does not reference cannot
+/// change the group count and is skipped — with an unrestricted search the count is a
+/// bare BOOK scan. Bind parameters stay in SQL text order: the read-progress user id
+/// first, then the read-list join ids.
+fn count_from(user_id: &str, joins: &BTreeSet<RequiredJoin>) -> (String, Vec<Value>) {
+    let mut sql = String::from("FROM BOOK");
+    let mut params = vec![];
+    if joins.contains(&RequiredJoin::Media) {
+        sql.push_str(" LEFT JOIN MEDIA ON (BOOK.ID = MEDIA.BOOK_ID)");
+    }
+    if joins.contains(&RequiredJoin::BookMetadata) {
+        sql.push_str(" LEFT JOIN BOOK_METADATA ON (BOOK.ID = BOOK_METADATA.BOOK_ID)");
+    }
+    if joins
+        .iter()
+        .any(|j| matches!(j, RequiredJoin::ReadProgress(_)))
+    {
+        sql.push_str(
+            " LEFT JOIN READ_PROGRESS ON (BOOK.ID = READ_PROGRESS.BOOK_ID AND READ_PROGRESS.USER_ID = ?)",
+        );
+        params.push(Value::Text(user_id.to_string()));
+    }
+    if joins.contains(&RequiredJoin::SeriesMetadata) {
+        sql.push_str(" LEFT JOIN SERIES_METADATA ON (BOOK.SERIES_ID = SERIES_METADATA.SERIES_ID)");
+    }
+    for join in joins {
+        if let RequiredJoin::ReadList(id) = join {
+            let alias = readlist_alias(id);
+            sql.push_str(&format!(
+                " LEFT JOIN READLIST_BOOK AS \"{alias}\" \
+                 ON ({alias}.BOOK_ID = BOOK.ID AND {alias}.READLIST_ID = ?)"
+            ));
+            params.push(Value::Text(id.clone()));
+        }
+    }
+    (sql, params)
 }
 
 fn fetch_and_map(conn: &Connection, sql: &str, params: Vec<Value>) -> Result<Vec<BookDto>> {
@@ -2195,6 +2234,8 @@ mod tests {
             )
             .unwrap();
         assert_eq!(ids(&result), ["b1", "b3", "b5"]);
+        // the count runs over the same read-list join
+        assert_eq!(result.total, 3);
         assert!(result.sorted);
     }
 
@@ -2211,5 +2252,66 @@ mod tests {
             )
             .unwrap();
         assert_eq!(id_set(&page), set(&["b2", "b4", "b6"]));
+    }
+
+    #[test]
+    fn count_from_joins_only_tables_the_where_references() {
+        let joins = |w: &SqlWhere| count_from("u1", &w.joins);
+        let has = |sql: &str, table: &str| sql.contains(&format!(" LEFT JOIN {table} ON"));
+
+        // unrestricted search: the count is a bare BOOK scan
+        let (sql, params) = count_from("u1", &BTreeSet::new());
+        assert_eq!(sql, "FROM BOOK");
+        assert!(params.is_empty());
+
+        // read status pulls in READ_PROGRESS only, binding the user id
+        let w = book_condition(
+            Some(&SearchConditionBook::ReadStatus {
+                operator: Equality::Is {
+                    value: ReadStatus::Unread,
+                },
+            }),
+            &ctx_user(),
+        );
+        let (sql, params) = joins(&w);
+        assert!(has(&sql, "READ_PROGRESS"));
+        assert!(!has(&sql, "MEDIA"));
+        assert!(!has(&sql, "BOOK_METADATA"));
+        assert!(!has(&sql, "SERIES_METADATA"));
+        assert_eq!(params, [Value::Text("u1".to_string())]);
+
+        // media status, title and content restrictions each pull in their own table
+        let mut ctx = ctx_user();
+        ctx.restrictions = ContentRestrictions::new(
+            Some(AgeRestriction {
+                age: 18,
+                restriction: AllowExclude::Exclude,
+            }),
+            BTreeSet::new(),
+            BTreeSet::new(),
+        );
+        let w = book_condition(
+            Some(&SearchConditionBook::AllOf {
+                conditions: vec![
+                    SearchConditionBook::MediaStatus {
+                        operator: Equality::Is {
+                            value: komga_core::model::media::MediaStatus::Ready,
+                        },
+                    },
+                    SearchConditionBook::Title {
+                        title: StringOp::Is {
+                            value: "x".to_string(),
+                        },
+                    },
+                ],
+            }),
+            &ctx,
+        );
+        let (sql, params) = joins(&w);
+        assert!(has(&sql, "MEDIA"));
+        assert!(has(&sql, "BOOK_METADATA"));
+        assert!(has(&sql, "SERIES_METADATA"));
+        assert!(!has(&sql, "READ_PROGRESS"));
+        assert!(params.is_empty());
     }
 }
