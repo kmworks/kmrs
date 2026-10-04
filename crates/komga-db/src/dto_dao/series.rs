@@ -5,8 +5,8 @@ use crate::dao::{get_date, get_datetime, get_datetime_opt};
 use crate::error::Result;
 use crate::pool::Database;
 use crate::search_sql::{
-    collection_alias, id_in_or_no_condition, series_condition, series_regex_condition,
-    sort_by_values, RequiredJoin, SqlWhere,
+    collection_alias, id_in_or_no_condition, join_referenced, series_condition,
+    series_regex_condition, sort_by_values, RequiredJoin, SqlWhere,
 };
 use komga_core::dto::common::{AlternateTitleDto, AuthorDto, GroupCountDto, WebLinkDto};
 use komga_core::dto::series::{BookMetadataAggregationDto, SeriesDto, SeriesMetadataDto};
@@ -41,12 +41,6 @@ const READ_PROGRESS_COLUMNS: &str = "READ_PROGRESS_SERIES.SERIES_ID, READ_PROGRE
 fn select_columns() -> String {
     format!("{SERIES_COLUMNS}, {METADATA_COLUMNS}, {AGGREGATION_COLUMNS}, {READ_PROGRESS_COLUMNS}")
 }
-
-const FROM_BASE: &str = "FROM SERIES \
- LEFT JOIN SERIES_METADATA ON (SERIES.ID = SERIES_METADATA.SERIES_ID) \
- LEFT JOIN BOOK_METADATA_AGGREGATION ON (SERIES.ID = BOOK_METADATA_AGGREGATION.SERIES_ID) \
- LEFT JOIN READ_PROGRESS_SERIES ON (SERIES.ID = READ_PROGRESS_SERIES.SERIES_ID \
- AND (READ_PROGRESS_SERIES.USER_ID = ? OR READ_PROGRESS_SERIES.USER_ID IS NULL))";
 
 pub struct SeriesDtoDao {
     db: Database,
@@ -225,17 +219,13 @@ impl SeriesDtoDao {
 
     pub fn find_by_id(&self, series_id: &str, user_id: &str) -> Result<Option<SeriesDto>> {
         let columns = select_columns();
-        let sql = format!("SELECT {columns} {FROM_BASE} WHERE SERIES.ID = ? GROUP BY {columns}");
+        let (from, mut params) = select_from(user_id);
+        let sql = format!("SELECT {columns} {from} WHERE SERIES.ID = ? GROUP BY {columns}");
+        params.push(Value::Text(series_id.to_string()));
         let conn = self.db.ro()?;
         let mut stmt = conn.prepare(&sql)?;
         let records = stmt
-            .query_map(
-                params_from_iter([
-                    Value::Text(user_id.to_string()),
-                    Value::Text(series_id.to_string()),
-                ]),
-                map_record,
-            )?
+            .query_map(params_from_iter(params), map_record)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         let children = fetch_children(&conn, &records)?;
         Ok(records.into_iter().map(|r| r.into_dto(&children)).next())
@@ -250,8 +240,10 @@ impl SeriesDtoDao {
     ) -> Result<DtoPage<SeriesDto>> {
         let conn = self.db.ro()?;
         let (join_sql, join_params) = render_collection_joins(&w.joins);
+        let (from, from_params) = select_from(user_id);
         let base_params = || {
-            [Value::Text(user_id.to_string())]
+            from_params
+                .clone()
                 .into_iter()
                 .chain(join_params.clone())
                 .chain(w.params.clone())
@@ -276,7 +268,7 @@ impl SeriesDtoDao {
         let (order_sql, order_params) = build_order_by(&page.sort, &w.joins, lucene_ids);
         let sorted = !order_sql.is_empty();
         let mut sql = format!(
-            "SELECT {} {FROM_BASE} {join_sql} {}",
+            "SELECT {} {from} {join_sql} {}",
             select_columns(),
             where_clause(&w)
         );
@@ -330,32 +322,56 @@ fn render_collection_joins(joins: &BTreeSet<RequiredJoin>) -> (String, Vec<Value
     (sql, params)
 }
 
-/// The count variant of `FROM_BASE`: every join hits the joined table's primary key
-/// (1:1), so a join the WHERE fragment does not reference cannot change the count and
-/// is skipped — with an unrestricted search the count is a bare SERIES scan. The
-/// read-progress user id binds only when that join renders.
-fn count_from(joins: &BTreeSet<RequiredJoin>, user_id: &str) -> (String, Vec<Value>) {
-    let mut sql = String::from("FROM SERIES");
-    let mut params = vec![];
-    if joins.contains(&RequiredJoin::SeriesMetadata) {
-        sql.push_str(" LEFT JOIN SERIES_METADATA ON (SERIES.ID = SERIES_METADATA.SERIES_ID)");
-    }
-    if joins.contains(&RequiredJoin::BookMetadataAggregation) {
-        sql.push_str(
+/// The static joins of the base select, in render order. Each hits the joined table's
+/// primary key (1:1), so a join the WHERE fragment does not reference cannot change
+/// the count and is skipped there; the row select always renders them all.
+fn base_joins(user_id: &str) -> [(RequiredJoin, &'static str, Vec<Value>); 3] {
+    [
+        (
+            RequiredJoin::SeriesMetadata,
+            " LEFT JOIN SERIES_METADATA ON (SERIES.ID = SERIES_METADATA.SERIES_ID)",
+            vec![],
+        ),
+        (
+            RequiredJoin::BookMetadataAggregation,
             " LEFT JOIN BOOK_METADATA_AGGREGATION ON (SERIES.ID = BOOK_METADATA_AGGREGATION.SERIES_ID)",
-        );
-    }
-    if joins
-        .iter()
-        .any(|j| matches!(j, RequiredJoin::ReadProgress(_)))
-    {
-        sql.push_str(
+            vec![],
+        ),
+        (
+            RequiredJoin::ReadProgress(user_id.to_string()),
             " LEFT JOIN READ_PROGRESS_SERIES ON (SERIES.ID = READ_PROGRESS_SERIES.SERIES_ID \
              AND (READ_PROGRESS_SERIES.USER_ID = ? OR READ_PROGRESS_SERIES.USER_ID IS NULL))",
-        );
-        params.push(Value::Text(user_id.to_string()));
+            vec![Value::Text(user_id.to_string())],
+        ),
+    ]
+}
+
+/// The shared FROM skeleton. With `referenced_only` (the count queries) only the
+/// static joins the WHERE fragment references render. The collection joins stay
+/// separate (`render_collection_joins`) because their ON parameter must chain before
+/// the WHERE parameters of the caller.
+fn from_series(
+    user_id: &str,
+    joins: &BTreeSet<RequiredJoin>,
+    referenced_only: bool,
+) -> (String, Vec<Value>) {
+    let mut sql = String::from("FROM SERIES");
+    let mut params = vec![];
+    for (key, fragment, fragment_params) in base_joins(user_id) {
+        if !referenced_only || join_referenced(&key, joins) {
+            sql.push_str(fragment);
+            params.extend(fragment_params);
+        }
     }
     (sql, params)
+}
+
+fn select_from(user_id: &str) -> (String, Vec<Value>) {
+    from_series(user_id, &BTreeSet::new(), false)
+}
+
+fn count_from(joins: &BTreeSet<RequiredJoin>, user_id: &str) -> (String, Vec<Value>) {
+    from_series(user_id, joins, true)
 }
 
 /// Property → ORDER BY expressions, mirroring the `sorts` map plus the special
