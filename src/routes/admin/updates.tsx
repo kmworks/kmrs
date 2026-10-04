@@ -27,6 +27,16 @@ function Badge({ children, tone }: { children: string; tone: 'current' | 'pre' }
   )
 }
 
+// GitHub-generated notes end every entry with a PR/compare URL; the card header
+// already links to the release, and the bare URLs overflow narrow screens.
+function stripLinks(markdown: string): string {
+  return markdown
+    .replace(/^\s*(?:\*\*)?Full Changelog(?:\*\*)?\s*:.*$/gim, '')
+    .replace(/\s+in\s+https?:\/\/\S+/g, '')
+    .replace(/\[([^\]]*)\]\(https?:\/\/[^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+}
+
 function ReleaseCard({ release, isCurrent }: { release: ReleaseDto; isCurrent: boolean }) {
   const { t, i18n } = useTranslation('admin-maintenance')
   return (
@@ -51,7 +61,7 @@ function ReleaseCard({ release, isCurrent }: { release: ReleaseDto; isCurrent: b
           GitHub
         </a>
       </header>
-      {release.description && <MarkdownContent markdown={release.description} className="mt-3" />}
+      {release.description && <MarkdownContent markdown={stripLinks(release.description)} className="mt-3" />}
     </article>
   )
 }
