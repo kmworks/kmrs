@@ -369,6 +369,21 @@ export function SeriesDetailPage() {
         />
       </p>
 
+      {collections.length > 0 && (
+        <HorizontalRow title={t('inCollections')} className="mt-10">
+          {collections.map((c) => (
+            <div key={c.id} className="shrink-0" style={{ width: rowCardWidth }}>
+              <CollectionCard
+                id={c.id}
+                name={c.name}
+                count={c.seriesIds.length}
+                actions={isAdmin(user) ? <RemoveFromCollectionButton collection={c} seriesId={series.id} /> : undefined}
+              />
+            </div>
+          ))}
+        </HorizontalRow>
+      )}
+
       <section className="mt-10">
         <h2 className="mb-4 font-display text-xl font-semibold text-ink">{t('booksHeading')}</h2>
         <FilterBar
@@ -418,21 +433,6 @@ export function SeriesDetailPage() {
           </>
         )}
       </section>
-
-      {collections.length > 0 && (
-        <HorizontalRow title={t('inCollections')} className="mt-10">
-          {collections.map((c) => (
-            <div key={c.id} className="shrink-0" style={{ width: rowCardWidth }}>
-              <CollectionCard
-                id={c.id}
-                name={c.name}
-                count={c.seriesIds.length}
-                actions={isAdmin(user) ? <RemoveFromCollectionButton collection={c} seriesId={series.id} /> : undefined}
-              />
-            </div>
-          ))}
-        </HorizontalRow>
-      )}
 
       <AddToCollectionDialog
         open={addToCollectionOpen}
