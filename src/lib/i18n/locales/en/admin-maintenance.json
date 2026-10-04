@@ -10,6 +10,13 @@
     "emptyBody": "Add a library to start scanning your books.",
     "actions": "Library actions",
     "actionFailed": "Action failed.",
+    "stats": {
+      "line": "{{series}} · {{books}} · {{size}}",
+      "series_one": "{{count}} series",
+      "series_other": "{{count}} series",
+      "books_one": "{{count}} book",
+      "books_other": "{{count}} books"
+    },
     "general": "General",
     "generalHint": "Everything else uses the server defaults.",
     "namePlaceholder": "e.g. Comics",

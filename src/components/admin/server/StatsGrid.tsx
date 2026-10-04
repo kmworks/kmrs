@@ -6,7 +6,8 @@ import { serverApi } from '@/lib/api/users'
 import { formatBytes } from '@/lib/utils/format'
 import { StatCard } from './StatCard'
 import { formatDuration } from './format'
-import { metricStat, useMetric } from './useMetric'
+import { useMetric } from './useMetric'
+import { metricStat } from '../metric'
 
 export function StatsGrid() {
   const { t } = useTranslation('admin-settings')

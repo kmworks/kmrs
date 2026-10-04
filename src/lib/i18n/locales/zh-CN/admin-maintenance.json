@@ -9,6 +9,11 @@
     "emptyBody": "添加一个库，开始扫描你的书籍。",
     "actions": "库操作",
     "actionFailed": "操作失败。",
+    "stats": {
+      "line": "{{series}} · {{books}} · {{size}}",
+      "series_other": "{{count}} 个系列",
+      "books_other": "{{count}} 本书"
+    },
     "general": "常规",
     "generalHint": "其余选项均使用服务器默认值。",
     "namePlaceholder": "例如：漫画",

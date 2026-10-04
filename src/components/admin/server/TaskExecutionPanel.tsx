@@ -5,7 +5,8 @@ import type { MetricDto } from '@/lib/api/types'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Section } from '@/components/account/Section'
 import { formatDuration, taskTypeLabel } from './format'
-import { metricStat, useMetric } from './useMetric'
+import { useMetric } from './useMetric'
+import { metricStat } from '../metric'
 
 interface Row {
   label: string

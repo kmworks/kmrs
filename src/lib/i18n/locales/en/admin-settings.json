@@ -44,7 +44,8 @@
     "series": "Series",
     "books": "Books",
     "collections": "Collections",
-    "readLists": "Read lists"
+    "readLists": "Read lists",
+    "totalSize": "Total size"
   },
   "duration": {
     "ms_one": "{{count}}ms",

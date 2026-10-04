@@ -43,7 +43,8 @@
     "series": "系列",
     "books": "书籍",
     "collections": "合集",
-    "readLists": "阅读列表"
+    "readLists": "阅读列表",
+    "totalSize": "总大小"
   },
   "duration": {
     "ms_other": "{{count}}毫秒",
