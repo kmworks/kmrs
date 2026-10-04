@@ -81,7 +81,7 @@ pub struct FileCors {
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct FileDatabase {
     pub file: Option<PathBuf>,
-    /// read pool size; None = clamp(CPU cores, 8, max-pool-size) for [database],
+    /// read pool size; None = min(CPU cores, max-pool-size) for [database],
     /// 2 for the auxiliary [tasks-db]/[kmrs-db] pools
     pub pool_size: Option<u32>,
     pub max_pool_size: Option<u32>,
@@ -639,7 +639,7 @@ fn render_database(
     let default_desc = if aux {
         "2 for the tasks/kmrs databases"
     } else {
-        "clamp(CPU cores, 8, max-pool-size)"
+        "min(CPU cores, max-pool-size)"
     };
     match db.pool_size {
         Some(n) => out.push_str(&format!(
@@ -647,7 +647,11 @@ fn render_database(
         )),
         None => out.push_str(&format!(
             "# pool-size = {} # read pool size; default {default_desc}. env: {env_prefix}_POOLSIZE\n",
-            if aux { 2 } else { 8 }
+            if aux {
+                db.aux_pools().read_pool_size()
+            } else {
+                db.read_pool_size()
+            }
         )),
     }
     push_line(

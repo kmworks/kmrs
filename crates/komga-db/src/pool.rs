@@ -1,7 +1,6 @@
 //! Connection pool: aligns with `DataSourcesConfiguration.kt`.
 //! - Read/write separation under WAL: the RW pool is always 1, the RO pool is
-//!   poolSize ?: clamp(CPU cores, 8, maxPoolSize). Read queries are I/O-bound, so
-//!   even small boxes benefit from more readers than cores.
+//!   poolSize ?: min(CPU cores, maxPoolSize).
 //! - Without WAL (or for an in-memory database): RO and RW share the same pool.
 //! - Per connection: `PRAGMA foreign_keys=ON`, busy_timeout (default 30s), journal_mode,
 //!   and extra pragmas; main-database connections also register UDFs/collations (see
@@ -87,7 +86,7 @@ impl JournalMode {
 #[derive(Debug, Clone)]
 pub struct DatabaseConfig {
     pub file: PathBuf,
-    /// Read pool size; None = clamp(CPU cores, 8, max_pool_size)
+    /// Read pool size; None = min(CPU cores, max_pool_size)
     pub pool_size: Option<u32>,
     /// Upper bound of pool_size, default 16; komga's default 1 serializes concurrent reads
     pub max_pool_size: u32,
@@ -125,6 +124,20 @@ impl DatabaseConfig {
         !self.is_memory() && self.journal_mode == JournalMode::Wal
     }
 
+    /// Effective read-pool size: explicit `pool_size`, else min(CPU cores, max_pool_size).
+    pub fn read_pool_size(&self) -> u32 {
+        if self.is_memory() {
+            1
+        } else if let Some(size) = self.pool_size {
+            size
+        } else {
+            std::thread::available_parallelism()
+                .map(|n| n.get() as u32)
+                .unwrap_or(1)
+                .min(self.max_pool_size)
+        }
+    }
+
     /// Config for an auxiliary pool set (task-side main DB, tasks DB, kmrs DB):
     /// same settings, but the read pool defaults to [`DEFAULT_AUX_READERS`]
     /// instead of the CPU-based sizing the API side needs.
@@ -149,16 +162,7 @@ impl Database {
         // pool and the task write pool are separate writers on the same file, so
         // concurrent writes are expected and must wait rather than error out.
         let busy_timeout = config.busy_timeout.unwrap_or(Duration::from_secs(30));
-        let pool_size = if config.is_memory() {
-            1
-        } else if let Some(size) = config.pool_size {
-            size
-        } else {
-            std::thread::available_parallelism()
-                .map(|n| n.get() as u32)
-                .unwrap_or(1)
-                .clamp(8.min(config.max_pool_size), config.max_pool_size)
-        };
+        let pool_size = config.read_pool_size();
         let cache_kib = conn_cache_kib(config, pool_size);
         let make_manager = || {
             let config = config.clone();
@@ -259,6 +263,24 @@ mod tests {
         config.pragmas = vec![("main.cache_size".into(), "-4096".into())];
         let db = Database::open(&config).unwrap();
         assert_eq!(cache_size(&db), -4096);
+    }
+
+    #[test]
+    fn default_read_pool_size() {
+        // max-pool-size caps the CPU-based default
+        let config = DatabaseConfig {
+            max_pool_size: 1,
+            ..Default::default()
+        };
+        assert_eq!(config.read_pool_size(), 1);
+
+        // explicit pool-size wins over the formula
+        let config = DatabaseConfig {
+            pool_size: Some(3),
+            max_pool_size: 1,
+            ..Default::default()
+        };
+        assert_eq!(config.read_pool_size(), 3);
     }
 
     #[test]
