@@ -207,10 +207,10 @@ export function OneshotDetailPage() {
 
   const creatorItems = creatorChipItems(md.publisher, authors, '/series')
   const genreItems = genreChipItems(md.genres)
-  const tagItems = tagChipItems(md.tags, '/series')
+  // book tags merge into the series flow: a oneshot is one book, so there is nothing to distinguish
+  const tagItems = tagChipItems([...new Set([...md.tags, ...bookMd.tags])], '/series')
   const sharingItems = sharingLabelChipItems(md.sharingLabels)
   const links = [...md.links, ...bookMd.links.filter((bl) => !md.links.some((sl) => sl.url === bl.url))]
-  const bookTagItems = tagChipItems(bookMd.tags, '/books')
   const hasMetadataFlows = genreItems.length + tagItems.length + sharingItems.length > 0
 
   return (
@@ -386,8 +386,6 @@ export function OneshotDetailPage() {
           </Field>
           <Field term={t('field.added')}>{formatDate(book.created)}</Field>
         </dl>
-
-        <DetailChipFlow items={bookTagItems} className="mt-4" />
 
         {progress && (
           <div className="mt-5 border-t border-line pt-4">
