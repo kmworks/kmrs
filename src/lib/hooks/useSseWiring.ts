@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useMatch } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { sse, type SseEventName } from '@/lib/api/sse'
 import type { TaskQueueStatus } from '@/lib/api/types'
@@ -6,20 +7,24 @@ import { useAuthStore } from '@/lib/store/auth'
 import { useTaskQueue } from '@/lib/store/taskQueue'
 import { useThumbnailBust } from '@/lib/store/thumbnails'
 
+// a library change can add/remove whole content trees, so it cascades everywhere
+const ALL_FAMILIES = ['libraries', 'series', 'books', 'dashboard', 'collections', 'readlists']
+
 const INVALIDATE: Partial<Record<SseEventName, string[]>> = {
-  LibraryAdded: ['libraries'],
-  LibraryChanged: ['libraries'],
-  LibraryDeleted: ['libraries'],
+  LibraryAdded: ALL_FAMILIES,
+  LibraryChanged: ALL_FAMILIES,
+  LibraryDeleted: ALL_FAMILIES,
   SeriesAdded: ['series', 'dashboard'],
   SeriesChanged: ['series', 'dashboard'],
   SeriesDeleted: ['series', 'dashboard'],
   BookAdded: ['books', 'series', 'dashboard'],
   BookChanged: ['books', 'series', 'dashboard'],
   BookDeleted: ['books', 'series', 'dashboard'],
-  ReadProgressChanged: ['books', 'series', 'dashboard'],
-  ReadProgressDeleted: ['books', 'series', 'dashboard'],
-  ReadProgressSeriesChanged: ['series', 'dashboard'],
-  ReadProgressSeriesDeleted: ['series', 'dashboard'],
+  ReadProgressChanged: ['books', 'series', 'dashboard', 'readlists'],
+  ReadProgressDeleted: ['books', 'series', 'dashboard', 'readlists'],
+  // series-level mark read/unread also moves the per-book progress shown inside read lists
+  ReadProgressSeriesChanged: ['series', 'dashboard', 'readlists'],
+  ReadProgressSeriesDeleted: ['series', 'dashboard', 'readlists'],
   CollectionAdded: ['collections'],
   CollectionChanged: ['collections'],
   CollectionDeleted: ['collections'],
@@ -46,42 +51,46 @@ export function useSseWiring() {
   const clear = useAuthStore((s) => s.clear)
   const bump = useThumbnailBust((s) => s.bump)
   const setTaskStatus = useTaskQueue((s) => s.setStatus)
+  const readerOpen = useMatch('/book/:bookId/read') !== null
+
+  // refs so events deferred while the reader is open survive the effect re-run
+  const pendingKeys = useRef(new Set<string>())
+  const pendingThumbs = useRef(new Set<string>())
 
   useEffect(() => {
     if (status !== 'authenticated') {
       sse.disconnect()
+      pendingKeys.current.clear()
+      pendingThumbs.current.clear()
       return
     }
     sse.connect()
 
-    // Scans emit one event per book/series; uncoalesced, each one refetches
-    // every active query in these families. 5s window matches the legacy komga dashboard.
+    // KMReader-style coalescing: scans emit one event per book/series, so each
+    // event only re-arms a 5s debounce and the merged families flush once the
+    // stream goes quiet. While the reader is open the flush is deferred until it
+    // closes, so the session's own progress events don't refetch the reader's
+    // queries mid-read.
     const FLUSH_MS = 5000
-    const pendingKeys = new Set<string>()
-    const pendingThumbs = new Set<string>()
-    let lastFlush = 0
     let timer: ReturnType<typeof setTimeout> | undefined
     const flush = () => {
       timer = undefined
-      lastFlush = Date.now()
-      for (const family of pendingKeys) void queryClient.invalidateQueries({ queryKey: [family] })
-      pendingKeys.clear()
-      for (const id of pendingThumbs) bump(id)
-      pendingThumbs.clear()
+      for (const family of pendingKeys.current) void queryClient.invalidateQueries({ queryKey: [family] })
+      pendingKeys.current.clear()
+      for (const id of pendingThumbs.current) bump(id)
+      pendingThumbs.current.clear()
     }
     const schedule = () => {
-      if (timer !== undefined) return
-      const elapsed = Date.now() - lastFlush
-      if (elapsed >= FLUSH_MS) flush()
-      else timer = setTimeout(flush, FLUSH_MS - elapsed)
+      clearTimeout(timer)
+      timer = setTimeout(flush, FLUSH_MS)
     }
 
     const offs: Array<() => void> = []
     for (const [name, keys] of Object.entries(INVALIDATE)) {
       offs.push(
         sse.on(name as SseEventName, () => {
-          for (const key of keys) pendingKeys.add(key)
-          schedule()
+          for (const key of keys) pendingKeys.current.add(key)
+          if (!readerOpen) schedule()
         }),
       )
     }
@@ -90,8 +99,8 @@ export function useSseWiring() {
         sse.on(name as SseEventName, (data) => {
           const id = pick(data as Parameters<typeof pick>[0])
           if (id) {
-            pendingThumbs.add(id)
-            schedule()
+            pendingThumbs.current.add(id)
+            if (!readerOpen) schedule()
           }
         }),
       )
@@ -107,9 +116,13 @@ export function useSseWiring() {
         setTaskStatus(data as TaskQueueStatus)
       }),
     )
+
+    // reader closed with deferred events pending
+    if (!readerOpen && (pendingKeys.current.size > 0 || pendingThumbs.current.size > 0)) flush()
+
     return () => {
       clearTimeout(timer)
       offs.forEach((off) => off())
     }
-  }, [status, queryClient, clear, bump, setTaskStatus])
+  }, [status, queryClient, clear, bump, setTaskStatus, readerOpen])
 }
