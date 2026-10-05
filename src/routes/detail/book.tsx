@@ -62,7 +62,7 @@ function Field({ term, mono, children }: { term: string; mono?: boolean; childre
 }
 
 export function BookDetailPage() {
-  const { t } = useTranslation('detail')
+  const { t, i18n } = useTranslation('detail')
   const { bookId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -149,7 +149,7 @@ export function BookDetailPage() {
   const readlists = readlistsQuery.data ?? []
   const cover = urls.bookThumbnail(book.id, bust || undefined)
   const authorItems = creatorChipItems('', md.authors, '/books')
-  const tagItems = tagChipItems(md.tags, '/books')
+  const tagItems = tagChipItems(md.tags, '/books', i18n.language)
   const progressPct = completed ? 100 : book.media.pagesCount > 0 && progress ? (progress.page / book.media.pagesCount) * 100 : 0
 
   return (

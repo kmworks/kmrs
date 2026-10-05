@@ -74,7 +74,7 @@ function Field({ term, mono, children }: { term: string; mono?: boolean; childre
 }
 
 export function OneshotDetailPage() {
-  const { t } = useTranslation('detail')
+  const { t, i18n } = useTranslation('detail')
   const { seriesId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -208,7 +208,7 @@ export function OneshotDetailPage() {
   const creatorItems = creatorChipItems(md.publisher, authors, '/series')
   const genreItems = genreChipItems(md.genres)
   // book tags merge into the series flow: a oneshot is one book, so there is nothing to distinguish
-  const tagItems = tagChipItems([...new Set([...md.tags, ...bookMd.tags])], '/series')
+  const tagItems = tagChipItems([...new Set([...md.tags, ...bookMd.tags])], '/series', i18n.language)
   const sharingItems = sharingLabelChipItems(md.sharingLabels)
   const links = [...md.links, ...bookMd.links.filter((bl) => !md.links.some((sl) => sl.url === bl.url))]
   const hasMetadataFlows = genreItems.length + tagItems.length + sharingItems.length > 0
