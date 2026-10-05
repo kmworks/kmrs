@@ -4,10 +4,27 @@ import LanguageDetector from 'i18next-browser-languagedetector'
 
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', label: 'English' },
-  { code: 'zh-CN', label: '简体中文' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'es', label: 'español' },
+  { code: 'fr', label: 'français' },
+  { code: 'it', label: 'italiano' },
+  { code: 'ja', label: '日本語' },
+  { code: 'ko', label: '한국어' },
+  { code: 'ru', label: 'русский' },
+  { code: 'zh-Hans', label: '简体中文' },
+  { code: 'zh-Hant', label: '繁體中文' },
 ] as const
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]['code']
+
+function resolveLanguage(lng: string): LanguageCode {
+  const tag = lng.toLowerCase().replace(/_/g, '-')
+  if (tag.startsWith('zh')) return /hant|-tw|-hk|-mo/.test(tag) ? 'zh-Hant' : 'zh-Hans'
+  const exact = SUPPORTED_LANGUAGES.find((l) => l.code.toLowerCase() === tag)
+  if (exact) return exact.code
+  const primary = tag.split('-')[0]
+  return SUPPORTED_LANGUAGES.find((l) => l.code.toLowerCase().split('-')[0] === primary)?.code ?? 'en'
+}
 
 // any locales/<lang>/<ns>.json is registered automatically, so new namespaces
 // never need an edit here
@@ -35,7 +52,7 @@ void i18n
       order: ['querystring', 'localStorage', 'navigator'],
       caches: ['localStorage'],
       lookupLocalStorage: 'kmweb.language',
-      convertDetectedLanguage: (lng) => (lng.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'),
+      convertDetectedLanguage: resolveLanguage,
     },
   })
 

@@ -7,7 +7,7 @@
     "keepReading": "继续阅读",
     "onDeck": "待阅读",
     "recentlyReleasedBooks": "最新出版",
-    "recentlyAddedBooks": "最近添加的书",
+    "recentlyAddedBooks": "最近添加的书籍",
     "recentlyAddedSeries": "最近添加的系列",
     "recentlyUpdatedSeries": "最近更新的系列",
     "recentlyRead": "最近阅读"
@@ -19,7 +19,7 @@
   },
   "empty": {
     "title": "这里还什么都没有",
-    "body": "服务器有了内容之后，书和系列就会出现在这里。"
+    "body": "服务器有了内容之后，书籍和系列就会出现在这里。"
   },
   "pinnedEmpty": {
     "title": "还没有固定的库",

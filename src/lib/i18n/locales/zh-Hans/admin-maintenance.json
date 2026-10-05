@@ -20,7 +20,7 @@
     "rootFolder": "根目录",
     "rootHelper": "运行 kmrs 的机器上的绝对路径。",
     "oneshotsDirectory": "单篇目录",
-    "oneshotsHelper": "路径中包含此值的文件夹，其中的书会成为单篇。留空则停用。",
+    "oneshotsHelper": "路径中包含此值的文件夹，其中的书籍会成为单篇。留空则停用。",
     "oneshotsPlaceholder": "例如 @oneshot",
     "autoScanNote": "创建后会立即自动扫描该库。",
     "advanced": "高级选项",
@@ -176,7 +176,7 @@
     "seriesChip": "系列",
     "bookChip": "书",
     "event": {
-      "bookFileDeleted": "书文件已删除",
+      "bookFileDeleted": "书籍文件已删除",
       "seriesFolderDeleted": "系列文件夹已删除",
       "bookConverted": "书籍已转换",
       "bookImported": "书籍已导入",

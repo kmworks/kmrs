@@ -68,7 +68,7 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-ink: var(--accent-ink);
   --color-danger: var(--danger);
-  /* CJK entries cover the zh-CN UI and CJK book metadata; SC norms lead since en/zh-CN are the UI locales */
+  /* SC leads the default stack; ja/ko/zh-Hant get their own Han glyph norms via the html:lang overrides below */
   --font-sans:
     'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC',
@@ -80,6 +80,37 @@
   --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* font fallback is per-glyph and lang-blind, so the SC stack above would otherwise serve ja/ko/zh-Hant UIs SC norms */
+html:lang(ja) {
+  --font-sans:
+    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Noto Sans JP',
+    'Source Han Sans JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  --font-display:
+    'Newsreader Variable', Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', 'Noto Serif JP',
+    'Source Han Serif JP', 'Times New Roman', serif;
+}
+
+html:lang(ko) {
+  --font-sans:
+    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans CJK KR', 'Noto Sans KR', 'Source Han Sans KR',
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  --font-display:
+    'Newsreader Variable', Georgia, 'AppleMyungjo', 'Batang', 'Noto Serif CJK KR', 'Noto Serif KR',
+    'Source Han Serif KR', 'Times New Roman', serif;
+}
+
+html:lang(zh-Hant) {
+  --font-sans:
+    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'PingFang TC', 'PingFang HK', 'Microsoft JhengHei', 'Noto Sans CJK TC', 'Noto Sans TC',
+    'Source Han Sans TC', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  --font-display:
+    'Newsreader Variable', Georgia, 'Songti TC', 'PMingLiU', 'Noto Serif CJK TC', 'Noto Serif TC',
+    'Source Han Serif TC', 'Times New Roman', serif;
 }
 
 @layer base {

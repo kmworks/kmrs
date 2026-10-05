@@ -56,8 +56,8 @@
   "interval": "每 {{duration}}",
   "taskType": {
     "scanLibrary": "扫描库",
-    "findBooksToConvert": "查找待转换的书",
-    "findBooksWithMissingPageHash": "查找缺少页面哈希的书",
+    "findBooksToConvert": "查找待转换的书籍",
+    "findBooksWithMissingPageHash": "查找缺少页面哈希的书籍",
     "findDuplicatePagesToDelete": "查找待删除的重复页面",
     "emptyTrash": "清空回收站",
     "analyzeBook": "分析书籍",
@@ -78,7 +78,7 @@
     "upgradeIndex": "升级索引",
     "deleteBook": "删除书籍",
     "deleteSeries": "删除系列",
-    "findBookThumbnailsToRegenerate": "查找待重新生成缩略图的书"
+    "findBookThumbnailsToRegenerate": "查找待重新生成缩略图的书籍"
   },
   "taskQueue": {
     "title": "任务队列",
