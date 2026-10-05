@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -129,10 +129,6 @@ export function BookDetailPage() {
 
   const title = book ? book.metadata.title || book.name : ''
   useDocumentTitle(title || undefined)
-
-  useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [bookId])
 
   if (bookQuery.isPending) return <DetailSkeleton />
   if (bookQuery.isLoadingError)

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -167,10 +167,6 @@ export function OneshotDetailPage() {
   })
 
   useDocumentTitle(title || undefined)
-
-  useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [seriesId])
 
   if (seriesQuery.isPending) return <DetailSkeleton />
   if (seriesQuery.isLoadingError)

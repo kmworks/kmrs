@@ -54,7 +54,7 @@ export function KomfJobsPanel() {
   )
 
   return (
-    <div className="pointer-events-none fixed right-6 bottom-6 z-20 flex flex-col items-end gap-2">
+    <div className="pointer-events-none fixed right-6 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-end gap-2">
       <AnimatePresence>
         {shown.map(card)}
         {collapsed && (

@@ -69,7 +69,7 @@ export function EpubSettingsPanel({ open, onAlwaysFullscreenChange, onClose }: E
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ duration: reduceMotion ? 0 : 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed top-0 right-0 z-30 flex h-full w-80 max-w-[85vw] flex-col border-l border-white/10 bg-black/85 text-white backdrop-blur-md"
+            className="fixed top-0 right-0 z-30 flex h-full w-80 max-w-[85vw] safe-top safe-bottom flex-col border-l border-white/10 bg-black/85 text-white backdrop-blur-md"
           >
             <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
               <h2 className="text-[15px] font-semibold">{t('panel.title')}</h2>

@@ -77,7 +77,7 @@ export function EpubChrome({
             transition={transition}
             className="fixed inset-x-0 top-0 z-20 bg-gradient-to-b from-black/70 to-transparent"
           >
-            <div className="flex items-center gap-0.5 px-2 pt-2 pb-10 text-white">
+            <div className="flex items-center gap-0.5 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-10 text-white">
               <IconButton label={t('chrome.closeReader')} className={chromeButton} onClick={onClose}>
                 <X className="size-5" />
               </IconButton>
@@ -135,7 +135,7 @@ export function EpubChrome({
             transition={transition}
             className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent"
           >
-            <div className="flex items-center gap-1.5 px-3 pt-10 pb-3 text-white">
+            <div className="flex items-center gap-1.5 px-3 pt-10 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-white">
               <IconButton
                 label={t('chrome.previousBook')}
                 className={chromeButton}
@@ -164,7 +164,7 @@ export function EpubChrome({
         )}
       </AnimatePresence>
       {!visible && positionsCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 h-0.5 bg-white/10">
+        <div className="fixed inset-x-0 bottom-[env(safe-area-inset-bottom)] z-20 h-0.5 bg-white/10">
           <div className="h-full bg-accent" style={{ width: `${(position / positionsCount) * 100}%` }} />
         </div>
       )}

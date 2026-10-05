@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -605,7 +605,18 @@ export function AppShell() {
   const { t } = useTranslation('layout')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const navigate = useNavigate()
-  const onSearchPage = useLocation().pathname.startsWith('/search')
+  const location = useLocation()
+  const onSearchPage = location.pathname.startsWith('/search')
+  const navType = useNavigationType()
+  // back/forward remounts the whole grid at once and replaying every card's entrance
+  // reads as a flash; the previous key tells cold open (also POP) apart, and it only
+  // differs from location.key on the render before the key update commits
+  const [prevKey, setPrevKey] = useState<string>()
+  const [popNavigation, setPopNavigation] = useState(false)
+  if (prevKey !== location.key) {
+    setPopNavigation(prevKey !== undefined && navType === 'POP')
+    setPrevKey(location.key)
+  }
 
   // browsing a library steers the default search scope to that library; leaving
   // snaps back to the default, unless the user picked a different scope while there
@@ -621,7 +632,7 @@ export function AppShell() {
   return (
     <div className="flex min-h-dvh bg-bg">
       {/* desktop sidebar */}
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-line bg-surface lg:block">
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 safe-top safe-bottom border-r border-line bg-surface lg:block">
         <SidebarContent />
       </aside>
 
@@ -637,7 +648,7 @@ export function AppShell() {
               onClick={() => setDrawerOpen(false)}
             />
             <motion.aside
-              className="fixed inset-y-0 left-0 z-30 w-64 border-r border-line bg-surface lg:hidden"
+              className="fixed inset-y-0 left-0 z-30 w-64 safe-top safe-bottom border-r border-line bg-surface lg:hidden"
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
@@ -650,7 +661,7 @@ export function AppShell() {
       </AnimatePresence>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-15 shrink-0 items-center gap-3 border-b border-line bg-bg/80 px-4 backdrop-blur-md md:px-8">
+        <header className="sticky top-0 z-20 flex h-15 shrink-0 box-content safe-top items-center gap-3 border-b border-line bg-bg/80 px-4 backdrop-blur-md md:px-8">
           <IconButton label={t('menu')} className="lg:hidden" onClick={() => setDrawerOpen(true)}>
             <List className="size-5" />
           </IconButton>
@@ -676,7 +687,10 @@ export function AppShell() {
           <AppearanceMenu />
         </header>
 
-        <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main
+          data-pop-navigation={popNavigation || undefined}
+          className="min-w-0 flex-1 px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:px-8 md:pt-8 md:pb-[max(2rem,env(safe-area-inset-bottom))]"
+        >
           <Outlet />
         </main>
       </div>

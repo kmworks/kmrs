@@ -180,7 +180,7 @@ export function SettingsForm({ settings }: { settings: SettingsDto }) {
 
       <AnimatePresence>
         {dirtyCount > 0 && (
-          <div className="pointer-events-none fixed inset-x-0 bottom-6 z-20 flex justify-center px-4">
+          <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-20 flex justify-center px-4">
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}

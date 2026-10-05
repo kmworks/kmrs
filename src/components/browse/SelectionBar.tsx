@@ -26,7 +26,7 @@ export function SelectionBar({ count, loaded, state, onSelectAll, onClear, onDis
     <AnimatePresence>
       {count > 0 && (
         <motion.div
-          className="pointer-events-none fixed inset-x-0 bottom-5 z-10 flex justify-center px-4"
+          className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-10 flex justify-center px-4"
           initial={reduce ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.97 }}
           animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
           exit={reduce ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }}

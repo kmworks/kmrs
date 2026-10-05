@@ -96,7 +96,7 @@ export function FilterDrawer({
           <motion.aside
             key="panel"
             aria-label={t('title')}
-            className="fixed inset-y-0 right-0 z-20 flex w-80 flex-col border-l border-line bg-surface sm:w-96"
+            className="fixed inset-y-0 right-0 z-20 flex w-80 safe-top safe-bottom flex-col border-l border-line bg-surface sm:w-96"
             initial={reduce ? { opacity: 0 } : { x: '100%' }}
             animate={reduce ? { opacity: 1 } : { x: 0 }}
             exit={reduce ? { opacity: 0 } : { x: '100%' }}
