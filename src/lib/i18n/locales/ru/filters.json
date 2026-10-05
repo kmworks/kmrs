@@ -80,6 +80,9 @@
     "poster": {
       "selected": "Есть постер",
       "missing": "Нет постера"
+    },
+    "ageRating": {
+      "unset": "Нет"
     }
   },
   "sort": {

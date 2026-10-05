@@ -1,5 +1,5 @@
 import type { BookSearch, ConditionLeaf, SearchCondition, SearchOperator, SeriesSearch } from '@/lib/api/types'
-import { LETTERS, type AuthorFilter, type FilterState, type GroupKey, type GroupMode } from './types'
+import { AGE_RATING_UNSET, LETTERS, type AuthorFilter, type FilterState, type GroupKey, type GroupMode } from './types'
 
 function leaf(key: string, operator: SearchOperator, value?: unknown): ConditionLeaf {
   return value === undefined ? { [key]: { operator } } : { [key]: { operator, value } }
@@ -80,7 +80,13 @@ export function buildSeriesSearch(state: FilterState, libraryId?: string, extra?
   push(conditions, combine(state.genres.map((v) => leaf('genre', 'is', v)), mode('genres')))
   push(conditions, combine(state.tags.map((v) => leaf('tag', 'is', v)), mode('tags')))
   push(conditions, combine(state.sharingLabels.map((v) => leaf('sharingLabel', 'is', v)), mode('sharingLabels')))
-  push(conditions, combine(state.ageRatings.map((v) => leaf('ageRating', 'is', ageRatingValue(v))), mode('ageRatings')))
+  push(
+    conditions,
+    combine(
+      state.ageRatings.map((v) => (v === AGE_RATING_UNSET ? leaf('ageRating', 'isNull') : leaf('ageRating', 'is', ageRatingValue(v)))),
+      mode('ageRatings'),
+    ),
+  )
   push(conditions, combine(state.languages.map((v) => leaf('language', 'is', v)), mode('languages')))
   push(conditions, combine(yearConditions(state.releaseYears), mode('releaseYears')))
   push(conditions, combine(authorConditions(state.authors), mode('authors')))

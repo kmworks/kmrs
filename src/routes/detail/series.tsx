@@ -71,6 +71,9 @@ import { BOOK_DETAIL_FILTER_GROUPS, SERIES_BOOK_DEFAULT_SORT, SERIES_BOOK_SORT_O
 
 const PAGE_SIZE = 48
 
+// module-level so the hook's memo/effect deps stay stable across renders
+const DISABLED_FILTERS = ['releaseYears'] as const
+
 export function SeriesDetailPage() {
   const { t, i18n } = useTranslation('detail')
   const { seriesId = '' } = useParams()
@@ -87,7 +90,7 @@ export function SeriesDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const komfReady = useKomfIntegration()
 
-  const filters = useBrowseFilters(['releaseYears'])
+  const filters = useBrowseFilters(DISABLED_FILTERS)
   const sort = useSortState('books:series', SERIES_BOOK_DEFAULT_SORT)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const hasFilters = activeFilterCount(filters.state) > 0 || !!filters.state.q.trim()
@@ -445,7 +448,7 @@ export function SeriesDetailPage() {
         onClose={() => setDrawerOpen(false)}
         groups={BOOK_DETAIL_FILTER_GROUPS}
         state={filters.state}
-        scope={{ libraryId: [series.libraryId], seriesId }}
+        scope={{ seriesId }}
         activeCount={activeFilterCount(filters.state)}
         onToggleValue={filters.toggleValue}
         onToggleAuthor={filters.toggleAuthor}

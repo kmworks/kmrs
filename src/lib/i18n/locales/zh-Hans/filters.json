@@ -68,6 +68,9 @@
     "poster": {
       "selected": "有海报",
       "missing": "无海报"
+    },
+    "ageRating": {
+      "unset": "无"
     }
   },
   "sort": {

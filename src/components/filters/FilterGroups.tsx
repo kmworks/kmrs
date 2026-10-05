@@ -6,8 +6,8 @@ import { referentialApi, type ReferentialScope } from '@/lib/api/referential'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { cn } from '@/lib/utils/cn'
-import { groupSelectedCount } from './filterUrl'
-import { LETTERS, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type ReferentialKind } from './types'
+import { displayFilterValue, groupSelectedCount } from './filterUrl'
+import { AGE_RATING_UNSET, LETTERS, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type ReferentialKind } from './types'
 
 const MODE_OPTIONS: { value: GroupMode; labelKey: string }[] = [
   { value: 'any', labelKey: 'filters:mode.any' },
@@ -128,12 +128,17 @@ function ReferentialOptions({
     staleTime: 60_000,
   })
 
-  const options = useMemo(() => sortReferential(kind, query.data ?? [], i18n.language), [kind, query.data, i18n.language])
+  const options = useMemo(() => {
+    const sorted = sortReferential(kind, query.data ?? [], i18n.language)
+    // the v2 endpoint drops NULL age ratings, so the unset value is offered as a fixed option,
+    // listed first like the v1 endpoint served it
+    return kind === 'ageRatings' ? [AGE_RATING_UNSET, ...sorted] : sorted
+  }, [kind, query.data, i18n.language])
   const visible = useMemo(() => {
     const f = filter.trim().toLowerCase()
     // selected values stay visible so they can be deselected while filtering
-    return options.filter((o) => selected.includes(o) || !f || o.toLowerCase().includes(f))
-  }, [options, filter, selected])
+    return options.filter((o) => selected.includes(o) || !f || displayFilterValue(kind, o).toLowerCase().includes(f))
+  }, [options, filter, selected, kind])
 
   if (query.isPending) return <LoadingChips />
   if (query.isLoadingError) return <LoadError onRetry={() => query.refetch()} />
@@ -149,7 +154,7 @@ function ReferentialOptions({
         <div className="flex flex-wrap gap-1.5">
           {visible.map((o) => (
             <OptionChip key={o} active={selected.includes(o)} onClick={() => onToggle(o)}>
-              {o}
+              {displayFilterValue(kind, o)}
             </OptionChip>
           ))}
         </div>
@@ -336,7 +341,7 @@ export function FlagFilterRow({ def, value, onCycle }: { def: FilterGroupDef; va
 function groupSummary(def: FilterGroupDef, state: FilterState, locale: string): string {
   const list = new Intl.ListFormat(locale, { style: 'narrow', type: 'conjunction' })
   if (def.kind === 'authors') return list.format(state.authors.map((a) => (a.role ? `${a.name} (${a.role})` : a.name)))
-  return list.format(state[def.key] as string[])
+  return list.format((state[def.key] as string[]).map((v) => displayFilterValue(def.key, v)))
 }
 
 /** collapsed row for high-cardinality groups; opens the group's detail view */

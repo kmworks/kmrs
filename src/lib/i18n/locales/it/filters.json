@@ -76,6 +76,9 @@
     "poster": {
       "selected": "Con poster",
       "missing": "Senza poster"
+    },
+    "ageRating": {
+      "unset": "Nessuna"
     }
   },
   "sort": {

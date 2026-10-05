@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import i18n from '@/lib/i18n'
-import type { AuthorFilter, FilterGroupDef, FilterState, GroupKey, GroupMode } from './types'
+import { AGE_RATING_UNSET, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode } from './types'
 
 /** multi-value URL params, one key per filter group (values repeat the key) */
 const MULTI_KEYS: GroupKey[] = [
@@ -98,6 +98,11 @@ export interface ActiveFilterItem {
   value: string
 }
 
+// the sentinel is an English token baked into bookmarked URLs, so it has to go through i18n at display time
+export function displayFilterValue(key: string, v: string): string {
+  return key === 'ageRatings' && v === AGE_RATING_UNSET ? i18n.t('filters:option.ageRating.unset') : v
+}
+
 export function describeActiveFilters(state: FilterState, groups: FilterGroupDef[]): ActiveFilterItem[] {
   const items: ActiveFilterItem[] = []
   for (const def of groups) {
@@ -121,7 +126,7 @@ export function describeActiveFilters(state: FilterState, groups: FilterGroupDef
         label: i18n.t('filters:chip.value', {
           context: negated ? 'negated' : undefined,
           group: i18n.t(def.labelKey),
-          value: labelKey ? i18n.t(labelKey) : v,
+          value: labelKey ? i18n.t(labelKey) : displayFilterValue(def.key, v),
         }),
         group: def.key,
         value: v,
@@ -145,7 +150,7 @@ function dropParamValue(params: URLSearchParams, key: string, value: string) {
   for (const v of rest) params.append(key, v)
 }
 
-export function useBrowseFilters(disabledKeys: GroupKey[] = []) {
+export function useBrowseFilters(disabledKeys: readonly GroupKey[] = []) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // stale links may carry params for groups this page doesn't offer; drop them once so they

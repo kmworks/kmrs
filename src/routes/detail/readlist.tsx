@@ -38,6 +38,9 @@ import { PosterManager } from '@/components/metadata/PosterManager'
 
 const PAGE_SIZE = 48
 
+// module-level so the hook's memo/effect deps stay stable across renders
+const DISABLED_FILTERS = ['releaseYears'] as const
+
 function EditReadListDialog({
   open,
   onOpenChange,
@@ -112,7 +115,7 @@ export function ReadListDetailPage() {
   const [addBooksOpen, setAddBooksOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
 
-  const filters = useBrowseFilters(['releaseYears'])
+  const filters = useBrowseFilters(DISABLED_FILTERS)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const hasFilters = activeFilterCount(filters.state) > 0 || !!filters.state.q.trim()
 

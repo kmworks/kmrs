@@ -68,6 +68,9 @@
     "poster": {
       "selected": "포스터 있음",
       "missing": "포스터 없음"
+    },
+    "ageRating": {
+      "unset": "없음"
     }
   },
   "sort": {

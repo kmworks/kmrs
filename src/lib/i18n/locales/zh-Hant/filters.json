@@ -68,6 +68,9 @@
     "poster": {
       "selected": "有海報",
       "missing": "沒有海報"
+    },
+    "ageRating": {
+      "unset": "無"
     }
   },
   "sort": {

@@ -76,6 +76,9 @@
     "poster": {
       "selected": "Avec affiche",
       "missing": "Sans affiche"
+    },
+    "ageRating": {
+      "unset": "Aucune"
     }
   },
   "sort": {

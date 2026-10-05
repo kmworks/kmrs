@@ -41,6 +41,9 @@ import { PosterManager } from '@/components/metadata/PosterManager'
 
 const PAGE_SIZE = 48
 
+// module-level so the hook's memo/effect deps stay stable across renders
+const DISABLED_FILTERS = ['letter'] as const
+
 function RenameCollectionDialog({
   open,
   onOpenChange,
@@ -99,7 +102,7 @@ export function CollectionDetailPage() {
   const [addSeriesOpen, setAddSeriesOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
 
-  const filters = useBrowseFilters(['letter'])
+  const filters = useBrowseFilters(DISABLED_FILTERS)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const hasFilters = activeFilterCount(filters.state) > 0 || !!filters.state.q.trim()
   // first-letter navigation is a browse-page affordance, not useful inside a collection

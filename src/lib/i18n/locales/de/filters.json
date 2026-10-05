@@ -72,6 +72,9 @@
     "poster": {
       "selected": "Mit Poster",
       "missing": "Ohne Poster"
+    },
+    "ageRating": {
+      "unset": "Keine"
     }
   },
   "sort": {

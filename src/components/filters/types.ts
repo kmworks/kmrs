@@ -100,6 +100,10 @@ const YES_NO_OPTIONS = [
 /** First-letter navigation values; '#' stands for titles not starting with a letter. */
 export const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
 
+// v1 served unset age ratings as the string "None" while the v2 endpoint drops NULLs, so the
+// filter UI injects the sentinel itself; the value stays "None" so v1-era bookmarked URLs keep working
+export const AGE_RATING_UNSET = 'None'
+
 export const SERIES_FILTER_GROUPS: FilterGroupDef[] = [
   { key: 'readStatus', labelKey: 'filters:group.readStatus', kind: 'enum', options: READ_STATUS_OPTIONS, negatable: true },
   {
