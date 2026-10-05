@@ -198,29 +198,27 @@ export function PosterManager({
                     </span>
                   )}
 
-                  {!p.selected && (
-                    <div className="absolute top-2 right-2">
-                      {armed ? (
-                        <button
-                          type="button"
-                          disabled={deleting}
-                          onClick={() => deleteMutation.mutate(p.id)}
-                          className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg bg-danger px-2 text-[11px] font-medium text-white transition-colors hover:bg-danger/80 disabled:opacity-50"
-                        >
-                          {deleting ? <CircleNotch className="size-3 animate-spin" /> : <Trash className="size-3" />}
-                          {t('common:action.confirm')}
-                        </button>
-                      ) : (
-                        <IconButton
-                          label={t('poster.delete')}
-                          onClick={() => setArmedDelete(p.id)}
-                          className="size-7 bg-black/60 text-white/85 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80 hover:text-white"
-                        >
-                          <Trash className="size-3.5" />
-                        </IconButton>
-                      )}
-                    </div>
-                  )}
+                  <div className="absolute top-2 right-2">
+                    {armed ? (
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => deleteMutation.mutate(p.id)}
+                        className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg bg-danger px-2 text-[11px] font-medium text-white transition-colors hover:bg-danger/80 disabled:opacity-50"
+                      >
+                        {deleting ? <CircleNotch className="size-3 animate-spin" /> : <Trash className="size-3" />}
+                        {t('common:action.confirm')}
+                      </button>
+                    ) : (
+                      <IconButton
+                        label={t('poster.delete')}
+                        onClick={() => setArmedDelete(p.id)}
+                        className="size-7 bg-black/60 text-white/85 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80 hover:text-white"
+                      >
+                        <Trash className="size-3.5" />
+                      </IconButton>
+                    )}
+                  </div>
 
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/75 to-transparent px-2 pt-6 pb-1.5 text-[11px] text-white/85">
                     <span>{typeLabel(p.type)}</span>
