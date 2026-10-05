@@ -133,7 +133,7 @@ export function EditCollectionMembers({ collection, onExit }: EditCollectionMemb
             <Skeleton key={i} className="h-14" />
           ))}
         </div>
-      ) : membersQuery.error ? (
+      ) : membersQuery.isLoadingError ? (
         <EmptyState
           title={t('empty.loadSeriesFailed')}
           body={membersQuery.error.message}

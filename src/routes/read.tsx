@@ -303,7 +303,7 @@ function Reader({ bookId }: { bookId: string }) {
     }
   })
 
-  if (bookQuery.isError) {
+  if (bookQuery.isLoadingError) {
     const notFound = bookQuery.error instanceof ApiError && bookQuery.error.status === 404
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-bg">
@@ -346,7 +346,7 @@ function Reader({ bookId }: { bookId: string }) {
     return <EpubReader book={book} />
   }
 
-  if (pagesQuery.isError) {
+  if (pagesQuery.isLoadingError) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-bg">
         <EmptyState

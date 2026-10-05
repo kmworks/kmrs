@@ -62,7 +62,7 @@ export function DashboardSectionPage() {
         <PinnedLibrariesEmpty onManage={() => setPinDialogOpen(true)} />
       ) : query.isPending ? (
         <GridSkeleton count={18} />
-      ) : query.isError ? (
+      ) : query.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('loadError')}

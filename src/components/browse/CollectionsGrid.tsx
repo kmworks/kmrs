@@ -80,7 +80,7 @@ export function CollectionsGrid({ libraryId, searchable }: { libraryId?: string;
       </div>
       {q.isPending ? (
         <GridSkeleton count={18} />
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('collections.loadError')}

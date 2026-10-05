@@ -44,7 +44,7 @@ export function AdminLibrariesPage() {
             <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
         </div>
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('libraries.loadError')}

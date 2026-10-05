@@ -106,7 +106,7 @@ export function SeriesPickerDialog({
               <CardSkeleton key={i} />
             ))}
           </div>
-        ) : q.isError ? (
+        ) : q.isLoadingError ? (
           <EmptyState
             title={t('empty.loadSeriesFailed')}
             body={q.error.message}

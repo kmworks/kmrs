@@ -132,7 +132,7 @@ function ReferentialOptions({
   }, [options, filter, selected])
 
   if (query.isPending) return <LoadingChips />
-  if (query.isError) return <LoadError onRetry={() => query.refetch()} />
+  if (query.isLoadingError) return <LoadError onRetry={() => query.refetch()} />
 
   return (
     <div>
@@ -217,7 +217,7 @@ function AuthorsOptions({
       <GroupSearchInput value={text} onChange={setText} placeholder={t('authors.searchPlaceholder')} />
       {query.isPending ? (
         <LoadingChips />
-      ) : query.isError ? (
+      ) : query.isLoadingError ? (
         <LoadError onRetry={() => query.refetch()} />
       ) : shown.length === 0 ? (
         <p className="text-xs text-ink-3">{t('authors.noMatch')}</p>

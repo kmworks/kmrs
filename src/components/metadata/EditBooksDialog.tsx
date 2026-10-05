@@ -64,7 +64,7 @@ export function EditBooksDialog({ open, onClose, bookIds }: { open: boolean; onC
           <Skeleton className="h-24 w-full" />
         </div>
       )}
-      {singleId && bookQuery.error && (
+      {singleId && bookQuery.isLoadingError && (
         <EmptyState
           title={t('editBooks.loadError')}
           body={bookQuery.error.message}
@@ -417,8 +417,8 @@ function BatchBooksForm({ ids, onClose }: { ids: string[]; onClose: () => void }
     queries: ids.map((id) => ({ queryKey: ['books', id], queryFn: () => booksApi.get(id) })),
     combine: (results) => ({
       booksPending: results.some((r) => r.isPending),
-      booksError: results.find((r) => r.error)?.error,
-      books: results.every((r) => r.isSuccess) ? results.map((r) => r.data) : null,
+      booksError: results.find((r) => r.isLoadingError)?.error,
+      books: results.every((r) => r.data !== undefined) ? results.map((r) => r.data as BookDto) : null,
     }),
   })
 

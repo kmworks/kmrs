@@ -162,7 +162,7 @@ export function CollectionDetailPage() {
         <GridSkeleton className="mt-8" />
       </div>
     )
-  if (collectionQuery.error)
+  if (collectionQuery.isLoadingError)
     return (
       <DetailError
         error={collectionQuery.error}
@@ -237,7 +237,7 @@ export function CollectionDetailPage() {
 
           {seriesQuery.isPending ? (
             <GridSkeleton />
-          ) : seriesQuery.error ? (
+          ) : seriesQuery.isLoadingError ? (
             <EmptyState
               title={t('empty.loadSeriesFailed')}
               body={seriesQuery.error.message}

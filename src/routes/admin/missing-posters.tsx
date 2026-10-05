@@ -52,7 +52,7 @@ export function AdminMissingPostersPage() {
 
       {q.isPending ? (
         <GridSkeleton count={18} />
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('browse:books.loadError')}

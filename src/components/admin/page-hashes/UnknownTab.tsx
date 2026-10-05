@@ -80,7 +80,7 @@ export function UnknownTab() {
             <Skeleton key={i} className="h-72" />
           ))}
         </div>
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('pageHashes.loadUnknownError')}

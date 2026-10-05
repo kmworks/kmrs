@@ -41,7 +41,7 @@ export function OAuthAccountsFields() {
       {komfTooOld ? (
         <p className="mt-3 text-sm text-ink-3">{t('oauth.upgradeHint')}</p>
       ) : (
-        query.isError && (
+        query.isLoadingError && (
           <div className="mt-3 flex items-center gap-3">
             <p className="text-sm text-danger">
               {query.error instanceof Error ? query.error.message : t('oauth.loadFailed')}

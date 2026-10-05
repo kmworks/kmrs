@@ -139,7 +139,7 @@ export function PosterManager({
 
         {postersQuery.isPending ? (
           <GridSkeleton count={4} />
-        ) : postersQuery.error ? (
+        ) : postersQuery.isLoadingError ? (
           <EmptyState
             title={t('poster.loadFailed')}
             body={postersQuery.error.message}

@@ -14,7 +14,7 @@ import { ASSIGNABLE_ROLES } from './roles'
 interface UserTableProps {
   users: UserDto[] | undefined
   isLoading: boolean
-  isError: boolean
+  isLoadingError: boolean
   error: unknown
   onRetry: () => void
   currentUserId: string | undefined
@@ -148,7 +148,7 @@ function RowActions({
 export function UserTable({
   users,
   isLoading,
-  isError,
+  isLoadingError,
   error,
   onRetry,
   currentUserId,
@@ -171,7 +171,7 @@ export function UserTable({
       </div>
     )
 
-  if (isError)
+  if (isLoadingError)
     return (
       <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-6">
         <p className="text-sm text-danger">{error instanceof Error ? error.message : t('loadFailed')}</p>

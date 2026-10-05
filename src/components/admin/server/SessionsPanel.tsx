@@ -33,7 +33,7 @@ export function SessionsPanel() {
           ))}
         </div>
       )}
-      {query.isError && (
+      {query.isLoadingError && (
         <div className="flex items-center gap-3">
           <p className="text-sm text-danger">
             {query.error instanceof Error ? query.error.message : t('sessions.loadFailed')}

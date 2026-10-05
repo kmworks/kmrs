@@ -80,7 +80,7 @@ export function ReadListsGrid({ libraryId, searchable }: { libraryId?: string; s
       </div>
       {q.isPending ? (
         <GridSkeleton count={18} />
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('readlists.loadError')}

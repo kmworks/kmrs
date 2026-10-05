@@ -37,7 +37,7 @@ export function DashboardRow<T>({ title, to, query, keyOf, renderItem, skeleton 
     )
   }
 
-  if (query.isError) {
+  if (query.isLoadingError) {
     return (
       <HorizontalRow title={title} to={to}>
         <div

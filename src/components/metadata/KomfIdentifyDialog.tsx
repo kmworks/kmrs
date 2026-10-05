@@ -215,7 +215,7 @@ function IdentifyContent({
               </div>
             ))}
           </div>
-        ) : q.isError ? (
+        ) : q.isLoadingError ? (
           <EmptyState
             title={t('identify.searchFailed')}
             body={q.error.message}

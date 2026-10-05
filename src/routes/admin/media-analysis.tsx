@@ -139,7 +139,7 @@ export function AdminMediaAnalysisPage() {
             <Skeleton key={i} className="h-20 w-full" />
           ))}
         </div>
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('browse:books.loadError')}

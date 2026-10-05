@@ -173,12 +173,12 @@ export function OneshotDetailPage() {
   }, [seriesId])
 
   if (seriesQuery.isPending) return <DetailSkeleton />
-  if (seriesQuery.error)
+  if (seriesQuery.isLoadingError)
     return <DetailError error={seriesQuery.error} notFoundTitle={t('notFound.series')} onRetry={() => seriesQuery.refetch()} />
   if (!series) return null
   if (!series.oneshot) return <Navigate to={`/series/${series.id}`} replace />
   if (bookQuery.isPending) return <DetailSkeleton />
-  if (bookQuery.error)
+  if (bookQuery.isLoadingError)
     return <DetailError error={bookQuery.error} notFoundTitle={t('notFound.book')} onRetry={() => bookQuery.refetch()} />
   if (!book)
     return (

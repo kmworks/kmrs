@@ -183,7 +183,7 @@ export function ReadListDetailPage() {
         <GridSkeleton className="mt-8" />
       </div>
     )
-  if (readlistQuery.error)
+  if (readlistQuery.isLoadingError)
     return (
       <DetailError error={readlistQuery.error} notFoundTitle={t('notFound.readList')} onRetry={() => readlistQuery.refetch()} />
     )
@@ -286,7 +286,7 @@ export function ReadListDetailPage() {
 
           {booksQuery.isPending ? (
             <GridSkeleton />
-          ) : booksQuery.error ? (
+          ) : booksQuery.isLoadingError ? (
             <EmptyState
               title={t('empty.loadBooksFailed')}
               body={booksQuery.error.message}

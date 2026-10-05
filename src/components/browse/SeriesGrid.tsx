@@ -93,7 +93,7 @@ export function SeriesGrid({ libraryId }: { libraryId?: string }) {
       />
       {q.isPending ? (
         <GridSkeleton count={18} />
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('series.loadError')}

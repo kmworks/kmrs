@@ -106,7 +106,7 @@ export function BookPickerDialog({
               <CardSkeleton key={i} />
             ))}
           </div>
-        ) : q.isError ? (
+        ) : q.isLoadingError ? (
           <EmptyState
             title={t('empty.loadBooksFailed')}
             body={q.error.message}

@@ -42,7 +42,7 @@ export function AdminUiPage() {
 
       {settingsQuery.isPending ? (
         <Skeleton className="h-28 rounded-xl" />
-      ) : settingsQuery.isError ? (
+      ) : settingsQuery.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('ui.loadFailed')}

@@ -58,7 +58,7 @@ export function EditSeriesDialog({ open, onClose, seriesIds }: { open: boolean; 
           <Skeleton className="h-24 w-full" />
         </div>
       )}
-      {singleId && seriesQuery.error && (
+      {singleId && seriesQuery.isLoadingError && (
         <EmptyState
           title={t('editSeries.loadError')}
           body={seriesQuery.error.message}

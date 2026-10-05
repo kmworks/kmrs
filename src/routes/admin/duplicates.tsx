@@ -57,7 +57,7 @@ export function AdminDuplicatesPage() {
             <Skeleton key={i} className="h-40 rounded-xl" />
           ))}
         </div>
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('duplicates.loadError')}

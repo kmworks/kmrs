@@ -109,7 +109,7 @@ export function AdminUpdatesPage() {
             <Skeleton key={i} className="h-32 rounded-xl" />
           ))}
         </div>
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('updates.loadError')}

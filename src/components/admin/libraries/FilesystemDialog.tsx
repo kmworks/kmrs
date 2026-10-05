@@ -49,7 +49,7 @@ export function FilesystemDialog({ open, onOpenChange, initialPath, onSelect }: 
               <Skeleton key={i} className="h-9" />
             ))}
           </div>
-        ) : q.isError ? (
+        ) : q.isLoadingError ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
             <WarningCircle className="size-8 text-danger" />
             <p className="text-sm text-ink-2">{q.error instanceof Error ? q.error.message : t('filesystem.listError')}</p>

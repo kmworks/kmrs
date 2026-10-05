@@ -16,7 +16,7 @@ export function SectionState<T>({
 }) {
   const { t } = useTranslation('stats')
   if (query.isLoading) return <>{skeleton ?? <Skeleton className="h-24 w-full" />}</>
-  if (query.isError) {
+  if (query.isLoadingError) {
     return (
       <div className="flex items-center gap-3">
         <p className="text-sm text-danger">{query.error instanceof Error ? query.error.message : t('failed')}</p>

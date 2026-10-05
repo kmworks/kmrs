@@ -92,7 +92,7 @@ export function AddToCollectionDialog({ open, onOpenChange, seriesIds, onDone }:
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-2/3" />
           </div>
-        ) : listQuery.isError ? (
+        ) : listQuery.isLoadingError ? (
           <p className="px-5 py-3 text-sm text-ink-3">
             {t('collections.loadError')}{' '}
             <button type="button" onClick={() => listQuery.refetch()} className="cursor-pointer text-accent-strong hover:underline">

@@ -47,7 +47,7 @@ export function AdminUsersPage() {
       <UserTable
         users={users}
         isLoading={usersQuery.isLoading}
-        isError={usersQuery.isError}
+        isLoadingError={usersQuery.isLoadingError}
         error={usersQuery.error}
         onRetry={() => void usersQuery.refetch()}
         currentUserId={me?.id}

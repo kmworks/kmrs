@@ -135,7 +135,7 @@ export function BookDetailPage() {
   }, [bookId])
 
   if (bookQuery.isPending) return <DetailSkeleton />
-  if (bookQuery.error)
+  if (bookQuery.isLoadingError)
     return <DetailError error={bookQuery.error} notFoundTitle={t('notFound.book')} onRetry={() => bookQuery.refetch()} />
   if (!book) return null
   if (book.oneshot) return <Navigate to={`/oneshot/${book.seriesId}`} replace />

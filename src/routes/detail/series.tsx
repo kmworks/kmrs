@@ -186,7 +186,7 @@ export function SeriesDetailPage() {
   }, [hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage])
 
   if (seriesQuery.isPending) return <DetailSkeleton />
-  if (seriesQuery.error)
+  if (seriesQuery.isLoadingError)
     return <DetailError error={seriesQuery.error} notFoundTitle={t('notFound.series')} onRetry={() => seriesQuery.refetch()} />
   if (!series) return null
   if (series.oneshot) return <Navigate to={`/oneshot/${series.id}`} replace />
@@ -402,7 +402,7 @@ export function SeriesDetailPage() {
         />
         {booksQuery.isPending ? (
           <GridSkeleton count={6} />
-        ) : booksQuery.error ? (
+        ) : booksQuery.isLoadingError ? (
           <EmptyState
             title={t('empty.loadBooksFailed')}
             body={booksQuery.error.message}

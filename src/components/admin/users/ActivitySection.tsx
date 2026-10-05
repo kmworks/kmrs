@@ -46,7 +46,7 @@ export function ActivitySection() {
         </div>
       )}
 
-      {query.isError && (
+      {query.isLoadingError && (
         <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-6">
           <p className="text-sm text-danger">
             {query.error instanceof Error ? query.error.message : t('activity.loadFailed')}

@@ -130,7 +130,7 @@ export function AdminHistoryPage() {
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
-      ) : q.isError ? (
+      ) : q.isLoadingError ? (
         <EmptyState
           icon={<WarningCircle />}
           title={t('history.loadError')}

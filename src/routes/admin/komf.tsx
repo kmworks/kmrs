@@ -39,7 +39,7 @@ export function AdminKomfPage() {
   }, [searchParams, setSearchParams, queryClient, t])
 
   const notConnected = query.error instanceof ApiError && query.error.status === 409
-  const loadError = query.error ?? librariesQuery.error
+  const loadError = (query.isLoadingError ? query.error : null) ?? (librariesQuery.isLoadingError ? librariesQuery.error : null)
 
   return (
     <div className="max-w-3xl">

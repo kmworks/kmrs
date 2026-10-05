@@ -90,7 +90,7 @@ export function MatchesDialog({ hash, onOpenChange }: MatchesDialogProps) {
               <Skeleton key={i} className="h-44" />
             ))}
           </div>
-        ) : q.isError ? (
+        ) : q.isLoadingError ? (
           <div className="flex items-center gap-3">
             <p className="text-sm text-danger">
               {q.error instanceof Error ? q.error.message : t('pageHashes.loadMatchesError')}

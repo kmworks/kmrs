@@ -129,7 +129,7 @@ export function EditReadListBooks({ readlist, onExit }: EditReadListBooksProps) 
             <Skeleton key={i} className="h-14" />
           ))}
         </div>
-      ) : membersQuery.error ? (
+      ) : membersQuery.isLoadingError ? (
         <EmptyState
           title={t('empty.loadBooksFailed')}
           body={membersQuery.error.message}

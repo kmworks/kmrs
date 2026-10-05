@@ -87,7 +87,7 @@ export function ApiKeysSection() {
           <Skeleton className="h-9 w-2/3" />
         </div>
       )}
-      {keysQuery.isError && (
+      {keysQuery.isLoadingError && (
         <div className="flex items-center gap-3">
           <p className="text-sm text-danger">
             {keysQuery.error instanceof Error ? keysQuery.error.message : t('apiKeys.failed')}

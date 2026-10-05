@@ -151,7 +151,7 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
 
   if (queries.some((x) => x.isLoading)) return <PreviewSkeleton />
 
-  const failed = queries.find((x) => x.isError)
+  const failed = queries.find((x) => x.isLoadingError)
   if (failed) {
     return <SearchError error={failed.error} onRetry={() => queries.forEach((x) => void x.refetch())} />
   }
@@ -256,7 +256,7 @@ function CategoryGrid<T extends { id: string }>({
   /** rendered below the grid with the currently loaded items (batch actions) */
   selectionBar?: (items: T[]) => ReactNode
 }) {
-  const { data, isLoading, isError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, isLoading, isLoadingError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
       queryKey,
       queryFn: ({ pageParam }) => fetchPage(pageParam),
@@ -282,7 +282,7 @@ function CategoryGrid<T extends { id: string }>({
   const loadedIds = useMemo(() => items.map((i) => i.id), [items])
 
   if (isLoading) return <GridSkeleton count={12} />
-  if (isError) return <SearchError error={error} onRetry={() => void refetch()} />
+  if (isLoadingError) return <SearchError error={error} onRetry={() => void refetch()} />
   if (items.length === 0) return <NoResults q={q} />
 
   return (
