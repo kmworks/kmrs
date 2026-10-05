@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { CaretLeft, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
+import type { ReferentialScope } from '@/lib/api/referential'
 import { EnumFilterSection, FilterGroupDetail, FilterGroupRow, FlagFilterRow } from './FilterGroups'
 import { groupSelectedCount } from './filterUrl'
 import type { AuthorFilter, FilterGroupDef, FilterState, GroupKey, GroupMode } from './types'
@@ -13,7 +14,7 @@ interface FilterDrawerProps {
   onClose: () => void
   groups: FilterGroupDef[]
   state: FilterState
-  libraryId?: string
+  scope?: ReferentialScope
   activeCount: number
   onToggleValue: (key: GroupKey, value: string) => void
   onToggleAuthor: (author: AuthorFilter) => void
@@ -30,7 +31,7 @@ export function FilterDrawer({
   onClose,
   groups,
   state,
-  libraryId,
+  scope,
   activeCount,
   onToggleValue,
   onToggleAuthor,
@@ -144,7 +145,7 @@ export function FilterDrawer({
                     <FilterGroupDetail
                       def={openDef}
                       state={state}
-                      libraryId={libraryId}
+                      scope={scope}
                       enabled={open}
                       onToggleValue={onToggleValue}
                       onToggleAuthor={onToggleAuthor}

@@ -100,8 +100,7 @@
   },
   "authors": {
     "searchPlaceholder": "Search authors…",
-    "noMatch": "No matching authors.",
-    "moreHint": "and more, keep typing to narrow down"
+    "noMatch": "No matching authors."
   },
   "search": {
     "books": "Search books…",

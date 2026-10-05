@@ -96,8 +96,7 @@
   },
   "authors": {
     "searchPlaceholder": "작가 검색…",
-    "noMatch": "일치하는 작가가 없습니다.",
-    "moreHint": "더 있습니다. 계속 입력하여 범위를 좁히세요"
+    "noMatch": "일치하는 작가가 없습니다."
   },
   "search": {
     "books": "책 검색…",

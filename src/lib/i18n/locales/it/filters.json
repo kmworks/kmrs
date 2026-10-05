@@ -104,8 +104,7 @@
   },
   "authors": {
     "searchPlaceholder": "Cerca autori…",
-    "noMatch": "Nessun autore corrispondente.",
-    "moreHint": "e altri, continua a digitare per restringere"
+    "noMatch": "Nessun autore corrispondente."
   },
   "search": {
     "books": "Cerca libri…",

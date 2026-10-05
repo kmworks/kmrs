@@ -96,8 +96,7 @@
   },
   "authors": {
     "searchPlaceholder": "搜尋作者…",
-    "noMatch": "沒有符合的作者。",
-    "moreHint": "還有更多，繼續輸入以縮小範圍"
+    "noMatch": "沒有符合的作者。"
   },
   "search": {
     "books": "搜尋書籍…",

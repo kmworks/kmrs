@@ -102,7 +102,7 @@ export function BooksGrid({ libraryId }: { libraryId?: string }) {
         onClose={() => setDrawerOpen(false)}
         groups={BOOK_FILTER_GROUPS}
         state={filters.state}
-        libraryId={libraryId}
+        scope={{ libraryId: libraryId ? [libraryId] : undefined }}
         activeCount={activeFilterCount(filters.state)}
         onToggleValue={filters.toggleValue}
         onToggleAuthor={filters.toggleAuthor}

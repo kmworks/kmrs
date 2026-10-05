@@ -96,8 +96,7 @@
   },
   "authors": {
     "searchPlaceholder": "搜索作者…",
-    "noMatch": "没有匹配的作者。",
-    "moreHint": "还有更多结果，继续输入可缩小范围"
+    "noMatch": "没有匹配的作者。"
   },
   "search": {
     "books": "搜索书籍…",

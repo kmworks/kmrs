@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import i18n from '@/lib/i18n'
 import type { AuthorFilter, FilterGroupDef, FilterState, GroupKey, GroupMode } from './types'
@@ -145,9 +145,27 @@ function dropParamValue(params: URLSearchParams, key: string, value: string) {
   for (const v of rest) params.append(key, v)
 }
 
-export function useBrowseFilters() {
+export function useBrowseFilters(disabledKeys: GroupKey[] = []) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const state = useMemo(() => parseFilterState(searchParams), [searchParams])
+
+  // stale links may carry params for groups this page doesn't offer; drop them once so they
+  // can't silently filter (there is no UI to see or clear them)
+  useEffect(() => {
+    if (!disabledKeys.some((k) => searchParams.has(k))) return
+    const next = new URLSearchParams(searchParams)
+    for (const k of disabledKeys) {
+      next.delete(k)
+      dropParamValue(next, 'ma', k)
+      dropParamValue(next, 'not', k)
+    }
+    setSearchParams(next, { replace: true })
+  }, [searchParams, disabledKeys, setSearchParams])
+
+  const state = useMemo(() => {
+    const parsed = parseFilterState(searchParams)
+    for (const k of disabledKeys) parsed[k] = []
+    return parsed
+  }, [searchParams, disabledKeys])
 
   const update = useCallback(
     (mutate: (params: URLSearchParams) => void, replace = false) => {

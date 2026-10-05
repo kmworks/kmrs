@@ -53,7 +53,7 @@ export interface FilterState {
 export type ReferentialKind =
   | 'publishers'
   | 'genres'
-  | 'seriesTags'
+  | 'tags'
   | 'bookTags'
   | 'sharingLabels'
   | 'ageRatings'
@@ -119,7 +119,9 @@ export const SERIES_FILTER_GROUPS: FilterGroupDef[] = [
   { key: 'deleted', labelKey: 'filters:group.deleted', kind: 'enum', options: YES_NO_OPTIONS, adminOnly: true, flag: true },
   { key: 'publishers', labelKey: 'filters:group.publishers', kind: 'referential', referential: 'publishers' },
   { key: 'genres', labelKey: 'filters:group.genres', kind: 'referential', referential: 'genres' },
-  { key: 'tags', labelKey: 'filters:group.tags', kind: 'referential', referential: 'seriesTags' },
+  // series-level tag options come from the combined series+aggregation tag view, so oneshots (whose
+  // tags live on the book) contribute too; the series search `tag` condition matches the same union
+  { key: 'tags', labelKey: 'filters:group.tags', kind: 'referential', referential: 'tags' },
   { key: 'sharingLabels', labelKey: 'filters:group.sharingLabels', kind: 'referential', referential: 'sharingLabels' },
   { key: 'ageRatings', labelKey: 'filters:group.ageRatings', kind: 'referential', referential: 'ageRatings' },
   { key: 'languages', labelKey: 'filters:group.languages', kind: 'referential', referential: 'languages' },
@@ -188,6 +190,10 @@ export const BOOK_SORT_OPTIONS: SortOption[] = [
   { labelKey: 'filters:sort.fileSize', property: 'fileSize' },
   { labelKey: 'filters:sort.pages', property: 'media.pagesCount' },
 ]
+
+/** book filter groups for single-context pages (series detail, read list): release years are
+    series-level metadata, meaningless for one series and unavailable for a read list */
+export const BOOK_DETAIL_FILTER_GROUPS: FilterGroupDef[] = BOOK_FILTER_GROUPS.filter((g) => g.key !== 'releaseYears')
 
 /** sorting by series is meaningless inside a single series' book list */
 export const SERIES_BOOK_SORT_OPTIONS = BOOK_SORT_OPTIONS.filter((o) => o.property !== 'series')

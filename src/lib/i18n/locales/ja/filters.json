@@ -96,8 +96,7 @@
   },
   "authors": {
     "searchPlaceholder": "著者を検索…",
-    "noMatch": "一致する著者がありません。",
-    "moreHint": "他にもあります。入力を続けて絞り込んでください"
+    "noMatch": "一致する著者がありません。"
   },
   "search": {
     "books": "本を検索…",

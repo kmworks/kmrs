@@ -124,7 +124,7 @@ export function SeriesGrid({ libraryId }: { libraryId?: string }) {
         onClose={() => setDrawerOpen(false)}
         groups={groups}
         state={filters.state}
-        libraryId={libraryId}
+        scope={{ libraryId: libraryId ? [libraryId] : undefined }}
         activeCount={activeFilterCount(filters.state)}
         onToggleValue={filters.toggleValue}
         onToggleAuthor={filters.toggleAuthor}

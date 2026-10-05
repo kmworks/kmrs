@@ -2,11 +2,10 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CaretRight, CheckCircle, Circle, X, XCircle } from '@phosphor-icons/react'
-import { referentialApi } from '@/lib/api/referential'
+import { referentialApi, type ReferentialScope } from '@/lib/api/referential'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { cn } from '@/lib/utils/cn'
-import { useDebouncedValue } from './useDebouncedValue'
 import { groupSelectedCount } from './filterUrl'
 import { LETTERS, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type ReferentialKind } from './types'
 
@@ -73,25 +72,24 @@ function LoadError({ onRetry }: { onRetry: () => void }) {
   )
 }
 
-function fetchReferential(kind: ReferentialKind, libraryId?: string): Promise<string[]> {
-  const lib = libraryId ? [libraryId] : undefined
+function fetchReferential(kind: ReferentialKind, scope?: ReferentialScope): Promise<string[]> {
   switch (kind) {
     case 'publishers':
-      return referentialApi.publishers({ libraryId: lib })
+      return referentialApi.publishers(scope)
     case 'genres':
-      return referentialApi.genres({ libraryId: lib })
-    case 'seriesTags':
-      return referentialApi.seriesTags({ libraryId: lib })
+      return referentialApi.genres(scope)
+    case 'tags':
+      return referentialApi.tags(scope)
     case 'bookTags':
-      return referentialApi.bookTags({ libraryId: lib })
+      return referentialApi.bookTags(scope)
     case 'sharingLabels':
-      return referentialApi.sharingLabels({ libraryId: lib })
+      return referentialApi.sharingLabels(scope)
     case 'ageRatings':
-      return referentialApi.ageRatings({ libraryId: lib })
+      return referentialApi.ageRatings(scope)
     case 'languages':
-      return referentialApi.languages({ libraryId: lib })
+      return referentialApi.languages(scope)
     case 'releaseDates':
-      return referentialApi.releaseDates({ libraryId: lib })
+      return referentialApi.releaseDates(scope)
   }
 }
 
@@ -110,13 +108,13 @@ function sortReferential(kind: ReferentialKind, values: string[], locale: string
 
 function ReferentialOptions({
   kind,
-  libraryId,
+  scope,
   selected,
   enabled,
   onToggle,
 }: {
   kind: ReferentialKind
-  libraryId?: string
+  scope?: ReferentialScope
   selected: string[]
   enabled: boolean
   onToggle: (value: string) => void
@@ -124,8 +122,8 @@ function ReferentialOptions({
   const [filter, setFilter] = useState('')
   const { t, i18n } = useTranslation('filters')
   const query = useQuery({
-    queryKey: ['referential', kind, libraryId ?? 'all'],
-    queryFn: () => fetchReferential(kind, libraryId),
+    queryKey: ['referential', kind, scope],
+    queryFn: () => fetchReferential(kind, scope),
     enabled,
     staleTime: 60_000,
   })
@@ -160,8 +158,6 @@ function ReferentialOptions({
   )
 }
 
-const AUTHOR_RESULTS_LIMIT = 60
-
 function LetterOptions({ selected, onSelect }: { selected: string[]; onSelect: (letter: string) => void }) {
   const active = selected[0]
   return (
@@ -184,57 +180,64 @@ function LetterOptions({ selected, onSelect }: { selected: string[]; onSelect: (
   )
 }
 
+function authorLabel(a: AuthorFilter): string {
+  return a.role ? `${a.name} (${a.role})` : a.name
+}
+
 function AuthorsOptions({
-  libraryId,
+  scope,
   selected,
   enabled,
   onToggle,
 }: {
-  libraryId?: string
+  scope?: ReferentialScope
   selected: AuthorFilter[]
   enabled: boolean
   onToggle: (author: AuthorFilter) => void
 }) {
-  const [text, setText] = useState('')
-  const { t } = useTranslation('filters')
-  const debounced = useDebouncedValue(text, 300)
+  const [filter, setFilter] = useState('')
+  const { t, i18n } = useTranslation('filters')
   const query = useQuery({
-    queryKey: ['referential', 'authors', libraryId ?? 'all', debounced],
-    queryFn: () => referentialApi.authors({ libraryId, search: debounced.trim() || undefined }),
+    queryKey: ['referential', 'authors', scope],
+    queryFn: () => referentialApi.authors(scope),
     enabled,
-    staleTime: 30_000,
+    staleTime: 60_000,
   })
 
-  const results = (query.data ?? []).filter((a) => !selected.some((s) => s.name === a.name && s.role === a.role))
-  const shown = results.slice(0, AUTHOR_RESULTS_LIMIT)
+  const same = (a: AuthorFilter, b: AuthorFilter) => a.name === b.name && a.role === b.role
+  const options = useMemo(() => {
+    const arr = [...(query.data ?? [])]
+    arr.sort((a, b) => authorLabel(a).localeCompare(authorLabel(b), i18n.language))
+    return arr
+  }, [query.data, i18n.language])
+  const visible = useMemo(() => {
+    const f = filter.trim().toLowerCase()
+    // selected values stay visible so they can be deselected while filtering
+    return options.filter((o) => selected.some((s) => same(o, s)) || !f || authorLabel(o).toLowerCase().includes(f))
+  }, [options, filter, selected])
 
   return (
     <div>
-      {selected.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {selected.map((a) => (
-            <OptionChip key={`${a.name},${a.role}`} active onClick={() => onToggle(a)}>
-              {a.role ? `${a.name} (${a.role})` : a.name}
-              <X className="size-3" />
-            </OptionChip>
-          ))}
-        </div>
+      {options.length > GROUP_SEARCH_THRESHOLD && (
+        <GroupSearchInput value={filter} onChange={setFilter} placeholder={t('authors.searchPlaceholder')} />
       )}
-      <GroupSearchInput value={text} onChange={setText} placeholder={t('authors.searchPlaceholder')} />
       {query.isPending ? (
         <LoadingChips />
       ) : query.isLoadingError ? (
         <LoadError onRetry={() => query.refetch()} />
-      ) : shown.length === 0 ? (
+      ) : visible.length === 0 ? (
         <p className="text-xs text-ink-3">{t('authors.noMatch')}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
-          {shown.map((a) => (
-            <OptionChip key={`${a.name},${a.role}`} active={false} onClick={() => onToggle({ name: a.name, role: a.role })}>
-              {a.role ? `${a.name} (${a.role})` : a.name}
-            </OptionChip>
-          ))}
-          {results.length > shown.length && <span className="self-center text-xs text-ink-3">{t('authors.moreHint')}</span>}
+          {visible.map((a) => {
+            const active = selected.some((s) => same(a, s))
+            return (
+              <OptionChip key={`${a.name},${a.role}`} active={active} onClick={() => onToggle({ name: a.name, role: a.role })}>
+                {authorLabel(a)}
+                {active && <X className="size-3" />}
+              </OptionChip>
+            )
+          })}
         </div>
       )}
     </div>
@@ -358,7 +361,7 @@ export function FilterGroupRow({ def, state, onOpen }: { def: FilterGroupDef; st
 interface DetailProps {
   def: FilterGroupDef
   state: FilterState
-  libraryId?: string
+  scope?: ReferentialScope
   enabled: boolean
   onToggleValue: (key: GroupKey, value: string) => void
   onToggleAuthor: (author: AuthorFilter) => void
@@ -371,7 +374,7 @@ interface DetailProps {
 export function FilterGroupDetail({
   def,
   state,
-  libraryId,
+  scope,
   enabled,
   onToggleValue,
   onToggleAuthor,
@@ -386,7 +389,7 @@ export function FilterGroupDetail({
       {def.kind === 'referential' && def.referential && (
         <ReferentialOptions
           kind={def.referential}
-          libraryId={libraryId}
+          scope={scope}
           selected={values}
           enabled={enabled}
           onToggle={(v) => onToggleValue(def.key, v)}
@@ -394,7 +397,7 @@ export function FilterGroupDetail({
       )}
       {def.kind === 'letters' && <LetterOptions selected={values} onSelect={(l) => onSetExclusive(def.key, l)} />}
       {def.kind === 'authors' && (
-        <AuthorsOptions libraryId={libraryId} selected={state.authors} enabled={enabled} onToggle={onToggleAuthor} />
+        <AuthorsOptions scope={scope} selected={state.authors} enabled={enabled} onToggle={onToggleAuthor} />
       )}
     </div>
   )

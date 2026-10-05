@@ -67,7 +67,7 @@ import { Sentinel } from '@/components/filters/Sentinel'
 import { activeFilterCount, serializeFilters, useBrowseFilters } from '@/components/filters/filterUrl'
 import { serializeSort, useSortState } from '@/components/filters/sort'
 import { buildBookSearch } from '@/components/filters/builders'
-import { BOOK_FILTER_GROUPS, SERIES_BOOK_DEFAULT_SORT, SERIES_BOOK_SORT_OPTIONS } from '@/components/filters/types'
+import { BOOK_DETAIL_FILTER_GROUPS, SERIES_BOOK_DEFAULT_SORT, SERIES_BOOK_SORT_OPTIONS } from '@/components/filters/types'
 
 const PAGE_SIZE = 48
 
@@ -87,7 +87,7 @@ export function SeriesDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const komfReady = useKomfIntegration()
 
-  const filters = useBrowseFilters()
+  const filters = useBrowseFilters(['releaseYears'])
   const sort = useSortState('books:series', SERIES_BOOK_DEFAULT_SORT)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const hasFilters = activeFilterCount(filters.state) > 0 || !!filters.state.q.trim()
@@ -389,7 +389,7 @@ export function SeriesDetailPage() {
         <FilterBar
           count={booksTotal}
           noun="books"
-          groups={BOOK_FILTER_GROUPS}
+          groups={BOOK_DETAIL_FILTER_GROUPS}
           state={filters.state}
           activeCount={activeFilterCount(filters.state)}
           onToggleValue={filters.toggleValue}
@@ -443,9 +443,9 @@ export function SeriesDetailPage() {
       <FilterDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        groups={BOOK_FILTER_GROUPS}
+        groups={BOOK_DETAIL_FILTER_GROUPS}
         state={filters.state}
-        libraryId={series.libraryId}
+        scope={{ libraryId: [series.libraryId], seriesId }}
         activeCount={activeFilterCount(filters.state)}
         onToggleValue={filters.toggleValue}
         onToggleAuthor={filters.toggleAuthor}
