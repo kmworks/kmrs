@@ -9,6 +9,7 @@ export interface DetailChipItem {
   icon?: ReactNode
   /** internal browse-filter link */
   to?: string
+  className?: string
 }
 
 /** Flow of metadata chips with per-category icons; long lists collapse behind a "+N" chip that expands in place. */
@@ -28,7 +29,7 @@ export function DetailChipFlow({
   return (
     <FadeKey id={items.map((i) => i.key).join('|')} className={cn('flex flex-wrap gap-1.5', className)}>
       {shown.map((item) => (
-        <Chip key={item.key} to={item.to} icon={item.icon}>
+        <Chip key={item.key} to={item.to} icon={item.icon} className={item.className}>
           {item.label}
         </Chip>
       ))}

@@ -38,13 +38,23 @@ export function genreChipItems(genres: string[]): DetailChipItem[] {
   }))
 }
 
-export function tagChipItems(tags: string[], base: '/series' | '/books'): DetailChipItem[] {
+export function tagChipItems(tags: string[], base: '/series' | '/books', className?: string): DetailChipItem[] {
   return tags.map((t) => ({
     key: `tag-${t}`,
     label: t,
     icon: <Tag className={iconCls} />,
     to: `${base}?tags=${encodeURIComponent(t)}`,
+    className,
   }))
+}
+
+/** book-only tags are dimmed to mark they come from the books, not the series; both link to the series browse because the backend's series tag search unions series-level and aggregated book tags */
+export function seriesTagChipItems(seriesTags: string[], bookTags: string[], locale: string): DetailChipItem[] {
+  const byLocale = (a: string, b: string) => a.localeCompare(b, locale)
+  const own = seriesTags.filter((t) => t !== '').sort(byLocale)
+  const ownSet = new Set(own)
+  const bookOnly = [...new Set(bookTags.filter((t) => t !== '' && !ownSet.has(t)))].sort(byLocale)
+  return [...tagChipItems(own, '/series'), ...tagChipItems(bookOnly, '/series', 'opacity-70')]
 }
 
 export function sharingLabelChipItems(labels: string[]): DetailChipItem[] {
