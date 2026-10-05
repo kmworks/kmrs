@@ -17,6 +17,10 @@ import { applyTheme, useUiStore } from './lib/store/ui'
 
 applyTheme(useUiStore.getState().theme)
 useUiStore.subscribe((s) => applyTheme(s.theme))
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'))
+}
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
   if (useUiStore.getState().theme === 'system') applyTheme('system')
 })
