@@ -23,6 +23,11 @@
     "is": "是",
     "isNot": "不是"
   },
+  "section": {
+    "flags": "标记",
+    "metadata": "元数据"
+  },
+  "resetGroup": "重置",
   "group": {
     "readStatus": "阅读状态",
     "seriesStatus": "系列状态",

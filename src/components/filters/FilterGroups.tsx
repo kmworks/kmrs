@@ -1,17 +1,23 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { X } from '@phosphor-icons/react'
+import { CaretRight, CheckCircle, Circle, X, XCircle } from '@phosphor-icons/react'
 import { referentialApi } from '@/lib/api/referential'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { cn } from '@/lib/utils/cn'
 import { useDebouncedValue } from './useDebouncedValue'
+import { groupSelectedCount } from './filterUrl'
 import { LETTERS, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type ReferentialKind } from './types'
 
 const MODE_OPTIONS: { value: GroupMode; labelKey: string }[] = [
   { value: 'any', labelKey: 'filters:mode.any' },
   { value: 'all', labelKey: 'filters:mode.all' },
+]
+
+const NEGATE_OPTIONS: { value: 'is' | 'isNot'; labelKey: string }[] = [
+  { value: 'is', labelKey: 'filters:negate.is' },
+  { value: 'isNot', labelKey: 'filters:negate.isNot' },
 ]
 
 const GROUP_SEARCH_THRESHOLD = 40
@@ -228,16 +234,128 @@ function AuthorsOptions({
               {a.role ? `${a.name} (${a.role})` : a.name}
             </OptionChip>
           ))}
-          {results.length > shown.length && (
-            <span className="self-center text-xs text-ink-3">{t('authors.moreHint')}</span>
-          )}
+          {results.length > shown.length && <span className="self-center text-xs text-ink-3">{t('authors.moreHint')}</span>}
         </div>
       )}
     </div>
   )
 }
 
-interface FilterGroupSectionProps {
+interface ControlProps {
+  def: FilterGroupDef
+  state: FilterState
+  onSetMode: (key: GroupKey, mode: GroupMode) => void
+  onSetNegated: (key: GroupKey, negated: boolean) => void
+  className?: string
+}
+
+/** per-group is/is-not and any/all switches; hidden while the group has too few values to need them */
+function GroupControls({ def, state, onSetMode, onSetNegated, className }: ControlProps) {
+  const { t } = useTranslation('filters')
+  const count = groupSelectedCount(def, state)
+  const mode: GroupMode = state.matchAll.includes(def.key) ? 'all' : 'any'
+  const negated = state.exclude.includes(def.key)
+  const showNegate = def.negatable && count >= 1
+  const showMode = count >= 2
+  if (!showNegate && !showMode) return null
+  return (
+    <div className={cn('flex items-center gap-1.5', className)}>
+      {showNegate && (
+        <SegmentedControl
+          size="sm"
+          options={NEGATE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+          value={negated ? 'isNot' : 'is'}
+          onChange={(m) => onSetNegated(def.key, m === 'isNot')}
+        />
+      )}
+      {showMode && (
+        <SegmentedControl
+          size="sm"
+          options={MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+          value={mode}
+          onChange={(m) => onSetMode(def.key, m)}
+        />
+      )}
+    </div>
+  )
+}
+
+interface EnumSectionProps {
+  def: FilterGroupDef
+  state: FilterState
+  onToggleValue: (key: GroupKey, value: string) => void
+  onSetMode: (key: GroupKey, mode: GroupMode) => void
+  onSetNegated: (key: GroupKey, negated: boolean) => void
+}
+
+/** small enum groups stay inline in the main view as a chip row */
+export function EnumFilterSection({ def, state, onToggleValue, onSetMode, onSetNegated }: EnumSectionProps) {
+  const { t } = useTranslation('filters')
+  const values = state[def.key] as string[]
+  return (
+    <section className="border-b border-line py-4">
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+        <h3 className="text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase">{t(def.labelKey)}</h3>
+        <GroupControls def={def} state={state} onSetMode={onSetMode} onSetNegated={onSetNegated} />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {(def.options ?? []).map((o) => (
+          <OptionChip key={o.value} active={values.includes(o.value)} onClick={() => onToggleValue(def.key, o.value)}>
+            {t(o.labelKey)}
+          </OptionChip>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+export function FlagFilterRow({ def, value, onCycle }: { def: FilterGroupDef; value?: string; onCycle: () => void }) {
+  const { t } = useTranslation('filters')
+  return (
+    <button
+      type="button"
+      onClick={onCycle}
+      aria-pressed={value !== undefined}
+      className="flex w-full cursor-pointer items-center justify-between border-t border-line py-2.5 text-left first:border-t-0"
+    >
+      <span className="text-sm text-ink">{t(def.labelKey)}</span>
+      {value === 'true' ? (
+        <CheckCircle weight="fill" className="size-5 text-accent-strong" />
+      ) : value === 'false' ? (
+        <XCircle weight="fill" className="size-5 text-danger" />
+      ) : (
+        <Circle className="size-5 text-ink-3" />
+      )}
+    </button>
+  )
+}
+
+function groupSummary(def: FilterGroupDef, state: FilterState, locale: string): string {
+  const list = new Intl.ListFormat(locale, { style: 'narrow', type: 'conjunction' })
+  if (def.kind === 'authors') return list.format(state.authors.map((a) => (a.role ? `${a.name} (${a.role})` : a.name)))
+  return list.format(state[def.key] as string[])
+}
+
+/** collapsed row for high-cardinality groups; opens the group's detail view */
+export function FilterGroupRow({ def, state, onOpen }: { def: FilterGroupDef; state: FilterState; onOpen: () => void }) {
+  const { t, i18n } = useTranslation('filters')
+  const summary = groupSummary(def, state, i18n.language)
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full cursor-pointer items-center justify-between gap-3 border-t border-line py-2.5 text-left first:border-t-0"
+    >
+      <span className="shrink-0 text-sm text-ink">{t(def.labelKey)}</span>
+      <span className="flex min-w-0 items-center gap-1">
+        {summary && <span className="truncate text-xs text-accent-strong">{summary}</span>}
+        <CaretRight className="size-4 shrink-0 text-ink-3" />
+      </span>
+    </button>
+  )
+}
+
+interface DetailProps {
   def: FilterGroupDef
   state: FilterState
   libraryId?: string
@@ -249,12 +367,8 @@ interface FilterGroupSectionProps {
   onSetExclusive: (key: GroupKey, value: string) => void
 }
 
-const NEGATE_OPTIONS: { value: 'is' | 'isNot'; labelKey: string }[] = [
-  { value: 'is', labelKey: 'filters:negate.is' },
-  { value: 'isNot', labelKey: 'filters:negate.isNot' },
-]
-
-export function FilterGroupSection({
+/** full editor for one group, shown in the drawer's detail view */
+export function FilterGroupDetail({
   def,
   state,
   libraryId,
@@ -264,45 +378,11 @@ export function FilterGroupSection({
   onSetMode,
   onSetNegated,
   onSetExclusive,
-}: FilterGroupSectionProps) {
-  const { t } = useTranslation('filters')
+}: DetailProps) {
   const values = def.kind === 'authors' ? [] : (state[def.key] as string[])
-  const selectedCount = def.kind === 'authors' ? state.authors.length : values.length
-  const mode: GroupMode = state.matchAll.includes(def.key) ? 'all' : 'any'
-  const negated = state.exclude.includes(def.key)
-
   return (
-    <section className="border-b border-line py-4 last:border-b-0">
-      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-        <h3 className="text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase">{t(def.labelKey)}</h3>
-        <div className="flex items-center gap-1.5">
-          {def.negatable && selectedCount >= 1 && (
-            <SegmentedControl
-              size="sm"
-              options={NEGATE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-              value={negated ? 'isNot' : 'is'}
-              onChange={(m) => onSetNegated(def.key, m === 'isNot')}
-            />
-          )}
-          {selectedCount >= 2 && (
-            <SegmentedControl
-              size="sm"
-              options={MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-              value={mode}
-              onChange={(m) => onSetMode(def.key, m)}
-            />
-          )}
-        </div>
-      </div>
-      {def.kind === 'enum' && def.options && (
-        <div className="flex flex-wrap gap-1.5">
-          {def.options.map((o) => (
-            <OptionChip key={o.value} active={values.includes(o.value)} onClick={() => onToggleValue(def.key, o.value)}>
-              {t(o.labelKey)}
-            </OptionChip>
-          ))}
-        </div>
-      )}
+    <div className="py-4">
+      <GroupControls def={def} state={state} onSetMode={onSetMode} onSetNegated={onSetNegated} className="mb-3" />
       {def.kind === 'referential' && def.referential && (
         <ReferentialOptions
           kind={def.referential}
@@ -316,6 +396,6 @@ export function FilterGroupSection({
       {def.kind === 'authors' && (
         <AuthorsOptions libraryId={libraryId} selected={state.authors} enabled={enabled} onToggle={onToggleAuthor} />
       )}
-    </section>
+    </div>
   )
 }

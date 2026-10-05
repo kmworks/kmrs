@@ -23,6 +23,11 @@
     "is": "是",
     "isNot": "不是"
   },
+  "section": {
+    "flags": "標記",
+    "metadata": "後設資料"
+  },
+  "resetGroup": "重置",
   "group": {
     "readStatus": "閱讀狀態",
     "seriesStatus": "系列狀態",

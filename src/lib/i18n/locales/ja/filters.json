@@ -23,6 +23,11 @@
     "is": "である",
     "isNot": "でない"
   },
+  "section": {
+    "flags": "フラグ",
+    "metadata": "メタデータ"
+  },
+  "resetGroup": "リセット",
   "group": {
     "readStatus": "読書状況",
     "seriesStatus": "連載状況",

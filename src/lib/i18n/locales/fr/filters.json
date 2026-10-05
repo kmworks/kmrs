@@ -31,6 +31,11 @@
     "is": "est",
     "isNot": "n'est pas"
   },
+  "section": {
+    "flags": "Indicateurs",
+    "metadata": "Métadonnées"
+  },
+  "resetGroup": "Réinitialiser",
   "group": {
     "readStatus": "État de lecture",
     "seriesStatus": "Statut de la série",

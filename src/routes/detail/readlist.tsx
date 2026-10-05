@@ -333,6 +333,8 @@ export function ReadListDetailPage() {
         onSetMode={filters.setMode}
         onSetNegated={filters.setNegated}
         onSetExclusive={filters.setExclusive}
+        onCycleValue={filters.cycleValue}
+        onClearGroup={filters.clearGroup}
         onClearAll={filters.clearAll}
       />
 

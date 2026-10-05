@@ -71,6 +71,8 @@ export interface FilterGroupDef {
   adminOnly?: boolean
   /** offers an is / is-not switch once values are selected */
   negatable?: boolean
+  /** yes/no enum rendered as one tri-state row instead of a chip group */
+  flag?: boolean
 }
 
 export interface SortOption {
@@ -112,9 +114,9 @@ export const SERIES_FILTER_GROUPS: FilterGroupDef[] = [
     ],
   },
   { key: 'letter', labelKey: 'filters:group.letter', kind: 'letters' },
-  { key: 'complete', labelKey: 'filters:group.complete', kind: 'enum', options: YES_NO_OPTIONS },
-  { key: 'oneshot', labelKey: 'common:oneshot', kind: 'enum', options: YES_NO_OPTIONS },
-  { key: 'deleted', labelKey: 'filters:group.deleted', kind: 'enum', options: YES_NO_OPTIONS, adminOnly: true },
+  { key: 'complete', labelKey: 'filters:group.complete', kind: 'enum', options: YES_NO_OPTIONS, flag: true },
+  { key: 'oneshot', labelKey: 'common:oneshot', kind: 'enum', options: YES_NO_OPTIONS, flag: true },
+  { key: 'deleted', labelKey: 'filters:group.deleted', kind: 'enum', options: YES_NO_OPTIONS, adminOnly: true, flag: true },
   { key: 'publishers', labelKey: 'filters:group.publishers', kind: 'referential', referential: 'publishers' },
   { key: 'genres', labelKey: 'filters:group.genres', kind: 'referential', referential: 'genres' },
   { key: 'tags', labelKey: 'filters:group.tags', kind: 'referential', referential: 'seriesTags' },

@@ -35,6 +35,11 @@
     "is": "соответствует",
     "isNot": "не соответствует"
   },
+  "section": {
+    "flags": "Флаги",
+    "metadata": "Метаданные"
+  },
+  "resetGroup": "Сбросить",
   "group": {
     "readStatus": "Статус чтения",
     "seriesStatus": "Статус серии",

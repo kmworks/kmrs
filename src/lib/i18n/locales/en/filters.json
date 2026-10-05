@@ -27,6 +27,11 @@
     "is": "is",
     "isNot": "is not"
   },
+  "section": {
+    "flags": "Flags",
+    "metadata": "Metadata"
+  },
+  "resetGroup": "Reset",
   "group": {
     "readStatus": "Read status",
     "seriesStatus": "Series status",

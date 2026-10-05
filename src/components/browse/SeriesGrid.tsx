@@ -131,6 +131,8 @@ export function SeriesGrid({ libraryId }: { libraryId?: string }) {
         onSetMode={filters.setMode}
         onSetNegated={filters.setNegated}
         onSetExclusive={filters.setExclusive}
+        onCycleValue={filters.cycleValue}
+        onClearGroup={filters.clearGroup}
         onClearAll={filters.clearAll}
       />
       <SeriesSelectionBar selection={selection} items={items} />

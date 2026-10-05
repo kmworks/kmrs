@@ -23,6 +23,11 @@
     "is": "맞음",
     "isNot": "아님"
   },
+  "section": {
+    "flags": "플래그",
+    "metadata": "메타데이터"
+  },
+  "resetGroup": "재설정",
   "group": {
     "readStatus": "읽기 상태",
     "seriesStatus": "시리즈 상태",

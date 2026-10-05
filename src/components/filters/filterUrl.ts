@@ -64,6 +64,10 @@ export function serializeFilters(s: FilterState): string {
   return JSON.stringify(s)
 }
 
+export function groupSelectedCount(def: FilterGroupDef, s: FilterState): number {
+  return def.kind === 'authors' ? s.authors.length : (s[def.key] as string[]).length
+}
+
 export function activeFilterCount(s: FilterState): number {
   return (
     s.readStatus.length +
@@ -135,6 +139,12 @@ function toggleParam(params: URLSearchParams, key: string, value: string) {
   for (const v of next) params.append(key, v)
 }
 
+function dropParamValue(params: URLSearchParams, key: string, value: string) {
+  const rest = params.getAll(key).filter((v) => v !== value)
+  params.delete(key)
+  for (const v of rest) params.append(key, v)
+}
+
 export function useBrowseFilters() {
   const [searchParams, setSearchParams] = useSearchParams()
   const state = useMemo(() => parseFilterState(searchParams), [searchParams])
@@ -153,11 +163,7 @@ export function useBrowseFilters() {
       update((p) => {
         toggleParam(p, key, value)
         // an emptied group must not keep its negation flag around
-        if (p.getAll(key).length === 0) {
-          const rest = p.getAll('not').filter((v) => v !== key)
-          p.delete('not')
-          for (const v of rest) p.append('not', v)
-        }
+        if (p.getAll(key).length === 0) dropParamValue(p, 'not', key)
       }),
     [update],
   )
@@ -170,10 +176,9 @@ export function useBrowseFilters() {
   const setMode = useCallback(
     (key: GroupKey, mode: GroupMode) =>
       update((p) => {
-        const rest = p.getAll('ma').filter((v) => v !== key)
-        p.delete('ma')
+        dropParamValue(p, 'ma', key)
         // 'any' is the default and stays out of the URL
-        for (const v of mode === 'all' ? [...rest, key] : rest) p.append('ma', v)
+        if (mode === 'all') p.append('ma', key)
       }),
     [update],
   )
@@ -181,10 +186,9 @@ export function useBrowseFilters() {
   const setNegated = useCallback(
     (key: GroupKey, negated: boolean) =>
       update((p) => {
-        const rest = p.getAll('not').filter((v) => v !== key)
-        p.delete('not')
+        dropParamValue(p, 'not', key)
         // non-negated is the default and stays out of the URL
-        for (const v of negated ? [...rest, key] : rest) p.append('not', v)
+        if (negated) p.append('not', key)
       }),
     [update],
   )
@@ -196,6 +200,28 @@ export function useBrowseFilters() {
         const current = p.get(key)
         p.delete(key)
         if (current !== value) p.set(key, value)
+      }),
+    [update],
+  )
+
+  /** tri-state flags cycle through the option order: off → yes → no → off */
+  const cycleValue = useCallback(
+    (key: GroupKey, options: string[]) =>
+      update((p) => {
+        const current = p.get(key)
+        p.delete(key)
+        const next = options[current === null ? 0 : options.indexOf(current) + 1]
+        if (next !== undefined) p.set(key, next)
+      }),
+    [update],
+  )
+
+  const clearGroup = useCallback(
+    (key: GroupKey) =>
+      update((p) => {
+        p.delete(key)
+        dropParamValue(p, 'ma', key)
+        dropParamValue(p, 'not', key)
       }),
     [update],
   )
@@ -222,5 +248,5 @@ export function useBrowseFilters() {
     [update],
   )
 
-  return { state, toggleValue, toggleAuthor, setMode, setNegated, setExclusive, setQ, clearAll }
+  return { state, toggleValue, toggleAuthor, setMode, setNegated, setExclusive, cycleValue, clearGroup, setQ, clearAll }
 }
