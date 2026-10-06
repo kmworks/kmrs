@@ -208,16 +208,13 @@ async fn create_smart_list(
         return Err(ApiError::Violations(violations));
     }
     // visibility and sharing are admin capabilities: a regular user's lists stay private
-    if !user.is_admin()
-        && (body.visibility != SmartListVisibility::Private
-            || !body.shared_with_user_ids.is_empty())
-    {
-        return Err(ApiError::bad_request(
+    if !user.is_admin() && (body.visibility.is_some() || body.shared_with_user_ids.is_some()) {
+        return Err(ApiError::forbidden(
             "only admins may set visibility or share smart lists",
         ));
     }
     let search_json = canonical_search_json(body.target, &body.search)?;
-    let shared_with = body.shared_with_user_ids.clone();
+    let shared_with = body.shared_with_user_ids.unwrap_or_default();
     validate_share_targets(&state, &shared_with)?;
     let smart_list = crate::service::smart_list::add_smart_list(
         &state,
@@ -227,7 +224,7 @@ async fn create_smart_list(
             summary: body.summary,
             owner_user_id: user.id.clone(),
             target: body.target,
-            visibility: body.visibility,
+            visibility: body.visibility.unwrap_or_default(),
             search_json,
             created_date: now_utc(),
             last_modified_date: now_utc(),
@@ -280,7 +277,7 @@ async fn update_smart_list_by_id(
     // visibility and sharing are admin capabilities: non-admin lists stay private
     if !auth.0.user.is_admin() && (body.visibility.is_some() || body.shared_with_user_ids.is_some())
     {
-        return Err(ApiError::bad_request(
+        return Err(ApiError::forbidden(
             "only admins may set visibility or share smart lists",
         ));
     }
@@ -1380,7 +1377,8 @@ mod tests {
             .to_string();
 
         // publishing and sharing are admin capabilities: u1 cannot set visibility
-        // or share targets, on create or later
+        // or share targets, on create or later — even an explicit PRIVATE, so the
+        // rule is uniform with PATCH (absent fields only)
         for (name, extra) in [
             ("pub", serde_json::json!({"visibility": "PUBLIC"})),
             (
@@ -1391,6 +1389,7 @@ mod tests {
                 "sneaky",
                 serde_json::json!({"sharedWithUserIds": [u2_id.clone()]}),
             ),
+            ("explicit", serde_json::json!({"visibility": "PRIVATE"})),
         ] {
             let mut body = serde_json::json!({"name": name, "target": "BOOK", "search": {}});
             body.as_object_mut().unwrap().extend(
@@ -1402,7 +1401,7 @@ mod tests {
             );
             let (status, body) =
                 call(&state, post_json("/api/v1/smart-lists", "u1key", body)).await;
-            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert_eq!(status, StatusCode::FORBIDDEN);
             assert!(
                 String::from_utf8_lossy(&body).contains("only admins"),
                 "{}",
@@ -1506,7 +1505,7 @@ mod tests {
                 .unwrap(),
         )
         .await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(status, StatusCode::FORBIDDEN);
         assert!(String::from_utf8_lossy(&body).contains("only admins"));
 
         // u2 sees the public and the shared-with-them lists only
