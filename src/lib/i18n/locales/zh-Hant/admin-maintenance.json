@@ -10,9 +10,10 @@
     "actions": "書庫動作",
     "actionFailed": "動作失敗。",
     "stats": {
-      "line": "{{series}} · {{books}} · {{size}}",
+      "line": "{{series}} · {{books}} · {{size}} · {{sidecars}}",
       "series_other": "{{count}} 個系列",
-      "books_other": "{{count}} 本書"
+      "books_other": "{{count}} 本書",
+      "sidecars_other": "{{count}} 個附屬檔案"
     },
     "general": "一般",
     "generalHint": "其餘項目都使用伺服器預設值。",

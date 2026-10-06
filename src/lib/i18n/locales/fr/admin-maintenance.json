@@ -12,13 +12,16 @@
     "actions": "Actions de la bibliothèque",
     "actionFailed": "L'action a échoué.",
     "stats": {
-      "line": "{{series}} · {{books}} · {{size}}",
+      "line": "{{series}} · {{books}} · {{size}} · {{sidecars}}",
       "series_one": "{{count}} série",
       "series_many": "{{count}} séries",
       "series_other": "{{count}} séries",
       "books_one": "{{count}} livre",
       "books_many": "{{count}} livres",
-      "books_other": "{{count}} livres"
+      "books_other": "{{count}} livres",
+      "sidecars_one": "{{count}} sidecar",
+      "sidecars_many": "{{count}} sidecars",
+      "sidecars_other": "{{count}} sidecars"
     },
     "general": "Général",
     "generalHint": "Tout le reste utilise les valeurs par défaut du serveur.",

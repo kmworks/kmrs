@@ -11,11 +11,13 @@
     "actions": "Library actions",
     "actionFailed": "Action failed.",
     "stats": {
-      "line": "{{series}} · {{books}} · {{size}}",
+      "line": "{{series}} · {{books}} · {{size}} · {{sidecars}}",
       "series_one": "{{count}} series",
       "series_other": "{{count}} series",
       "books_one": "{{count}} book",
-      "books_other": "{{count}} books"
+      "books_other": "{{count}} books",
+      "sidecars_one": "{{count}} sidecar",
+      "sidecars_other": "{{count}} sidecars"
     },
     "general": "General",
     "generalHint": "Everything else uses the server defaults.",

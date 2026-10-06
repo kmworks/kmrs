@@ -10,9 +10,10 @@
     "actions": "库操作",
     "actionFailed": "操作失败。",
     "stats": {
-      "line": "{{series}} · {{books}} · {{size}}",
+      "line": "{{series}} · {{books}} · {{size}} · {{sidecars}}",
       "series_other": "{{count}} 个系列",
-      "books_other": "{{count}} 本书"
+      "books_other": "{{count}} 本书",
+      "sidecars_other": "{{count}} 个随附文件"
     },
     "general": "常规",
     "generalHint": "其余选项均使用服务器默认值。",

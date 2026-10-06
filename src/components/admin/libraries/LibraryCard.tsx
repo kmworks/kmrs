@@ -72,6 +72,7 @@ export function LibraryCard({ library, onEdit, onDelete }: LibraryCardProps) {
             series: t('libraries.stats.series', { count: stats.series }),
             books: t('libraries.stats.books', { count: stats.books }),
             size: formatBytes(stats.fileSize),
+            sidecars: t('libraries.stats.sidecars', { count: stats.sidecars ?? 0 }),
           })}
         </p>
       )}

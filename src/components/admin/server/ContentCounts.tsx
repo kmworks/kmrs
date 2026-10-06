@@ -21,6 +21,7 @@ export function ContentCounts() {
     { labelKey: 'content.books', value: libraries.data?.total.books },
     { labelKey: 'content.collections', value: server.data?.totals.collections },
     { labelKey: 'content.readLists', value: server.data?.totals.readlists },
+    { labelKey: 'content.sidecars', value: libraries.data?.total.sidecars },
     { labelKey: 'content.totalSize', value: libraries.data?.total.fileSize, format: formatBytes },
   ]
 

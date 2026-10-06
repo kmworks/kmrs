@@ -11,11 +11,13 @@
     "actions": "Bibliotheksaktionen",
     "actionFailed": "Aktion fehlgeschlagen.",
     "stats": {
-      "line": "{{series}} · {{books}} · {{size}}",
+      "line": "{{series}} · {{books}} · {{size}} · {{sidecars}}",
       "series_one": "{{count}} Serie",
       "series_other": "{{count}} Serien",
       "books_one": "{{count}} Buch",
-      "books_other": "{{count}} Bücher"
+      "books_other": "{{count}} Bücher",
+      "sidecars_one": "{{count}} Sidecar",
+      "sidecars_other": "{{count}} Sidecars"
     },
     "general": "Allgemein",
     "generalHint": "Alles andere verwendet die Server-Standards.",

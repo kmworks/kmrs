@@ -12,13 +12,16 @@
     "actions": "Azioni libreria",
     "actionFailed": "Azione non riuscita.",
     "stats": {
-      "line": "{{series}} · {{books}} · {{size}}",
+      "line": "{{series}} · {{books}} · {{size}} · {{sidecars}}",
       "series_one": "{{count}} serie",
       "series_many": "{{count}} serie",
       "series_other": "{{count}} serie",
       "books_one": "{{count}} libro",
       "books_many": "{{count}} libri",
-      "books_other": "{{count}} libri"
+      "books_other": "{{count}} libri",
+      "sidecars_one": "{{count}} sidecar",
+      "sidecars_many": "{{count}} sidecar",
+      "sidecars_other": "{{count}} sidecar"
     },
     "general": "Generale",
     "generalHint": "Tutto il resto usa le impostazioni predefinite del server.",
