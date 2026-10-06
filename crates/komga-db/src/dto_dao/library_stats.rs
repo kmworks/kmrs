@@ -218,17 +218,6 @@ impl LibraryStatsDtoDao {
         Ok(rows)
     }
 
-    /// Sidecar counts per library, without visibility scoping: the API layer exposes
-    /// them to admins only.
-    pub fn sidecar_counts(&self) -> Result<Vec<(String, i64)>> {
-        let conn = self.db.ro()?;
-        count_rows(
-            &conn,
-            "SELECT LIBRARY_ID, COUNT(*) FROM SIDECAR GROUP BY LIBRARY_ID",
-            vec![],
-        )
-    }
-
     /// Distinct list counts over all visible libraries: the total row's read lists and
     /// collections. `series`/`book` are the same visibility fragments as `per_library`.
     pub fn membership_totals(

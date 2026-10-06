@@ -18,12 +18,13 @@ use axum::{routing, Json, Router};
 use komga_core::model::user::KomgaUser;
 use komga_core::time_codec;
 use komga_db::dao::reading_event::{ReadingEvent, ReadingEventDao};
+use komga_db::dao::sidecar::SidecarDao;
 use komga_db::dao::tasks::TasksDao;
 use komga_db::dto_dao::library_stats::LibraryStatsDtoDao;
 use komga_db::dto_dao::reading_stats::{ReadingStatsDtoDao, ReadingTotals};
 use komga_db::search_sql::{content_restrictions_condition, library_ids_condition, SqlWhere};
 use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use time::{Date, OffsetDateTime};
 
 pub fn router() -> Router<AppState> {
@@ -82,8 +83,8 @@ async fn libraries_stats(
     let authorized = user.get_authorized_library_ids(None);
     let dao = LibraryStatsDtoDao::new(state.db.clone());
     let rows = dao.per_library(authorized.as_ref(), &series_visibility, &book_visibility)?;
-    let sidecars: Option<HashMap<String, i64>> = match user.is_admin() {
-        true => Some(dao.sidecar_counts()?.into_iter().collect()),
+    let sidecars = match user.is_admin() {
+        true => Some(SidecarDao::new(state.db.clone()).count_grouped_by_library_id()?),
         false => None,
     };
     let mut total = LibraryStatsTotalDto::default();
@@ -96,6 +97,9 @@ async fn libraries_stats(
             let sidecar_count = sidecars
                 .as_ref()
                 .map(|counts| counts.get(&row.library_id).copied().unwrap_or(0));
+            if let Some(count) = sidecar_count {
+                *total.sidecars.get_or_insert(0) += count;
+            }
             LibraryStatsDto {
                 library_id: row.library_id,
                 name: row.library_name,
@@ -112,7 +116,6 @@ async fn libraries_stats(
     let membership = dao.membership_totals(&series_visibility, &book_visibility)?;
     total.readlists = membership.readlists;
     total.collections = membership.collections;
-    total.sidecars = sidecars.as_ref().map(|counts| counts.values().sum());
     Ok(Json(LibrariesStatsDto { libraries, total }))
 }
 
