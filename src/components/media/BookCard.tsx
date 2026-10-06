@@ -40,15 +40,15 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
     ? book.readProgress.page / book.media.pagesCount
     : 0
 
-  // meta line: in-progress "45% · 120 pages", completed "✓ 3d ago"
+  // meta line: in-progress "#3 · 45% · 120 pages", completed "#3 · ✓ 3d ago"; oneshots omit the number (single book)
   const readAgo = book.readProgress?.completed ? relativeTime(book.readProgress.readDate) : ''
   const metaParts: string[] = []
-  if (!showSeries) metaParts.push(`#${book.metadata.number}`)
+  if (!book.oneshot) metaParts.push(`#${book.metadata.number}`)
   if (progress > 0) metaParts.push(`${Math.round(progress * 100)}%`)
   metaParts.push(t('card.pageCount', { count: book.media.pagesCount }))
   const secondary = readAgo ? (
     <span className="inline-flex items-center gap-1">
-      {!showSeries && `#${book.metadata.number} · `}
+      {!book.oneshot && `#${book.metadata.number} · `}
       <CheckCircle className="size-3" weight="fill" />
       {readAgo}
     </span>

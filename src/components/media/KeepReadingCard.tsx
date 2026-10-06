@@ -39,15 +39,20 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
   const metaColor = tinted ? 'text-white/70' : 'text-ink-2'
 
   const statusLabel = cardStatusLabel({ deleted: unavailable, mediaStatus: book.media.status })
+  const numberPrefix = book.oneshot ? '' : `#${book.metadata.number} · `
   const meta = statusLabel ? (
-    <span className={statusLabel.className}>{statusLabel.text}</span>
+    <span className={statusLabel.className}>
+      {numberPrefix}
+      {statusLabel.text}
+    </span>
   ) : completed ? (
     <span className="inline-flex items-center gap-1">
+      {numberPrefix}
       <CheckCircle className="size-3" weight="fill" />
       {relativeTime(book.readProgress!.readDate)}
     </span>
   ) : (
-    `${Math.round(pct * 100)}% · ${t('card.pageCount', { count: book.media.pagesCount })}`
+    `${numberPrefix}${Math.round(pct * 100)}% · ${t('card.pageCount', { count: book.media.pagesCount })}`
   )
 
   return (
