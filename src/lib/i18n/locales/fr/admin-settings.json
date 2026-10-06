@@ -114,7 +114,6 @@
     "runs": "Exécutions",
     "totalTime": "Temps total",
     "longest": "Plus longue",
-    "allTasks": "Toutes les tâches",
     "failures_one": "{{count}} échec de tâche enregistré.",
     "failures_many": "{{count}} échecs de tâches enregistrés.",
     "failures_other": "{{count}} échecs de tâches enregistrés."

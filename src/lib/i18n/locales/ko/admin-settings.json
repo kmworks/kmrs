@@ -98,7 +98,6 @@
     "runs": "실행 수",
     "totalTime": "총 시간",
     "longest": "최장",
-    "allTasks": "모든 작업",
     "failures_other": "기록된 작업 실패 {{count}}건."
   },
   "scheduled": {

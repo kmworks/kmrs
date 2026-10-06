@@ -6,22 +6,18 @@ import { serverApi } from '@/lib/api/users'
 import { formatBytes } from '@/lib/utils/format'
 import { StatCard } from './StatCard'
 import { formatDuration } from './format'
-import { useMetric } from './useMetric'
-import { metricStat } from '../metric'
+import { useServerStats } from '../stats'
 
 export function StatsGrid() {
   const { t } = useTranslation('admin-settings')
   const info = useQuery({ queryKey: ['server-info'], queryFn: serverApi.info, staleTime: Infinity })
   const health = useQuery({ queryKey: ['admin', 'health'], queryFn: actuatorApi.health, refetchInterval: 30_000 })
-  const uptime = useMetric('process.uptime')
-  const cpu = useMetric('process.cpu.usage')
-  const memory = useMetric('jvm.memory.used')
+  const stats = useServerStats()
 
-  const uptimeSecs = metricStat(uptime.data, 'VALUE')
-  const cpuRaw = metricStat(cpu.data, 'VALUE')
-  // kmrs serves process.cpu.usage already in percent; micrometer's convention is a 0–1 ratio
-  const cpuPct = cpuRaw === undefined ? undefined : cpu.data?.baseUnit === 'percent' ? cpuRaw : cpuRaw * 100
-  const memoryBytes = metricStat(memory.data, 'VALUE')
+  const process = stats.data?.process
+  const uptimeSecs = process?.uptimeSeconds
+  const cpuPct = process?.cpuUsage
+  const memoryBytes = process?.memoryBytes
   const disk = health.data?.components?.diskSpace?.details
   const git = [info.data?.git?.branch, info.data?.git?.commit?.id].filter(Boolean).join(' · ')
 

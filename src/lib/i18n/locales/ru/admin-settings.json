@@ -122,7 +122,6 @@
     "runs": "Запуски",
     "totalTime": "Общее время",
     "longest": "Самое долгое",
-    "allTasks": "Все задачи",
     "failures_one": "Записана {{count}} ошибка задачи.",
     "failures_few": "Записаны {{count}} ошибки задач.",
     "failures_many": "Записано {{count}} ошибок задач.",

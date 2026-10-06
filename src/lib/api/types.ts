@@ -432,14 +432,6 @@ export interface ActuatorHealth {
   }
 }
 
-export interface MetricDto {
-  name: string
-  description?: string
-  baseUnit?: string
-  measurements: { statistic: string; value: number }[]
-  availableTags: { tag: string; values: string[] }[]
-}
-
 export interface ScheduledTaskDto {
   runnable: { target: string }
   initialDelay: number
@@ -1310,4 +1302,57 @@ export interface ReadingTopsDto {
   genreDistribution: NamedValueDto[]
   tagDistribution: NamedValueDto[]
   generatedAt: string
+}
+
+// kmrs-private library/server statistics, not part of the Komga API surface
+export interface LibraryStatsDto {
+  libraryId: string
+  name: string
+  series: number
+  books: number
+  fileSize: number
+  readlists: number
+  collections: number
+}
+
+export interface LibrariesStatsDto {
+  libraries: LibraryStatsDto[]
+  /** readlists/collections are distinct counts over all visible libraries, not the per-library row sum */
+  total: {
+    series: number
+    books: number
+    fileSize: number
+    readlists: number
+    collections: number
+  }
+}
+
+export interface TaskTypeStatsDto {
+  type: string
+  queued: number
+  executions: number
+  totalTimeMs: number
+  maxTimeMs: number
+  failures: number
+}
+
+export interface ServerStatsDto {
+  tasks: {
+    queueSize: number
+    /** queue depth and execution metrics merged by task type */
+    types: TaskTypeStatsDto[]
+  }
+  process: {
+    startTime: string
+    uptimeSeconds: number
+    /** percent of total CPU capacity: 100 means every core busy */
+    cpuUsage: number
+    memoryBytes: number
+  }
+  totals: {
+    libraries: number
+    collections: number
+    readlists: number
+    sidecars: number
+  }
 }

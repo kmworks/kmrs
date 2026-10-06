@@ -106,7 +106,6 @@
     "runs": "Runs",
     "totalTime": "Total time",
     "longest": "Longest",
-    "allTasks": "All tasks",
     "failures_one": "{{count}} task failure recorded.",
     "failures_other": "{{count}} task failures recorded."
   },

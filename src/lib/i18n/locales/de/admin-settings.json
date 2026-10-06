@@ -106,7 +106,6 @@
     "runs": "Läufe",
     "totalTime": "Gesamtzeit",
     "longest": "Längster",
-    "allTasks": "Alle Aufgaben",
     "failures_one": "{{count}} Aufgabenfehler aufgezeichnet.",
     "failures_other": "{{count}} Aufgabenfehler aufgezeichnet."
   },

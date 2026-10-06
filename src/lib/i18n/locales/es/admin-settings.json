@@ -114,7 +114,6 @@
     "runs": "Ejecuciones",
     "totalTime": "Tiempo total",
     "longest": "Más larga",
-    "allTasks": "Todas las tareas",
     "failures_one": "{{count}} fallo de tarea registrado.",
     "failures_many": "{{count}} fallos de tarea registrados.",
     "failures_other": "{{count}} fallos de tarea registrados."

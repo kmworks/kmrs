@@ -98,7 +98,6 @@
     "runs": "运行次数",
     "totalTime": "总耗时",
     "longest": "最长耗时",
-    "allTasks": "全部任务",
     "failures_other": "已记录 {{count}} 次任务失败。"
   },
   "scheduled": {

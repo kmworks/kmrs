@@ -98,7 +98,6 @@
     "runs": "執行次數",
     "totalTime": "總時間",
     "longest": "最長",
-    "allTasks": "所有任務",
     "failures_other": "記錄了 {{count}} 次任務失敗。"
   },
   "scheduled": {

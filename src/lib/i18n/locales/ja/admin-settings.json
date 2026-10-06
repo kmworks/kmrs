@@ -98,7 +98,6 @@
     "runs": "実行回数",
     "totalTime": "合計時間",
     "longest": "最長",
-    "allTasks": "すべてのタスク",
     "failures_other": "{{count}} 件のタスク失敗が記録されています。"
   },
   "scheduled": {

@@ -2,7 +2,6 @@ import { api } from './client'
 import type {
   ActuatorHealth,
   DirectoryListingDto,
-  MetricDto,
   ScheduledTasksDto,
   SessionDto,
   SettingsDto,
@@ -26,8 +25,6 @@ export const tasksApi = {
 
 export const actuatorApi = {
   health: () => api.get<ActuatorHealth>('/actuator/health'),
-  metricNames: () => api.get<{ names: string[] }>('/actuator/metrics'),
-  metric: (name: string, tags?: string[]) => api.get<MetricDto>(`/actuator/metrics/${name}`, tags?.length ? { tag: tags } : undefined),
   scheduledTasks: () => api.get<ScheduledTasksDto>('/actuator/scheduledtasks'),
   sessions: (username?: string) => api.get<{ sessions: SessionDto[] }>('/actuator/sessions', { username }),
   deleteSession: (sessionId: string) => api.delete<void>(`/actuator/sessions/${sessionId}`),
