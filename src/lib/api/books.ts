@@ -57,4 +57,7 @@ export const booksApi = {
   refreshMetadata: (bookId: string) => api.post<void>(`/api/v1/books/${bookId}/metadata/refresh`),
   duplicates: (params?: PageParams) => api.get<Page<BookDto>>('/api/v1/books/duplicates', pageQuery(params)),
   importBooks: (body: BookImportBatchDto) => api.post<void>('/api/v1/books/import', body),
+  /** forBiggerResultOnly skips books whose current thumbnail already meets the configured size. */
+  regenerateThumbnails: (forBiggerResultOnly: boolean) =>
+    api.put<void>('/api/v1/books/thumbnails', undefined, { for_bigger_result_only: forBiggerResultOnly }),
 }

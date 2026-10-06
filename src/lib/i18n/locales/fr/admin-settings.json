@@ -204,6 +204,14 @@
     "body": "Tous les utilisateurs ayant choisi « Rester connecté » seront déconnectés et devront se reconnecter sur tous leurs appareils.",
     "failed": "Impossible de remplacer la clé."
   },
+  "regenerate": {
+    "title": "Regénérer les vignettes",
+    "body": "La taille des vignettes a été modifiée. Les livres conservent leurs vignettes actuelles tant qu'elles ne sont pas regénérées — une tâche d'arrière-plan est mise en file, visible dans le panneau des tâches.",
+    "biggerOnly": "Les plus petites",
+    "all": "Tous les livres",
+    "skip": "Pas maintenant",
+    "failed": "Impossible de lancer la tâche de regénération."
+  },
   "validation": {
     "positiveDays": "Doit être un nombre entier positif de jours.",
     "positiveInt": "Doit être un nombre entier positif.",

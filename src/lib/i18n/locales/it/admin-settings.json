@@ -204,6 +204,14 @@
     "body": "Ogni utente che ha scelto «Ricordami» verrà disconnesso e dovrà accedere di nuovo su tutti i dispositivi.",
     "failed": "Impossibile ruotare la chiave."
   },
+  "regenerate": {
+    "title": "Rigenera le miniature",
+    "body": "La dimensione delle miniature è cambiata. I libri mantengono le miniature attuali finché non vengono rigenerate: viene accodata un'attività in background, visibile nel pannello delle attività.",
+    "biggerOnly": "Solo le più piccole",
+    "all": "Tutti i libri",
+    "skip": "Non ora",
+    "failed": "Impossibile avviare l'attività di rigenerazione."
+  },
   "validation": {
     "positiveDays": "Deve essere un numero intero positivo di giorni.",
     "positiveInt": "Deve essere un numero intero positivo.",

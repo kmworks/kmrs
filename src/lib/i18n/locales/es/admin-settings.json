@@ -204,6 +204,14 @@
     "body": "Se cerrará la sesión de todos los usuarios que eligieron «Recuérdame» y tendrán que volver a iniciar sesión en todos sus dispositivos.",
     "failed": "No se pudo rotar la clave."
   },
+  "regenerate": {
+    "title": "Regenerar miniaturas",
+    "body": "El tamaño de las miniaturas ha cambiado. Los libros conservan sus miniaturas actuales hasta que se regeneren: se encola una tarea en segundo plano, visible en el panel de tareas.",
+    "biggerOnly": "Solo las más pequeñas",
+    "all": "Todos los libros",
+    "skip": "Ahora no",
+    "failed": "No se pudo iniciar la tarea de regeneración."
+  },
   "validation": {
     "positiveDays": "Debe ser un número entero positivo de días.",
     "positiveInt": "Debe ser un número entero positivo.",

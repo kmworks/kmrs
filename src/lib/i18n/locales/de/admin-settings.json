@@ -193,6 +193,14 @@
     "body": "Jeder Benutzer, der „Angemeldet bleiben“ gewählt hat, wird abgemeldet und muss sich auf allen Geräten erneut anmelden.",
     "failed": "Der Schlüssel konnte nicht rotiert werden."
   },
+  "regenerate": {
+    "title": "Vorschaubilder neu generieren",
+    "body": "Die Größe der Vorschaubilder wurde geändert. Bücher behalten ihre aktuellen Vorschaubilder, bis sie neu generiert werden – dafür wird eine Hintergrundaufgabe eingereiht, die in der Aufgabenwarteschlange sichtbar ist.",
+    "biggerOnly": "Nur kleinere",
+    "all": "Alle Bücher",
+    "skip": "Nicht jetzt",
+    "failed": "Die Aufgabe konnte nicht eingereiht werden."
+  },
   "validation": {
     "positiveDays": "Muss eine positive ganze Anzahl von Tagen sein.",
     "positiveInt": "Muss eine positive ganze Zahl sein.",

@@ -193,6 +193,14 @@
     "body": "Every user who chose \"Remember me\" will be signed out and has to log in again on all devices.",
     "failed": "Could not rotate the key."
   },
+  "regenerate": {
+    "title": "Regenerate thumbnails",
+    "body": "The thumbnail size was changed. Books keep their current thumbnails until they are regenerated — this queues a background task, visible in the task queue panel.",
+    "biggerOnly": "Only smaller ones",
+    "all": "All books",
+    "skip": "Not now",
+    "failed": "Could not queue the regeneration task."
+  },
   "validation": {
     "positiveDays": "Must be a positive whole number of days.",
     "positiveInt": "Must be a positive whole number.",

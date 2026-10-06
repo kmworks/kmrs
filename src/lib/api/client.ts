@@ -75,7 +75,8 @@ export const api = {
   post: <T>(path: string, body?: unknown, params?: Record<string, unknown>) =>
     request<T>(withParams(path, params), { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
-  put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  put: <T>(path: string, body?: unknown, params?: Record<string, unknown>) =>
+    request<T>(withParams(path, params), { method: 'PUT', body: body === undefined ? undefined : JSON.stringify(body) }),
   delete: <T>(path: string, body?: unknown, params?: Record<string, unknown>) =>
     request<T>(withParams(path, params), { method: 'DELETE', body: body === undefined ? undefined : JSON.stringify(body) }),
   upload: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),

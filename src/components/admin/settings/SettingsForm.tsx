@@ -12,6 +12,7 @@ import { Section } from '@/components/account/Section'
 import { computeChanges, draftFromSettings, validateDraft, type SettingsDraft } from './draft'
 import { FieldInput } from './FieldInput'
 import { MultiSourceField } from './MultiSourceField'
+import { RegenerateThumbnailsDialog } from './RegenerateThumbnailsDialog'
 import { RotateKeyButton } from './RotateKeyButton'
 
 const THUMBNAIL_OPTIONS: Array<{ value: ThumbnailSize; labelKey: string }> = [
@@ -37,6 +38,7 @@ export function SettingsForm({ settings }: { settings: SettingsDto }) {
   const { t } = useTranslation('admin-settings')
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<SettingsDraft>(() => draftFromSettings(settings))
+  const [regenerateOpen, setRegenerateOpen] = useState(false)
 
   // structural sharing keeps the reference stable unless values actually changed (e.g. after save)
   if (useChanged([settings])) setDraft(draftFromSettings(settings))
@@ -48,7 +50,11 @@ export function SettingsForm({ settings }: { settings: SettingsDto }) {
 
   const save = useMutation({
     mutationFn: (body: SettingsUpdateDto) => settingsApi.update(body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] }),
+    onSuccess: (_data, body) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] })
+      // existing books keep their old thumbnails, so a size change is a no-op without regeneration
+      if (body.thumbnailSize) setRegenerateOpen(true)
+    },
   })
 
   const set = <K extends keyof SettingsDraft>(key: K, value: SettingsDraft[K]) =>
@@ -177,6 +183,8 @@ export function SettingsForm({ settings }: { settings: SettingsDto }) {
       </Section>
 
       {dirtyCount > 0 && <div className="h-16" aria-hidden />}
+
+      <RegenerateThumbnailsDialog open={regenerateOpen} onOpenChange={setRegenerateOpen} />
 
       <AnimatePresence>
         {dirtyCount > 0 && (
