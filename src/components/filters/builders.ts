@@ -90,6 +90,14 @@ export function buildSeriesSearch(state: FilterState, libraryId?: string, extra?
   push(conditions, combine(state.languages.map((v) => leaf('language', 'is', v)), mode('languages')))
   push(conditions, combine(yearConditions(state.releaseYears), mode('releaseYears')))
   push(conditions, combine(authorConditions(state.authors), mode('authors')))
+  push(conditions, libraryScopeCondition(state.libraries))
+  push(
+    conditions,
+    combine(
+      state.collections.map((v) => leaf('collectionId', state.exclude.includes('collections') ? 'isNot' : 'is', v)),
+      mode('collections'),
+    ),
+  )
   return finalize(state, conditions)
 }
 
@@ -114,5 +122,13 @@ export function buildBookSearch(state: FilterState, libraryId?: string, extra?: 
   )
   push(conditions, combine(yearConditions(state.releaseYears), mode('releaseYears')))
   push(conditions, combine(authorConditions(state.authors), mode('authors')))
+  push(conditions, libraryScopeCondition(state.libraries))
+  push(
+    conditions,
+    combine(
+      state.readlists.map((v) => leaf('readListId', state.exclude.includes('readlists') ? 'isNot' : 'is', v)),
+      mode('readlists'),
+    ),
+  )
   return finalize(state, conditions)
 }

@@ -44,7 +44,10 @@
     "authors": "作者",
     "mediaProfiles": "媒體設定檔",
     "mediaStatuses": "媒體狀態",
-    "poster": "海報"
+    "poster": "海報",
+    "libraries": "書庫",
+    "readlists": "閱讀清單",
+    "collections": "合集"
   },
   "option": {
     "readStatus": {

@@ -12,12 +12,14 @@ import { BrowseSeriesPage } from '@/routes/browse/series'
 import { BrowseBooksPage } from '@/routes/browse/books'
 import { BrowseCollectionsPage } from '@/routes/browse/collections'
 import { BrowseReadListsPage } from '@/routes/browse/readlists'
+import { BrowseSmartListsPage } from '@/routes/browse/smartlists'
 import { LibrarySeriesPage } from '@/routes/library/series'
 import { LibraryBooksPage } from '@/routes/library/books'
 import { SeriesDetailPage } from '@/routes/detail/series'
 import { BookDetailPage } from '@/routes/detail/book'
 import { CollectionDetailPage } from '@/routes/detail/collection'
 import { ReadListDetailPage } from '@/routes/detail/readlist'
+import { SmartListDetailPage } from '@/routes/detail/smartlist'
 import { OneshotDetailPage } from '@/routes/detail/oneshot'
 import { SearchPage } from '@/routes/search'
 import { AccountProfilePage } from '@/routes/account/profile'
@@ -74,6 +76,8 @@ export const router = createBrowserRouter([
           { path: '/collections/:collectionId', element: <CollectionDetailPage /> },
           { path: '/readlists', element: <BrowseReadListsPage /> },
           { path: '/readlists/:readListId', element: <ReadListDetailPage /> },
+          { path: '/smart-lists', element: <BrowseSmartListsPage /> },
+          { path: '/smart-lists/:smartListId', element: <SmartListDetailPage /> },
           { path: '/series/:seriesId', element: <SeriesDetailPage /> },
           { path: '/oneshot/:seriesId', element: <OneshotDetailPage /> },
           { path: '/book/:bookId', element: <BookDetailPage /> },

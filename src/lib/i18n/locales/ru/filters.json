@@ -56,7 +56,10 @@
     "authors": "Авторы",
     "mediaProfiles": "Профиль медиа",
     "mediaStatuses": "Статус медиа",
-    "poster": "Постер"
+    "poster": "Постер",
+    "libraries": "Библиотеки",
+    "readlists": "Списки чтения",
+    "collections": "Коллекции"
   },
   "option": {
     "readStatus": {

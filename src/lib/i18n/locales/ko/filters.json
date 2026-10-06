@@ -44,7 +44,10 @@
     "authors": "작가",
     "mediaProfiles": "미디어 프로필",
     "mediaStatuses": "미디어 상태",
-    "poster": "포스터"
+    "poster": "포스터",
+    "libraries": "라이브러리",
+    "readlists": "읽기 목록",
+    "collections": "컬렉션"
   },
   "option": {
     "readStatus": {

@@ -14,11 +14,17 @@ interface DialogProps {
   className?: string
   /** width preset */
   size?: 'sm' | 'md' | 'lg'
+  /**
+   * children manage their own scrolling (e.g. a sticky-footer layout): the content area
+   * becomes a non-scrolling flex column instead of the default scroll container, because
+   * percentage heights resolve against a scroll container's content height, not its box
+   */
+  fill?: boolean
 }
 
 const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-3xl' }
 
-export function Dialog({ open, onOpenChange, title, children, className, size = 'md' }: DialogProps) {
+export function Dialog({ open, onOpenChange, title, children, className, size = 'md', fill = false }: DialogProps) {
   const { t } = useTranslation()
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -57,7 +63,14 @@ export function Dialog({ open, onOpenChange, title, children, className, size = 
                       </RadixDialog.Close>
                     </div>
                   )}
-                  <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+                  <div
+                    className={cn(
+                      'min-h-0 flex-1',
+                      fill ? 'flex flex-col overflow-hidden' : 'overflow-y-auto',
+                    )}
+                  >
+                    {children}
+                  </div>
                 </motion.div>
               </RadixDialog.Content>
             </div>

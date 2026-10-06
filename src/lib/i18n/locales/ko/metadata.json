@@ -131,7 +131,8 @@
       "series": "시리즈",
       "book": "책",
       "collection": "컬렉션",
-      "readlist": "읽기 목록"
+      "readlist": "읽기 목록",
+      "smartlist": "스마트 리스트"
     },
     "type": {
       "generated": "생성됨",

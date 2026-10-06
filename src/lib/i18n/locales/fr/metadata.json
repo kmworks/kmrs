@@ -137,7 +137,8 @@
       "series": "série",
       "book": "livre",
       "collection": "collection",
-      "readlist": "liste de lecture"
+      "readlist": "liste de lecture",
+      "smartlist": "liste intelligente"
     },
     "type": {
       "generated": "Générée",

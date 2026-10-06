@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, CircleNotch, ImageSquare, Trash, UploadSimple } from '@phosphor-icons/react'
-import { bookPostersApi, collectionPostersApi, readListPostersApi, seriesPostersApi } from '@/lib/api/posters'
+import { bookPostersApi, collectionPostersApi, readListPostersApi, seriesPostersApi, smartListPostersApi } from '@/lib/api/posters'
 import type { ThumbnailType } from '@/lib/api/types'
 import { useBust, useThumbnailBust } from '@/lib/store/thumbnails'
 import { formatBytes } from '@/lib/utils/format'
@@ -14,7 +14,7 @@ import { IconButton } from '@/components/ui/IconButton'
 import { GridSkeleton } from '@/components/ui/Skeleton'
 import { FormErrorBanner } from './fields'
 
-export type PosterKind = 'series' | 'book' | 'collection' | 'readlist'
+export type PosterKind = 'series' | 'book' | 'collection' | 'readlist' | 'smartlist'
 
 interface PosterItem {
   id: string
@@ -39,6 +39,7 @@ const APIS: Record<PosterKind, PosterApi> = {
   book: bookPostersApi,
   collection: collectionPostersApi,
   readlist: readListPostersApi,
+  smartlist: smartListPostersApi,
 }
 
 const INVALIDATE: Record<PosterKind, string[][]> = {
@@ -46,6 +47,7 @@ const INVALIDATE: Record<PosterKind, string[][]> = {
   book: [['books'], ['series'], ['dashboard']],
   collection: [['collections'], ['dashboard']],
   readlist: [['readlists'], ['dashboard']],
+  smartlist: [['smart-lists']],
 }
 
 const TYPE_KEYS: Record<ThumbnailType, string> = {

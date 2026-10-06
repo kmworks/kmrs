@@ -2,6 +2,8 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CaretRight, CheckCircle, Circle, X, XCircle } from '@phosphor-icons/react'
+import { collectionsApi, readlistsApi } from '@/lib/api/collections'
+import { librariesApi } from '@/lib/api/libraries'
 import { referentialApi, type ReferentialScope } from '@/lib/api/referential'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
@@ -155,6 +157,72 @@ function ReferentialOptions({
           {visible.map((o) => (
             <OptionChip key={o} active={selected.includes(o)} onClick={() => onToggle(o)}>
               {displayFilterValue(kind, o)}
+            </OptionChip>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface EntityOption {
+  id: string
+  name: string
+}
+
+function fetchEntities(kind: NonNullable<FilterGroupDef['entities']>): Promise<EntityOption[]> {
+  if (kind === 'libraries') return librariesApi.list()
+  if (kind === 'collections') return collectionsApi.list({ unpaged: true }).then((p) => p.content)
+  return readlistsApi.list({ unpaged: true }).then((p) => p.content)
+}
+
+/** id→name options for entity groups (libraries, read lists, collections); the search DSL
+    stores ids, so names are resolved here for display and by the caller for chip labels */
+export function EntityOptions({
+  kind,
+  selected,
+  enabled,
+  onToggle,
+}: {
+  kind: NonNullable<FilterGroupDef['entities']>
+  selected: string[]
+  enabled: boolean
+  onToggle: (id: string) => void
+}) {
+  const [filter, setFilter] = useState('')
+  const { t, i18n } = useTranslation('filters')
+  const query = useQuery({
+    queryKey: ['entity-options', kind],
+    queryFn: () => fetchEntities(kind),
+    enabled,
+    staleTime: 60_000,
+  })
+  const names = useMemo(() => new Map((query.data ?? []).map((e) => [e.id, e.name])), [query.data])
+  const options = useMemo(
+    () => [...names.keys()].sort((a, b) => (names.get(a) ?? a).localeCompare(names.get(b) ?? b, i18n.language)),
+    [names, i18n.language],
+  )
+  const visible = useMemo(() => {
+    const f = filter.trim().toLowerCase()
+    return options.filter((o) => selected.includes(o) || !f || (names.get(o) ?? o).toLowerCase().includes(f))
+  }, [options, filter, selected, names])
+
+  if (query.isPending) return <LoadingChips />
+  if (query.isLoadingError) return <LoadError onRetry={() => query.refetch()} />
+
+  return (
+    <div>
+      {options.length > GROUP_SEARCH_THRESHOLD && (
+        <GroupSearchInput value={filter} onChange={setFilter} placeholder={t('options.filterPlaceholder')} />
+      )}
+      {visible.length === 0 ? (
+        <p className="text-xs text-ink-3">{t('options.noMatch')}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {visible.map((id) => (
+            <OptionChip key={id} active={selected.includes(id)} onClick={() => onToggle(id)}>
+              {names.get(id) ?? id}
+              {selected.includes(id) && <X className="size-3" />}
             </OptionChip>
           ))}
         </div>
@@ -338,16 +406,26 @@ export function FlagFilterRow({ def, value, onCycle }: { def: FilterGroupDef; va
   )
 }
 
-function groupSummary(def: FilterGroupDef, state: FilterState, locale: string): string {
+function groupSummary(def: FilterGroupDef, state: FilterState, locale: string, labelFor?: (key: GroupKey, id: string) => string): string {
   const list = new Intl.ListFormat(locale, { style: 'narrow', type: 'conjunction' })
   if (def.kind === 'authors') return list.format(state.authors.map((a) => (a.role ? `${a.name} (${a.role})` : a.name)))
-  return list.format((state[def.key] as string[]).map((v) => displayFilterValue(def.key, v)))
+  return list.format((state[def.key] as string[]).map((v) => labelFor?.(def.key, v) ?? displayFilterValue(def.key, v)))
 }
 
 /** collapsed row for high-cardinality groups; opens the group's detail view */
-export function FilterGroupRow({ def, state, onOpen }: { def: FilterGroupDef; state: FilterState; onOpen: () => void }) {
+export function FilterGroupRow({
+  def,
+  state,
+  labelFor,
+  onOpen,
+}: {
+  def: FilterGroupDef
+  state: FilterState
+  labelFor?: (key: GroupKey, id: string) => string
+  onOpen: () => void
+}) {
   const { t, i18n } = useTranslation('filters')
-  const summary = groupSummary(def, state, i18n.language)
+  const summary = groupSummary(def, state, i18n.language, labelFor)
   return (
     <button
       type="button"
@@ -399,6 +477,9 @@ export function FilterGroupDetail({
           enabled={enabled}
           onToggle={(v) => onToggleValue(def.key, v)}
         />
+      )}
+      {def.kind === 'entities' && def.entities && (
+        <EntityOptions kind={def.entities} selected={values} enabled={enabled} onToggle={(v) => onToggleValue(def.key, v)} />
       )}
       {def.kind === 'letters' && <LetterOptions selected={values} onSelect={(l) => onSetExclusive(def.key, l)} />}
       {def.kind === 'authors' && (

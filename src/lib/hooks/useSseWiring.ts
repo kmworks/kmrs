@@ -20,20 +20,23 @@ const INVALIDATE: Partial<Record<SseEventName, string[]>> = {
   BookAdded: ['books', 'series', 'dashboard'],
   BookChanged: ['books', 'series', 'dashboard'],
   BookDeleted: ['books', 'series', 'dashboard'],
-  ReadProgressChanged: ['books', 'series', 'dashboard', 'readlists'],
-  ReadProgressDeleted: ['books', 'series', 'dashboard', 'readlists'],
+  ReadProgressChanged: ['books', 'series', 'dashboard', 'readlists', 'smart-lists'],
+  ReadProgressDeleted: ['books', 'series', 'dashboard', 'readlists', 'smart-lists'],
   // series-level mark read/unread also moves the per-book progress shown inside read lists
-  ReadProgressSeriesChanged: ['series', 'dashboard', 'readlists'],
-  ReadProgressSeriesDeleted: ['series', 'dashboard', 'readlists'],
+  ReadProgressSeriesChanged: ['series', 'dashboard', 'readlists', 'smart-lists'],
+  ReadProgressSeriesDeleted: ['series', 'dashboard', 'readlists', 'smart-lists'],
   CollectionAdded: ['collections'],
   CollectionChanged: ['collections'],
   CollectionDeleted: ['collections'],
   ReadListAdded: ['readlists'],
   ReadListChanged: ['readlists'],
   ReadListDeleted: ['readlists'],
+  SmartListAdded: ['smart-lists'],
+  SmartListChanged: ['smart-lists'],
+  SmartListDeleted: ['smart-lists'],
 }
 
-const THUMB_EVENTS: Record<string, (d: { seriesId?: string; bookId?: string; collectionId?: string; readListId?: string }) => string | undefined> = {
+const THUMB_EVENTS: Record<string, (d: { seriesId?: string; bookId?: string; collectionId?: string; readListId?: string; smartListId?: string }) => string | undefined> = {
   ThumbnailSeriesAdded: (d) => d.seriesId,
   ThumbnailSeriesDeleted: (d) => d.seriesId,
   ThumbnailBookAdded: (d) => d.bookId,
@@ -42,6 +45,7 @@ const THUMB_EVENTS: Record<string, (d: { seriesId?: string; bookId?: string; col
   ThumbnailSeriesCollectionDeleted: (d) => d.collectionId,
   ThumbnailReadListAdded: (d) => d.readListId,
   ThumbnailReadListDeleted: (d) => d.readListId,
+  SmartListThumbnailChanged: (d) => d.smartListId,
 }
 
 /** Wires the SSE stream to react-query invalidation while authenticated. */

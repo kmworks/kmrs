@@ -4,6 +4,7 @@ import type {
   ThumbnailReadListDto,
   ThumbnailSeriesCollectionDto,
   ThumbnailSeriesDto,
+  ThumbnailSmartListDto,
 } from './types'
 
 /** Multipart poster upload: `file` part is required; `selected` is a text part, default true. */
@@ -58,4 +59,16 @@ export const readListPostersApi = {
   delete: (readListId: string, thumbnailId: string) =>
     api.delete<void>(`/api/v1/readlists/${readListId}/thumbnails/${thumbnailId}`),
   thumbnailUrl: (readListId: string, thumbnailId: string) => `/api/v1/readlists/${readListId}/thumbnails/${thumbnailId}`,
+}
+
+export const smartListPostersApi = {
+  list: (smartListId: string) => api.get<ThumbnailSmartListDto[]>(`/api/v1/smart-lists/${smartListId}/thumbnails`),
+  upload: (smartListId: string, file: Blob, selected = true) =>
+    api.upload<ThumbnailSmartListDto>(`/api/v1/smart-lists/${smartListId}/thumbnails`, uploadForm(file, selected)),
+  markSelected: (smartListId: string, thumbnailId: string) =>
+    api.put<void>(`/api/v1/smart-lists/${smartListId}/thumbnails/${thumbnailId}/selected`),
+  delete: (smartListId: string, thumbnailId: string) =>
+    api.delete<void>(`/api/v1/smart-lists/${smartListId}/thumbnails/${thumbnailId}`),
+  thumbnailUrl: (smartListId: string, thumbnailId: string) =>
+    `/api/v1/smart-lists/${smartListId}/thumbnails/${thumbnailId}`,
 }

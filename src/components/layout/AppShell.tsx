@@ -14,6 +14,7 @@ import {
   Copy,
   Database,
   FileMagnifyingGlass,
+  Funnel,
   Gauge,
   GearSix,
   HardDrives,
@@ -233,6 +234,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </NavItem>
         <NavItem to="/readlists" icon={<BookmarkSimple />} onClick={onNavigate}>
           {t('nav.readLists')}
+        </NavItem>
+        <NavItem to="/smart-lists" icon={<Funnel />} onClick={onNavigate}>
+          {t('nav.smartLists')}
         </NavItem>
 
         {isAdmin(user) && (

@@ -16,6 +16,9 @@ export type GroupKey =
   | 'mediaProfiles'
   | 'mediaStatuses'
   | 'poster'
+  | 'libraries'
+  | 'readlists'
+  | 'collections'
 
 /** How multiple values inside one group combine in the search DSL. */
 export type GroupMode = 'any' | 'all'
@@ -44,6 +47,10 @@ export interface FilterState {
   mediaProfiles: string[]
   mediaStatuses: string[]
   poster: string[]
+  /** entity ids (libraries / read lists / collections); only smart-list editing offers these */
+  libraries: string[]
+  readlists: string[]
+  collections: string[]
   /** groups combined with allOf instead of the default anyOf */
   matchAll: GroupKey[]
   /** groups whose values are matched with isNot instead of is */
@@ -64,9 +71,11 @@ export interface FilterGroupDef {
   key: GroupKey
   /** translation key, resolved with t() at render sites */
   labelKey: string
-  kind: 'enum' | 'referential' | 'authors' | 'letters'
+  kind: 'enum' | 'referential' | 'authors' | 'letters' | 'entities'
   options?: { value: string; labelKey: string }[]
   referential?: ReferentialKind
+  /** which entity list feeds an 'entities' group */
+  entities?: 'libraries' | 'collections' | 'readlists'
   /** hidden from non-admin users */
   adminOnly?: boolean
   /** offers an is / is-not switch once values are selected */
@@ -198,6 +207,19 @@ export const BOOK_SORT_OPTIONS: SortOption[] = [
 /** book filter groups for single-context pages (series detail, read list): release years are
     series-level metadata, meaningless for one series and unavailable for a read list */
 export const BOOK_DETAIL_FILTER_GROUPS: FilterGroupDef[] = BOOK_FILTER_GROUPS.filter((g) => g.key !== 'releaseYears')
+
+// smart-list editing scopes by whole entities, so libraries and membership get their own groups
+export const SMARTLIST_BOOK_FILTER_GROUPS: FilterGroupDef[] = [
+  { key: 'libraries', labelKey: 'filters:group.libraries', kind: 'entities', entities: 'libraries' },
+  { key: 'readlists', labelKey: 'filters:group.readlists', kind: 'entities', entities: 'readlists', negatable: true },
+  ...BOOK_FILTER_GROUPS,
+]
+
+export const SMARTLIST_SERIES_FILTER_GROUPS: FilterGroupDef[] = [
+  { key: 'libraries', labelKey: 'filters:group.libraries', kind: 'entities', entities: 'libraries' },
+  { key: 'collections', labelKey: 'filters:group.collections', kind: 'entities', entities: 'collections', negatable: true },
+  ...SERIES_FILTER_GROUPS,
+]
 
 /** sorting by series is meaningless inside a single series' book list */
 export const SERIES_BOOK_SORT_OPTIONS = BOOK_SORT_OPTIONS.filter((o) => o.property !== 'series')

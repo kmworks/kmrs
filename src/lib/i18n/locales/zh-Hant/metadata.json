@@ -131,7 +131,8 @@
       "series": "系列",
       "book": "書籍",
       "collection": "收藏",
-      "readlist": "閱讀清單"
+      "readlist": "閱讀清單",
+      "smartlist": "智慧清單"
     },
     "type": {
       "generated": "已產生",

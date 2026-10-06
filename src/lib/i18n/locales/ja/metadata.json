@@ -131,7 +131,8 @@
       "series": "シリーズ",
       "book": "本",
       "collection": "コレクション",
-      "readlist": "読書リスト"
+      "readlist": "読書リスト",
+      "smartlist": "スマートリスト"
     },
     "type": {
       "generated": "生成",

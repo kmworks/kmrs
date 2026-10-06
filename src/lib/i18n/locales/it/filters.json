@@ -52,7 +52,10 @@
     "authors": "Autori",
     "mediaProfiles": "Profilo media",
     "mediaStatuses": "Stato media",
-    "poster": "Poster"
+    "poster": "Poster",
+    "libraries": "Biblioteche",
+    "readlists": "Liste di lettura",
+    "collections": "Raccolte"
   },
   "option": {
     "readStatus": {

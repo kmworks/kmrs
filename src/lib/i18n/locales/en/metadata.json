@@ -132,7 +132,8 @@
       "series": "series",
       "book": "book",
       "collection": "collection",
-      "readlist": "read list"
+      "readlist": "read list",
+      "smartlist": "smart list"
     },
     "type": {
       "generated": "Generated",

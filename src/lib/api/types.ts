@@ -508,6 +508,61 @@ export interface BookSearch {
   fullTextSearch?: string
 }
 
+// ---- kmrs-private smart lists (not part of the Komga API surface) ----
+
+export type SmartListTarget = 'BOOK' | 'SERIES'
+
+export type SmartListVisibility = 'PRIVATE' | 'PUBLIC' | 'SHARED'
+
+export interface SmartListDto {
+  id: string
+  name: string
+  summary: string
+  ownerId: string
+  target: SmartListTarget
+  visibility: SmartListVisibility
+  sharedWithUserIds: string[]
+  search: BookSearch | SeriesSearch
+  createdDate: string
+  lastModifiedDate: string
+}
+
+export interface SmartListCreationDto {
+  name: string
+  summary?: string
+  target: SmartListTarget
+  visibility?: SmartListVisibility
+  sharedWithUserIds?: string[]
+  search: BookSearch | SeriesSearch
+}
+
+export interface SmartListUpdateDto {
+  name?: string
+  summary?: string
+  target?: SmartListTarget
+  visibility?: SmartListVisibility
+  sharedWithUserIds?: string[]
+  search?: BookSearch | SeriesSearch
+}
+
+/** minimal user directory for choosing share targets */
+export interface ShareTargetDto {
+  id: string
+  email: string
+}
+
+// kmrs-private, mirrors ThumbnailReadListDto
+export interface ThumbnailSmartListDto {
+  id: string
+  smartListId: string
+  type: ThumbnailType
+  selected: boolean
+  mediaType: string
+  fileSize: number
+  width: number
+  height: number
+}
+
 // ---- Metadata updates (PATCH bodies) ----
 
 export interface WebLinkUpdateDto {

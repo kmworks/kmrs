@@ -44,7 +44,10 @@
     "authors": "著者",
     "mediaProfiles": "メディアプロファイル",
     "mediaStatuses": "メディアステータス",
-    "poster": "ポスター"
+    "poster": "ポスター",
+    "libraries": "ライブラリ",
+    "readlists": "読書リスト",
+    "collections": "コレクション"
   },
   "option": {
     "readStatus": {

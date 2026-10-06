@@ -48,7 +48,10 @@
     "authors": "Autoren",
     "mediaProfiles": "Medienprofil",
     "mediaStatuses": "Medienstatus",
-    "poster": "Poster"
+    "poster": "Poster",
+    "libraries": "Bibliotheken",
+    "readlists": "Leselisten",
+    "collections": "Sammlungen"
   },
   "option": {
     "readStatus": {

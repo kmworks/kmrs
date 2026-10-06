@@ -140,7 +140,8 @@
       "series": "серии",
       "book": "книги",
       "collection": "коллекции",
-      "readlist": "списка чтения"
+      "readlist": "списка чтения",
+      "smartlist": "умный список"
     },
     "type": {
       "generated": "Сгенерирован",

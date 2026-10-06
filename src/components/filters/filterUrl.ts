@@ -22,6 +22,9 @@ const MULTI_KEYS: GroupKey[] = [
   'mediaProfiles',
   'mediaStatuses',
   'poster',
+  'libraries',
+  'readlists',
+  'collections',
 ]
 
 // names may contain commas, so the role is split off at the last comma
@@ -54,6 +57,9 @@ export function parseFilterState(params: URLSearchParams): FilterState {
     mediaProfiles: params.getAll('mediaProfiles'),
     mediaStatuses: params.getAll('mediaStatuses'),
     poster: params.getAll('poster'),
+    libraries: params.getAll('libraries'),
+    readlists: params.getAll('readlists'),
+    collections: params.getAll('collections'),
     matchAll: params.getAll('ma').filter((v): v is GroupKey => (MULTI_KEYS as string[]).includes(v)),
     exclude: params.getAll('not').filter((v): v is GroupKey => (MULTI_KEYS as string[]).includes(v)),
   }
@@ -86,7 +92,10 @@ export function activeFilterCount(s: FilterState): number {
     s.authors.length +
     s.mediaProfiles.length +
     s.mediaStatuses.length +
-    s.poster.length
+    s.poster.length +
+    s.libraries.length +
+    s.readlists.length +
+    s.collections.length
   )
 }
 

@@ -131,7 +131,8 @@
       "series": "系列",
       "book": "书",
       "collection": "合集",
-      "readlist": "阅读列表"
+      "readlist": "阅读列表",
+      "smartlist": "智能列表"
     },
     "type": {
       "generated": "自动生成",

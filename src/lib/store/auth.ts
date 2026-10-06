@@ -20,6 +20,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
 }))
 
 export const isAdmin = (user: UserDto | null): boolean => !!user?.roles.includes('ADMIN')
+export const isOwner = (user: UserDto | null, ownerId: string): boolean => !!user && user.id === ownerId
 export const canDownload = (user: UserDto | null): boolean =>
   !!user && (user.roles.includes('ADMIN') || user.roles.includes('FILE_DOWNLOAD'))
 export const canStream = (user: UserDto | null): boolean =>

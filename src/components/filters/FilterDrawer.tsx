@@ -15,6 +15,8 @@ interface FilterDrawerProps {
   groups: FilterGroupDef[]
   state: FilterState
   scope?: ReferentialScope
+  /** resolves entity ids (libraries/read lists/collections) to display names in group summaries */
+  labelFor?: (key: GroupKey, id: string) => string
   activeCount: number
   onToggleValue: (key: GroupKey, value: string) => void
   onToggleAuthor: (author: AuthorFilter) => void
@@ -32,6 +34,7 @@ export function FilterDrawer({
   groups,
   state,
   scope,
+  labelFor,
   activeCount,
   onToggleValue,
   onToggleAuthor,
@@ -182,7 +185,7 @@ export function FilterDrawer({
                       )}
                       {letterGroups.map((def) => (
                         <section key={def.key} className="border-b border-line py-4">
-                          <FilterGroupRow def={def} state={state} onOpen={() => setOpenKey(def.key)} />
+                          <FilterGroupRow def={def} state={state} labelFor={labelFor} onOpen={() => setOpenKey(def.key)} />
                         </section>
                       ))}
                       {navGroups.length > 0 && (
@@ -191,7 +194,7 @@ export function FilterDrawer({
                             {t('section.metadata')}
                           </h3>
                           {navGroups.map((def) => (
-                            <FilterGroupRow key={def.key} def={def} state={state} onOpen={() => setOpenKey(def.key)} />
+                            <FilterGroupRow key={def.key} def={def} state={state} labelFor={labelFor} onOpen={() => setOpenKey(def.key)} />
                           ))}
                         </section>
                       )}
