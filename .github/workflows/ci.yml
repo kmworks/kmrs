@@ -15,9 +15,13 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       web: ${{ steps.filter.outputs.web }}
     steps:
+      # push events diff with git commands and need the checkout; PRs go through the API
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # the default quantifier 'some' would let '**' swallow the exclusion
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             rust:
               - '**'
