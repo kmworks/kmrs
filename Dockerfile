@@ -4,7 +4,7 @@
 # as produced by the release workflow (or by hand for a local build):
 #   dist/amd64/kmrs   x86_64-unknown-linux-gnu build
 #   dist/arm64/kmrs   aarch64-unknown-linux-gnu build
-#   dist/webui.tar.gz  webui/ Vite bundle (see .github/actions/build-webui)
+# The web UI is already embedded in the binary (rust-embed over webui/dist).
 
 # Runs on the build platform, so no emulation is ever needed: downloads
 # libpdfium (a lazy runtime dependency for PDF support; kmrs looks it up next
@@ -36,15 +36,11 @@ LABEL org.opencontainers.image.source="https://github.com/kmworks/kmrs" \
       org.opencontainers.image.licenses="MIT"
 # Drop-in replacement for gotson/komga: same port, same /config and /data
 # mounts, same KOMGA_* env vars.
-# KOMGA_WEBUI_DIR points at the bundled web UI; run with an empty value to disable.
 ENV KOMGA_CONFIG_DIR=/config \
-    KOMGA_KOBO_KEPUBIFYPATH=/usr/local/bin/kepubify \
-    KOMGA_WEBUI_DIR=/webui
+    KOMGA_KOBO_KEPUBIFYPATH=/usr/local/bin/kepubify
 COPY --chmod=755 "dist/$TARGETARCH/kmrs" /usr/local/bin/kmrs
 COPY --from=base /tmp/libpdfium.so /usr/local/bin/libpdfium.so
 COPY --chmod=755 --from=base /tmp/kepubify /usr/local/bin/kepubify
-# ADD auto-extracts the tarball into /webui
-ADD dist/webui.tar.gz /webui
 # 777 so an arbitrary --user uid:gid can write when nothing is bind-mounted;
 # COPY of a directory preserves the modes set in the base stage
 COPY --from=base /staging /

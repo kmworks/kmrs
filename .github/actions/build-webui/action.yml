@@ -1,5 +1,5 @@
 name: build-webui
-description: Build the webui/ Vite bundle and stage it at dist/webui.tar.gz
+description: Build the webui/ Vite bundle into webui/dist (embedded into the kmrs binary at compile time)
 runs:
   using: composite
   steps:
@@ -17,11 +17,7 @@ runs:
     - run: pnpm build
       working-directory: webui
       shell: bash
-    - name: Package
+    - name: Check the bundle root
+      # the binary serves index.html as the SPA entry, so it must sit at the dist root
+      run: test -s "$GITHUB_WORKSPACE/webui/dist/index.html"
       shell: bash
-      run: |
-        mkdir -p "$GITHUB_WORKSPACE/dist"
-        tar -czf "$GITHUB_WORKSPACE/dist/webui.tar.gz" -C "$GITHUB_WORKSPACE/webui/dist" .
-        # the bundle is served straight out of the tarball (the Dockerfile ADDs it as
-        # its webui dir), so index.html must sit at the root
-        tar -tzf "$GITHUB_WORKSPACE/dist/webui.tar.gz" | grep -qx './index.html'
