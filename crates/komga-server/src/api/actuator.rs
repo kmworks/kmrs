@@ -1061,7 +1061,7 @@ mod tests {
             search_index: crate::state::test_search_index(),
             kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
             kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-            webui_dir: None,
+
             shutdown_tx,
         };
         (state, shutdown_rx)

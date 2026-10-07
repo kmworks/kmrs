@@ -52,6 +52,7 @@ http-body = "1"
 flate2.workspace = true
 tar.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots", "json", "gzip", "stream"] }
+rust-embed = { version = "8.12.0", features = ["mime-guess"] }
 sysinfo.workspace = true
 
 # unix-only: the `profiling` feature is inert on Windows (jemalloc has no MSVC support),

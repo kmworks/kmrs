@@ -23,7 +23,6 @@ pub struct FileConfig {
     pub kobo: Option<FileKobo>,
     pub webhooks: Option<FileWebhooks>,
     pub oauth2: Option<FileOAuth2>,
-    pub webui: Option<FileWebui>,
     pub komf: Option<FileKomf>,
     pub history: Option<FileHistory>,
     pub thumbnails: Option<FileThumbnails>,
@@ -52,12 +51,6 @@ pub struct FileKomf {
     pub url: Option<String>,
     pub base_url: Option<String>,
     pub auth_key: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-pub struct FileWebui {
-    pub dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -501,19 +494,6 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
             render_registration(&mut out, reg);
         }
     }
-
-    out.push_str("[webui]\n");
-    out.push_str(
-        "# serve a built web UI (e.g. webui/dist) at /; unmatched paths fall back to its index.html\n",
-    );
-    match &config.webui_dir {
-        Some(p) => out.push_str(&format!(
-            "dir = {} # env: KOMGA_WEBUI_DIR\n",
-            q(&p.display().to_string())
-        )),
-        None => out.push_str("# dir = \"/path/to/webui/dist\" # env: KOMGA_WEBUI_DIR\n"),
-    }
-    out.push('\n');
 
     out.push_str("[komf]\n");
     out.push_str(

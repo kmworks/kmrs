@@ -27,8 +27,6 @@ pub struct AppState {
     pub search_index: Arc<komga_search::SearchIndex>,
     pub kepub: Arc<crate::service::kepub::KepubConverter>,
     pub kobo_proxy: Arc<crate::service::kobo_proxy::KoboProxy>,
-    /// built web UI (e.g. the bundled kmweb dist/) served at / with SPA fallback; None = no web UI
-    pub webui_dir: Option<std::path::PathBuf>,
     /// Broadcasts the shutdown request (actuator `/actuator/shutdown`)
     pub shutdown_tx: tokio::sync::watch::Sender<bool>,
 }

@@ -119,7 +119,6 @@ async fn main() -> anyhow::Result<()> {
         search_index: search_index.clone(),
         kepub: service::kepub::KepubConverter::new(service::kepub::default_tmp_dir()),
         kobo_proxy: service::kobo_proxy::KoboProxy::new(),
-        webui_dir: config.webui_dir.clone(),
         shutdown_tx,
         db,
         task_db,

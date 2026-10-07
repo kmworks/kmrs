@@ -29,7 +29,7 @@ docker run -d \
   ghcr.io/kmworks/kmrs
 ```
 
-The image bundles the kmweb React web UI (built from [`webui/`](webui/) in this repo), served at `/` out of the box. Prebuilt binaries (Linux, macOS, Windows; x86_64 and aarch64) are on the [releases page](https://github.com/kmworks/kmrs/releases/latest) — the standalone binary carries no UI, pair it with a Komga-compatible client like [KMReader](https://github.com/kmworks/kmreader), KOReader, or Kobo.
+The kmweb React web UI (built from [`webui/`](webui/) in this repo) is embedded in the binary and served at `/` out of the box — nothing to configure. Prebuilt binaries (Linux, macOS, Windows; x86_64 and aarch64) are on the [releases page](https://github.com/kmworks/kmrs/releases/latest); API-only clients like [KMReader](https://github.com/kmworks/kmreader), KOReader, or Kobo work too.
 
 ## Documentation
 

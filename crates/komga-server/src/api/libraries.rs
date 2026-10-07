@@ -434,7 +434,7 @@ pub(crate) mod test_support {
                     tempfile::tempdir().unwrap().keep(),
                 ),
                 kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-                webui_dir: None,
+
                 shutdown_tx: tokio::sync::watch::channel(false).0,
             };
             let app = routes
@@ -532,7 +532,7 @@ pub(crate) mod test_support {
             webhooks: Default::default(),
             migration_placeholders: Default::default(),
             oauth2: Default::default(),
-            webui_dir: None,
+
             komf_url: None,
             komf_base_url: None,
             komf_auth_key: None,

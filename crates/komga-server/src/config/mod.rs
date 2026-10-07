@@ -60,8 +60,6 @@ pub struct ServerConfig {
     pub server_context_path: Option<String>,
     pub webhooks: WebhookConfig,
     pub oauth2: OAuth2Config,
-    /// built web UI (e.g. the bundled kmweb dist/) served at / with SPA fallback; None = no web UI (default)
-    pub webui_dir: Option<PathBuf>,
     /// komf metadata fetcher base URL; preset for the integration, runtime state lives in kmrs.sqlite
     pub komf_url: Option<String>,
     /// the base URL komf uses to call back into kmrs (written to komf's `komga.baseUri`)
@@ -380,12 +378,6 @@ impl ServerConfig {
             },
             server_context_path,
             oauth2: merge_oauth2(file.and_then(|f| f.oauth2.as_ref()), env),
-            webui_dir: env_path(env, "KOMGA_WEBUI_DIR")
-                .or_else(|| {
-                    file.and_then(|f| f.webui.as_ref())
-                        .and_then(|w| w.dir.clone())
-                })
-                .filter(|p| !p.as_os_str().is_empty()),
             komf_url: env_string(env, "KOMGA_KOMF_URL")
                 .or_else(|| {
                     file.and_then(|f| f.komf.as_ref())
