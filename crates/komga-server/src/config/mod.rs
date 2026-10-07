@@ -198,6 +198,13 @@ impl ServerConfig {
                 .with_context(|| format!("read config file {}", path.display()))?;
             let parsed: FileConfig = toml::from_str(&text)
                 .with_context(|| format!("parse config file {}", path.display()))?;
+            if parsed.webui.is_some() {
+                tracing::warn!(
+                    "the [webui] config section was removed: the web UI is embedded in the \
+                     binary — delete the section from {}",
+                    path.display()
+                );
+            }
             tracing::info!("loaded configuration from {}", path.display());
             parsed
         } else {
@@ -1113,6 +1120,17 @@ issuer-uri = "https://github.com"
     fn unknown_keys_are_rejected() {
         let err = toml::from_str::<FileConfig>("[books]\npage-hshing = 5\n").unwrap_err();
         assert!(err.to_string().contains("unknown field"));
+    }
+
+    #[test]
+    fn removed_webui_section_still_parses() {
+        // configs written by older kmrs versions carry the section; upgrades must not choke on it
+        let config = resolve(
+            "[webui]\ndir = \"/srv/ui\"\nauto-update = true\nupdate-interval = \"6h\"\n",
+            Cli::default(),
+            &[],
+        );
+        assert_eq!(config.port, 25600);
     }
 
     #[test]
