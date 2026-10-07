@@ -1,0 +1,27 @@
+name: build-webui
+description: Build the webui/ Vite bundle and stage it at dist/webui.tar.gz
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+      with:
+        package_json_file: webui/package.json
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        cache: pnpm
+        cache-dependency-path: webui/pnpm-lock.yaml
+    - run: pnpm install --frozen-lockfile
+      working-directory: webui
+      shell: bash
+    - run: pnpm build
+      working-directory: webui
+      shell: bash
+    - name: Package
+      shell: bash
+      run: |
+        mkdir -p "$GITHUB_WORKSPACE/dist"
+        tar -czf "$GITHUB_WORKSPACE/dist/webui.tar.gz" -C "$GITHUB_WORKSPACE/webui/dist" .
+        # the bundle is served straight out of the tarball (the Dockerfile ADDs it as
+        # its webui dir), so index.html must sit at the root
+        tar -tzf "$GITHUB_WORKSPACE/dist/webui.tar.gz" | grep -qx './index.html'

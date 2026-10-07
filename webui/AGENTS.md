@@ -4,7 +4,7 @@ Rules that must not be violated when working in this repository. For architectur
 
 ## Project
 
-**kmweb** is the web UI for [kmrs](https://github.com/kmworks/kmrs), built with React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, Zustand and Radix UI. There are no test targets: validate with builds, lint, and manual testing.
+**kmweb** is the web UI of [kmrs](https://github.com/kmworks/kmrs), built with React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, Zustand and Radix UI. It lives in `webui/` of the kmrs repository and is released version-locked to the server. There are no test targets: validate with builds, lint, and manual testing.
 
 ## Commands
 

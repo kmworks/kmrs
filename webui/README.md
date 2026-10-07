@@ -1,7 +1,9 @@
 # kmweb
 
-Web UI for [kmrs](https://github.com/kmworks/kmrs), the Komga-compatible media
-server rewritten in Rust.
+Web UI for kmrs, the Komga-compatible media server rewritten in Rust. It lives
+in the `webui/` directory of the [kmrs](https://github.com/kmworks/kmrs)
+repository and ships inside the kmrs Docker image, version-locked to the
+server.
 
 Built with React 19, Vite, Tailwind CSS v4, TanStack Query and Zustand.
 The design language follows [KMReader](https://github.com/kmworks/kmreader):
