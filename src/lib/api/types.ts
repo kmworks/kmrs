@@ -1354,6 +1354,10 @@ export interface ServerStatsDto {
   }
   totals: {
     libraries: number
+    /** absent on kmrs < 0.18.5 */
+    series?: number
+    books?: number
+    fileSize?: number
     collections: number
     readlists: number
     sidecars: number

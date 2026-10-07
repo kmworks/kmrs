@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { formatBytes } from '@/lib/utils/format'
 import { Section } from '@/components/account/Section'
-import { useLibrariesStats, useServerStats } from '../stats'
+import { useServerStats } from '../stats'
 
 interface ContentStat {
   labelKey: string
@@ -12,17 +12,16 @@ interface ContentStat {
 export function ContentCounts() {
   const { t } = useTranslation('admin-settings')
   const server = useServerStats()
-  const libraries = useLibrariesStats()
+  const totals = server.data?.totals
 
-  const loading = server.isLoading || libraries.isLoading
   const stats: ContentStat[] = [
-    { labelKey: 'content.libraries', value: server.data?.totals.libraries },
-    { labelKey: 'content.series', value: libraries.data?.total.series },
-    { labelKey: 'content.books', value: libraries.data?.total.books },
-    { labelKey: 'content.collections', value: server.data?.totals.collections },
-    { labelKey: 'content.readLists', value: server.data?.totals.readlists },
-    { labelKey: 'content.sidecars', value: libraries.data?.total.sidecars },
-    { labelKey: 'content.totalSize', value: libraries.data?.total.fileSize, format: formatBytes },
+    { labelKey: 'content.libraries', value: totals?.libraries },
+    { labelKey: 'content.series', value: totals?.series },
+    { labelKey: 'content.books', value: totals?.books },
+    { labelKey: 'content.collections', value: totals?.collections },
+    { labelKey: 'content.readLists', value: totals?.readlists },
+    { labelKey: 'content.sidecars', value: totals?.sidecars },
+    { labelKey: 'content.totalSize', value: totals?.fileSize, format: formatBytes },
   ]
 
   return (
@@ -31,7 +30,7 @@ export function ContentCounts() {
         {stats.map((s) => (
           <div key={s.labelKey}>
             <p className="text-2xl font-semibold text-ink">
-              {loading ? '…' : s.value === undefined ? '—' : (s.format?.(s.value) ?? s.value)}
+              {server.isLoading ? '…' : s.value === undefined ? '—' : (s.format?.(s.value) ?? s.value)}
             </p>
             <p className="mt-0.5 text-xs text-ink-3">{t(s.labelKey)}</p>
           </div>
