@@ -779,7 +779,6 @@ mod tests {
             search_index: test_search_index(),
             kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
             kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-
             shutdown_tx: tokio::sync::watch::channel(false).0,
         }
     }

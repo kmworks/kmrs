@@ -175,13 +175,17 @@ mod tests {
 
         // any content-hashed asset gets the year-long cache, whatever the bundle holds
         let asset = WebuiAssets::iter()
-            .find(|p| p.starts_with("assets/"))
-            .expect("the bundle ships at least one asset");
+            .find(|p| p.starts_with("assets/") && p.ends_with(".js"))
+            .expect("the bundle ships at least one script");
         let (status, headers, _) = get(&app, &format!("/{asset}")).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(
             headers.get(header::CACHE_CONTROL).unwrap(),
             "max-age=31536000, public"
+        );
+        assert_eq!(
+            headers.get(header::CONTENT_TYPE).unwrap(),
+            "text/javascript"
         );
     }
 
