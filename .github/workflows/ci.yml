@@ -17,12 +17,12 @@ jobs:
     steps:
       # push events diff with git commands and need the checkout; PRs go through the API
       - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
-          # 'every': a file must match include AND exclude patterns — under the default
-          # 'some' the '**' would swallow the exclusion
-          predicate-quantifier: 'every'
+          # some-with-excludes: a file must hit an include and no exclude —
+          # under the default 'some' the '**' would swallow the exclusion
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             rust:
               - '**'
