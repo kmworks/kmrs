@@ -162,6 +162,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@readium/shared': ^2.7.0
+
 importers:
 
   .:
@@ -1009,10 +1012,6 @@ packages:
 
   '@readium/navigator@2.11.1':
     resolution: {integrity: sha512-EQD9HfqWDTHrJQ1PKyKETdzxT2oDl4W46ckAWgCaMKgCyMfdsyaO5qAExeT0Fa4fvzRoKG9oIWNq70jNfZ9lHA==}
-    engines: {node: '>=18'}
-
-  '@readium/shared@2.6.0':
-    resolution: {integrity: sha512-9hYDK/IIVsmrJtofecw6y1awRITu6z9i4BO80iqIzGHNwba0izCgg8ylYEDcDvnKZNHu9Ho6BIZC1wKbxHyydw==}
     engines: {node: '>=18'}
 
   '@readium/shared@2.7.0':
@@ -3082,7 +3081,7 @@ snapshots:
   '@readium/decorator@1.2.4':
     dependencies:
       '@readium/navigator-html-injectables': 2.8.4
-      '@readium/shared': 2.6.0
+      '@readium/shared': 2.7.0
 
   '@readium/helpers@1.1.1':
     dependencies:
@@ -3095,18 +3094,14 @@ snapshots:
   '@readium/navigator-html-injectables@2.8.4':
     dependencies:
       '@readium/helpers': 1.1.1
-      '@readium/shared': 2.6.0
+      '@readium/shared': 2.7.0
 
   '@readium/navigator@2.11.1':
     dependencies:
       '@readium/decorator': 1.2.4
       '@readium/helpers': 1.1.1
       '@readium/navigator-html-injectables': 2.8.4
-      '@readium/shared': 2.6.0
-
-  '@readium/shared@2.6.0':
-    dependencies:
-      '@readium/helpers': 1.1.1
+      '@readium/shared': 2.7.0
 
   '@readium/shared@2.7.0':
     dependencies:
