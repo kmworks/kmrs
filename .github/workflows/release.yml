@@ -86,14 +86,17 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
-          # registry downloads only; compile caching is sccache's job
+          # registry downloads only; compile caching is kache's job
           cache-targets: "false"
       - uses: taiki-e/install-action@v2
         if: matrix.builder == 'cross'
         with:
           tool: cross
-      - uses: mozilla-actions/sccache-action@v0.0.11
+      # the two macos legs share OS/arch, so the prefix must include the target
+      - uses: kunobi-ninja/kache-action@v1
         if: matrix.builder == 'cargo'
+        with:
+          cache-key-prefix: kache-release-${{ matrix.target }}
       - name: Build (cross)
         if: matrix.builder == 'cross'
         run: cross build --release --target ${{ matrix.target }} -p komga-server --features profiling
@@ -108,8 +111,6 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }} -p komga-server ${{ matrix.heapprof && '--features profiling' || '' }}
         env:
           LZMA_API_STATIC: "1"
-          RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
           CARGO_INCREMENTAL: "0"
           CARGO_PROFILE_RELEASE_STRIP: ${{ matrix.heapprof && 'debuginfo' || 'symbols' }}
       - name: Package (unix)
