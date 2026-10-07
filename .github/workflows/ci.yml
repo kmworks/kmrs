@@ -51,6 +51,7 @@ jobs:
       - uses: kunobi-ninja/kache-action@v1
         with:
           cache-key-prefix: kache-lint
+          pr-comment: false
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
@@ -70,6 +71,7 @@ jobs:
       - uses: kunobi-ninja/kache-action@v1
         with:
           cache-key-prefix: kache-test
+          pr-comment: false
       - run: cargo nextest run --workspace
 
   build:
@@ -95,6 +97,7 @@ jobs:
       - uses: kunobi-ninja/kache-action@v1
         with:
           cache-key-prefix: kache-build
+          pr-comment: false
       - run: cargo build --workspace --all-targets
 
   web:
@@ -132,6 +135,7 @@ jobs:
       - uses: kunobi-ninja/kache-action@v1
         with:
           cache-key-prefix: kache-docker
+          pr-comment: false
       - uses: ./.github/actions/build-webui
       - run: cargo build -p komga-server
         env:

@@ -97,6 +97,7 @@ jobs:
         if: matrix.builder == 'cargo'
         with:
           cache-key-prefix: kache-release-${{ matrix.target }}
+          pr-comment: false
       - name: Build (cross)
         if: matrix.builder == 'cross'
         run: cross build --release --target ${{ matrix.target }} -p komga-server --features profiling
