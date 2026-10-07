@@ -60,11 +60,8 @@ pub struct ServerConfig {
     pub server_context_path: Option<String>,
     pub webhooks: WebhookConfig,
     pub oauth2: OAuth2Config,
-    /// built web UI (e.g. kmweb's dist/) served at / with SPA fallback; None = no web UI (default)
+    /// built web UI (e.g. the bundled kmweb dist/) served at / with SPA fallback; None = no web UI (default)
     pub webui_dir: Option<PathBuf>,
-    /// track the latest kmweb release into <config-dir>/webui and serve that instead
-    pub webui_auto_update: bool,
-    pub webui_update_interval: Duration,
     /// komf metadata fetcher base URL; preset for the integration, runtime state lives in kmrs.sqlite
     pub komf_url: Option<String>,
     /// the base URL komf uses to call back into kmrs (written to komf's `komga.baseUri`)
@@ -389,20 +386,6 @@ impl ServerConfig {
                         .and_then(|w| w.dir.clone())
                 })
                 .filter(|p| !p.as_os_str().is_empty()),
-            webui_auto_update: env_bool(env, "KOMGA_WEBUI_AUTOUPDATE")
-                .or_else(|| {
-                    file.and_then(|f| f.webui.as_ref())
-                        .and_then(|w| w.auto_update)
-                })
-                .unwrap_or(false),
-            webui_update_interval: env_duration(env, "KOMGA_WEBUI_UPDATEINTERVAL")
-                .transpose()?
-                .or_else(|| {
-                    file.and_then(|f| f.webui.as_ref())
-                        .and_then(|w| w.update_interval)
-                        .map(|d| d.0)
-                })
-                .unwrap_or(Duration::from_secs(24 * 3600)),
             komf_url: env_string(env, "KOMGA_KOMF_URL")
                 .or_else(|| {
                     file.and_then(|f| f.komf.as_ref())
@@ -1000,29 +983,6 @@ events = ["BookAdded"]
         );
         assert_eq!(config.lucene_dir, std::path::PathBuf::from("/lucene"));
         assert_eq!(config.fonts_dir, std::path::PathBuf::from("/fonts"));
-    }
-
-    #[test]
-    fn webui_update_defaults_and_overrides() {
-        let config = resolve("", Cli::default(), &[]);
-        assert!(!config.webui_auto_update);
-        assert_eq!(config.webui_update_interval, Duration::from_secs(24 * 3600));
-
-        let config = resolve(
-            "[webui]\nauto-update = true\nupdate-interval = \"6h\"\n",
-            Cli::default(),
-            &[],
-        );
-        assert!(config.webui_auto_update);
-        assert_eq!(config.webui_update_interval, Duration::from_secs(6 * 3600));
-
-        let config = resolve(
-            "[webui]\nauto-update = true\n",
-            Cli::default(),
-            &env(&[("KOMGA_WEBUI_UPDATEINTERVAL", "30m")]),
-        );
-        assert!(config.webui_auto_update);
-        assert_eq!(config.webui_update_interval, Duration::from_secs(1800));
     }
 
     #[test]
