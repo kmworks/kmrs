@@ -2427,6 +2427,8 @@ mod tests {
         let state = test_state();
         let admin_user = admin(&state);
         let user = seed_user(&state, "user@komga.org", &[], "user-key");
+        let user3 = seed_user(&state, "u3@komga.org", &[], "u3-key");
+        seed_user(&state, "u4@komga.org", &[], "u4-key");
         seed_library(&state, "lib1", "Library One");
         seed_series(&state, "s1", "lib1", "Berserk");
         seed_series(&state, "s2", "lib1", "Naruto");
@@ -2528,16 +2530,16 @@ mod tests {
             SmartListTarget::Book,
             r#"{"condition":null}"#,
         );
-        // a SHARED list is visible to its targets through OPDS as well
+        // a SHARED list is visible to its share targets through OPDS as well
         let shared_list = make_list(
             &user,
-            "shared-with-admin",
+            "shared-with-u3",
             SmartListVisibility::Shared,
             SmartListTarget::Book,
             manga_filter,
         );
         crate::service::smart_list::dao(&state)
-            .set_shares(&shared_list.id, std::slice::from_ref(&admin_user.id))
+            .set_shares(&shared_list.id, std::slice::from_ref(&user3.id))
             .unwrap();
         let app = test_app(&state);
 
@@ -2637,15 +2639,41 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-        // the admin is in the shared list's scope: it shows in their nav feed
+        // the share target sees the list in the nav feed and may open it;
+        // a user outside the share scope gets neither
         let xml = body_string(
             app.clone()
-                .oneshot(authed("/opds/v1.2/smart-lists", ADMIN_KEY))
+                .oneshot(authed("/opds/v1.2/smart-lists", "u3-key"))
                 .await
                 .unwrap(),
         )
         .await;
-        assert!(xml.contains("<title>shared-with-admin</title>"));
+        assert!(xml.contains("<title>shared-with-u3</title>"));
+        let response = app
+            .clone()
+            .oneshot(authed(
+                &format!("/opds/v1.2/smart-lists/{}", shared_list.id),
+                "u3-key",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let xml = body_string(
+            app.clone()
+                .oneshot(authed("/opds/v1.2/smart-lists", "u4-key"))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert!(!xml.contains("shared-with-u3"));
+        let response = app
+            .oneshot(authed(
+                &format!("/opds/v1.2/smart-lists/{}", shared_list.id),
+                "u4-key",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let _ = public_list;
     }
 }
