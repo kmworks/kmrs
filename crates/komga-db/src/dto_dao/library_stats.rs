@@ -41,9 +41,13 @@ pub struct MembershipTotals {
 /// Global content counts with no visibility scoping, for the admin server snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContentTotals {
+    pub libraries: i64,
     pub series: i64,
     pub books: i64,
     pub filesize: i64,
+    pub collections: i64,
+    pub readlists: i64,
+    pub sidecars: i64,
 }
 
 /// SERIES_METADATA joins on its primary key (1:1), so when the visibility fragment does
@@ -229,16 +233,24 @@ impl LibraryStatsDtoDao {
     /// Global content counts for the admin server snapshot: no visibility applies.
     pub fn content_totals(&self) -> Result<ContentTotals> {
         let conn = self.db.ro()?;
-        let series: i64 = conn.query_row("SELECT COUNT(*) FROM SERIES", [], |r| r.get(0))?;
+        let count = |table: &str| {
+            conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| {
+                r.get::<_, i64>(0)
+            })
+        };
         let (books, filesize) = conn.query_row(
             "SELECT COUNT(*), COALESCE(SUM(FILE_SIZE), 0) FROM BOOK",
             [],
             |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)),
         )?;
         Ok(ContentTotals {
-            series,
+            libraries: count("LIBRARY")?,
+            series: count("SERIES")?,
             books,
             filesize,
+            collections: count("COLLECTION")?,
+            readlists: count("READLIST")?,
+            sidecars: count("SIDECAR")?,
         })
     }
 

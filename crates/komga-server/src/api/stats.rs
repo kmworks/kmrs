@@ -164,13 +164,13 @@ async fn server_stats(
 
     let content = LibraryStatsDtoDao::new(state.db.clone()).content_totals()?;
     let totals = ServerTotalsDto {
-        libraries: crate::service::metrics::count_of(&state, "LIBRARY"),
+        libraries: content.libraries,
         series: content.series,
         books: content.books,
         file_size: content.filesize,
-        collections: crate::service::metrics::count_of(&state, "COLLECTION"),
-        readlists: crate::service::metrics::count_of(&state, "READLIST"),
-        sidecars: crate::service::metrics::count_of(&state, "SIDECAR"),
+        collections: content.collections,
+        readlists: content.readlists,
+        sidecars: content.sidecars,
     };
 
     Ok(Json(ServerStatsDto {
