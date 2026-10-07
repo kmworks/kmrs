@@ -20,8 +20,9 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # the default quantifier 'some' would let '**' swallow the exclusion
-          predicate-quantifier: 'some-with-excludes'
+          # 'every': a file must match include AND exclude patterns — under the default
+          # 'some' the '**' would swallow the exclusion
+          predicate-quantifier: 'every'
           filters: |
             rust:
               - '**'
