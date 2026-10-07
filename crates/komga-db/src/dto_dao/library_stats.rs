@@ -230,7 +230,6 @@ impl LibraryStatsDtoDao {
         Ok(rows)
     }
 
-    /// Global content counts for the admin server snapshot: no visibility applies.
     pub fn content_totals(&self) -> Result<ContentTotals> {
         let conn = self.db.ro()?;
         let count = |table: &str| {
