@@ -602,8 +602,10 @@ fn cleanup_empty_sets(state: &AppState) -> Result<()> {
 }
 
 /// A moved/renamed series is matched against soft-deleted series by book count and by every
-/// book's size and hash; on a match, metadata (locked fields win), user thumbnails, and
-/// collection memberships are transferred, and books go through `try_restore_books`.
+/// book's size and hash; on a match, metadata, user thumbnails, and collection memberships
+/// are transferred, and books go through `try_restore_books`. Unlike Java, the deleted
+/// metadata is restored wholesale (unlocked title/titleSort included); the queued series
+/// metadata refresh may overwrite unlocked fields afterwards.
 fn try_restore_series(
     state: &AppState,
     new_series: &Series,
@@ -656,26 +658,15 @@ fn try_restore_series(
         return Ok(());
     };
 
-    // copy metadata; locked fields win over the fresh ones
+    // copy metadata wholesale: the deleted series' values are a better default than the
+    // fresh directory-derived ones, and the refreshSeriesMetadata queued for restored
+    // series may still overwrite unlocked fields
     let metadata_dao = SeriesMetadataDao::new(state.db.clone());
     let deleted_metadata = metadata_dao
         .find_by_id(&deleted_series.id)?
         .expect("deleted series has metadata");
-    let new_metadata = metadata_dao
-        .find_by_id(&new_series.id)?
-        .expect("new series has metadata");
     metadata_dao.update(&SeriesMetadata {
         series_id: new_series.id.clone(),
-        title: if deleted_metadata.title_lock {
-            deleted_metadata.title.clone()
-        } else {
-            new_metadata.title.clone()
-        },
-        title_sort: if deleted_metadata.title_sort_lock {
-            deleted_metadata.title_sort.clone()
-        } else {
-            new_metadata.title_sort.clone()
-        },
         ..deleted_metadata
     })?;
 
@@ -714,8 +705,9 @@ fn try_restore_series(
 }
 
 /// A moved/renamed book is matched against soft-deleted books by size, then hash; on a match,
-/// media, thumbnails, metadata (locked title wins), read progress, and readlist memberships are
-/// transferred, and the deleted book is removed.
+/// media, thumbnails, metadata, read progress, and readlist memberships are transferred, and
+/// the deleted book is removed. Unlike Java, the deleted metadata is restored wholesale
+/// (unlocked title included); a Title-capable refresh is still queued for unlocked titles.
 fn try_restore_books(state: &AppState, new_books: &[Book]) -> ScanRootResult<()> {
     let book_dao = BookDao::new(state.db.clone());
     for book_to_add in new_books {
@@ -767,21 +759,15 @@ fn try_restore_books(state: &AppState, new_books: &[Book]) -> ScanRootResult<()>
             }
         }
 
-        // copy metadata; a locked title wins over the fresh one
+        // copy metadata wholesale, title included: the deleted book's values are a better
+        // default than the fresh file-name-derived ones, and the refresh queued below may
+        // still overwrite an unlocked title
         let metadata_dao = BookMetadataDao::new(state.db.clone());
         let deleted_metadata = metadata_dao
             .find_by_id(&matched.id)?
             .expect("deleted book has metadata");
-        let new_metadata = metadata_dao
-            .find_by_id(&book_to_add.id)?
-            .expect("new book has metadata");
         metadata_dao.update(&BookMetadata {
             book_id: book_to_add.id.clone(),
-            title: if deleted_metadata.title_lock {
-                deleted_metadata.title.clone()
-            } else {
-                new_metadata.title.clone()
-            },
             ..deleted_metadata
         })?;
         if !deleted_metadata.title_lock {
@@ -1577,6 +1563,12 @@ mod tests {
             .find(|b| b.deleted_date.is_none())
             .unwrap();
         assert_eq!(restored.name, "v01-renamed");
+        // the unlocked title is restored from the deleted book, not the new file name
+        let restored_metadata = BookMetadataDao::new(state.db.clone())
+            .find_by_id(&restored.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored_metadata.title, "v01");
         // media copied
         let media = media_dao.find_by_id(&restored.id).unwrap().unwrap();
         assert_eq!(media.status, MediaStatus::Ready);
@@ -1687,8 +1679,8 @@ mod tests {
         // locked title wins over the directory name
         let metadata = metadata_dao.find_by_id(&alive.id).unwrap().unwrap();
         assert_eq!(metadata.title, "Custom Title");
-        // unlocked titleSort follows the new series
-        assert_eq!(metadata.title_sort, "s2");
+        // unlocked titleSort is restored from the deleted series, not the new directory name
+        assert_eq!(metadata.title_sort, "s1");
         // collection points at the restored series
         let collection = collection_dao.find_by_id(&collection_id).unwrap().unwrap();
         assert_eq!(collection.series_ids, vec![alive.id.clone()]);
