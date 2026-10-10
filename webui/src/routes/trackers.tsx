@@ -178,6 +178,9 @@ function VisibilitySection() {
   const selected = new Set(prefsQuery.data?.libraries ?? [])
   const allIds = (librariesQuery.data ?? []).map((l) => l.id)
   const handleChange = (libraryId: string, nextChecked: boolean) => {
+    // the PUT replaces the whole preferences object, so toggling before the
+    // current values load would reset defaultTracker to empty
+    if (!prefsQuery.data) return
     // empty list = unrestricted; the first explicit toggle materializes the
     // restriction list (turning one library off excludes just that one)
     const next =
@@ -201,7 +204,7 @@ function VisibilitySection() {
             <Switch
               checked={selected.size === 0 || selected.has(library.id)}
               onCheckedChange={(on) => handleChange(library.id, on)}
-              disabled={saveMutation.isPending}
+              disabled={saveMutation.isPending || !prefsQuery.data}
               label={library.name}
             />
           </li>
@@ -234,9 +237,12 @@ function DefaultTrackerSection() {
       <p className="mb-3 text-xs text-ink-3">{t('page.defaultHint')}</p>
       <SegmentedControl
         value={prefsQuery.data?.defaultTracker ?? 'none'}
-        onChange={(v) =>
+        onChange={(v) => {
+          // the PUT replaces the whole preferences object, so switching before
+          // the current values load would reset libraries to empty
+          if (!prefsQuery.data) return
           saveMutation.mutate(v === 'none' ? undefined : (v as KomfOAuthProvider))
-        }
+        }}
         options={[
           { value: 'none', label: t('page.defaultNone') },
           ...PROVIDERS.map((p) => ({ value: p, label: t(`provider.${p}`) })),
