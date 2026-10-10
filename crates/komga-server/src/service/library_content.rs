@@ -659,10 +659,6 @@ fn try_restore_series(
         return Ok(());
     };
 
-    // copy metadata; a customized or locked title/titleSort is restored, while a value
-    // that still echoes the old directory name would only restore a stale name — the
-    // fresh directory-derived one is the better default then. The queued series metadata
-    // refresh may overwrite unlocked fields afterwards.
     let metadata_dao = SeriesMetadataDao::new(state.db.clone());
     let deleted_metadata = metadata_dao
         .find_by_id(&deleted_series.id)?
@@ -779,10 +775,6 @@ fn try_restore_books(state: &AppState, new_books: &[Book]) -> ScanRootResult<()>
             }
         }
 
-        // copy metadata; a customized or locked title is restored, while a title that still
-        // echoes the old file name would only restore a stale name — the fresh
-        // file-name-derived one is the better default then. The refresh queued below may
-        // overwrite an unlocked restored title.
         let metadata_dao = BookMetadataDao::new(state.db.clone());
         let deleted_metadata = metadata_dao
             .find_by_id(&matched.id)?
@@ -1659,10 +1651,14 @@ mod tests {
         let root = scan_root(&tmp);
         write_file(&root.join("s1"), "v01.cbz", b"aaa");
         write_file(&root.join("s1"), "v02.cbz", b"bbbb");
+        // a second series keeps default metadata, to pin the follow-new-name branch
+        write_file(&root.join("t1"), "v01.cbz", b"ccc");
         let lib = library(&state.db, "lib1", &root);
         scan(&state, &lib);
 
-        let s1 = all_series(&state).into_iter().next().unwrap();
+        let seeded = all_series(&state);
+        let s1 = seeded.iter().find(|s| s.name == "s1").unwrap();
+        let t1 = seeded.iter().find(|s| s.name == "t1").unwrap();
         // lock a custom title, and set a customized (unlocked) titleSort
         let metadata_dao = SeriesMetadataDao::new(state.db.clone());
         let mut metadata = metadata_dao.find_by_id(&s1.id).unwrap().unwrap();
@@ -1706,8 +1702,9 @@ mod tests {
             media_dao.update(&media).unwrap();
         }
 
-        // series "moves" to a new directory
+        // both series "move" to new directories
         std::fs::remove_dir_all(root.join("s1")).unwrap();
+        std::fs::remove_dir_all(root.join("t1")).unwrap();
         scan(&state, &lib);
         assert!(SeriesDao::new(state.db.clone())
             .find_by_id(&s1.id)
@@ -1718,24 +1715,27 @@ mod tests {
 
         write_file(&root.join("s2"), "v01.cbz", b"aaa");
         write_file(&root.join("s2"), "v02.cbz", b"bbbb");
+        write_file(&root.join("t2"), "v01.cbz", b"ccc");
         scan(&state, &lib);
 
-        let alive = all_series(&state)
+        let alive: Vec<_> = all_series(&state)
             .into_iter()
-            .find(|s| s.deleted_date.is_none())
-            .unwrap();
-        assert_eq!(alive.name, "s2");
+            .filter(|s| s.deleted_date.is_none())
+            .collect();
+        assert_eq!(alive.len(), 2);
+        let s2 = alive.iter().find(|s| s.name == "s2").unwrap();
+        let t2 = alive.iter().find(|s| s.name == "t2").unwrap();
         // locked title wins over the directory name
-        let metadata = metadata_dao.find_by_id(&alive.id).unwrap().unwrap();
+        let metadata = metadata_dao.find_by_id(&s2.id).unwrap().unwrap();
         assert_eq!(metadata.title, "Custom Title");
         // customized (unlocked) titleSort is restored from the deleted series
         assert_eq!(metadata.title_sort, "Custom Sort");
         // collection points at the restored series
         let collection = collection_dao.find_by_id(&collection_id).unwrap().unwrap();
-        assert_eq!(collection.series_ids, vec![alive.id.clone()]);
+        assert_eq!(collection.series_ids, vec![s2.id.clone()]);
         // books have their READY media back
         for book in BookDao::new(state.db.clone())
-            .find_by_series_id(&alive.id)
+            .find_by_series_id(&s2.id)
             .unwrap()
         {
             let media = media_dao.find_by_id(&book.id).unwrap().unwrap();
@@ -1744,6 +1744,16 @@ mod tests {
         // the deleted series is gone for good
         assert!(SeriesDao::new(state.db.clone())
             .find_by_id(&s1.id)
+            .unwrap()
+            .is_none());
+
+        // the default-metadata series was restored too (its deleted row is consumed),
+        // and its echo values follow the new directory name
+        let t2_metadata = metadata_dao.find_by_id(&t2.id).unwrap().unwrap();
+        assert_eq!(t2_metadata.title, "t2");
+        assert_eq!(t2_metadata.title_sort, "t2");
+        assert!(SeriesDao::new(state.db.clone())
+            .find_by_id(&t1.id)
             .unwrap()
             .is_none());
     }
