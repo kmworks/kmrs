@@ -18,11 +18,17 @@
     "addToCollection": "Добавить в коллекцию",
     "download": "Скачать",
     "editMetadata": "Изменить метаданные",
+    "analyze": "Анализировать",
+    "refreshMetadata": "Обновить метаданные",
     "deleteFile": "Удалить файл",
     "deleteFiles": "Удалить файлы",
     "identifyWithKomf": "Определить через komf"
   },
   "identifyQueued": "Определение поставлено в очередь",
+  "analysisQueued": "Анализ поставлен в очередь",
+  "queueAnalysisFailed": "Не удалось поставить анализ в очередь",
+  "refreshQueued": "Обновление метаданных поставлено в очередь",
+  "queueRefreshFailed": "Не удалось поставить обновление в очередь",
   "select": {
     "select": "Выбрать {{title}}",
     "deselect": "Снять выбор с {{title}}"

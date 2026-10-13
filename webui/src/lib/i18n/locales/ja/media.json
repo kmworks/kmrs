@@ -15,11 +15,17 @@
     "addToCollection": "コレクションに追加",
     "download": "ダウンロード",
     "editMetadata": "メタデータを編集",
+    "analyze": "分析",
+    "refreshMetadata": "メタデータを更新",
     "deleteFile": "ファイルを削除",
     "deleteFiles": "ファイルを削除",
     "identifyWithKomf": "komf で識別"
   },
   "identifyQueued": "識別をキューに追加しました",
+  "analysisQueued": "分析をキューに追加しました",
+  "queueAnalysisFailed": "分析をキューに追加できませんでした",
+  "refreshQueued": "メタデータの更新をキューに追加しました",
+  "queueRefreshFailed": "更新をキューに追加できませんでした",
   "select": {
     "select": "{{title}} を選択",
     "deselect": "{{title}} の選択を解除"

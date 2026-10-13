@@ -15,11 +15,17 @@
     "addToCollection": "컬렉션에 추가",
     "download": "다운로드",
     "editMetadata": "메타데이터 편집",
+    "analyze": "분석",
+    "refreshMetadata": "메타데이터 새로 고침",
     "deleteFile": "파일 삭제",
     "deleteFiles": "파일 삭제",
     "identifyWithKomf": "komf로 식별"
   },
   "identifyQueued": "식별이 큐에 추가됨",
+  "analysisQueued": "분석이 큐에 추가됨",
+  "queueAnalysisFailed": "분석을 큐에 추가할 수 없습니다",
+  "refreshQueued": "메타데이터 새로 고침이 큐에 추가됨",
+  "queueRefreshFailed": "새로 고침을 큐에 추가할 수 없습니다",
   "select": {
     "select": "{{title}} 선택",
     "deselect": "{{title}} 선택 해제"
