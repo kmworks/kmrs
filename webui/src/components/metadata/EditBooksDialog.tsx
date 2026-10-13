@@ -151,7 +151,6 @@ function SingleBookForm({ book, onClose }: { book: BookDto; onClose: () => void 
   }
 
   const authorCheck = (v: string) => (v.trim() ? undefined : t('validation.notBlank'))
-  const notBlankCheck = (v: string) => (v.trim() ? undefined : t('validation.notBlank'))
   const urlCheck = (v: string) => (isValidUrl(v.trim()) ? undefined : t('validation.url'))
 
   const submit = (ev: FormEvent) => {
@@ -163,7 +162,7 @@ function SingleBookForm({ book, onClose }: { book: BookDto; onClose: () => void 
     if (!numberSort.trim() || Number.isNaN(Number(numberSort))) e.numberSort = t('validation.number')
     if (isbn.trim() && !isValidIsbn13(isbn)) e.isbn = t('validation.isbn')
     const ae = validatePairs(authors, authorCheck, t('validation.notBlank'))
-    const ne = validatePairs(notableEntities, notBlankCheck, t('validation.notBlank'))
+    const ne = validatePairs(notableEntities, authorCheck, t('validation.notBlank'))
     const le = validatePairs(links, urlCheck, t('validation.notBlank'))
     setErrors(e)
     setPairErrors({ authors: ae, notableEntities: ne, links: le })

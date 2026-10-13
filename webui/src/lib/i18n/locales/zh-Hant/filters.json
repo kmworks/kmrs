@@ -14,7 +14,7 @@
     "search": "搜尋：{{q}}",
     "value": "{{group}}：{{value}}",
     "value_negated": "{{group}}：非 {{value}}",
-    "notableEntity": "{{kind}}: {{name}}"
+    "notableEntity": "{{kind}}：{{name}}"
   },
   "mode": {
     "any": "任一",

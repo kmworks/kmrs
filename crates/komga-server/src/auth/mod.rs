@@ -178,7 +178,16 @@ fn resolve(state: &AppState, parts: &Parts) -> Outcome {
                         source: "Password".into(),
                     };
                     Outcome {
-                        new_session_id: Some(state.sessions.create(&user.id)),
+                        // a broken session store must not fail the authentication itself
+                        new_session_id: state
+                            .sessions
+                            .create(&user.id)
+                            .map_err(|e| {
+                                tracing::warn!(
+                                    "failed to persist session, continuing without one: {e}"
+                                )
+                            })
+                            .ok(),
                         auth: Some(Auth {
                             user,
                             source: AuthSource::Password,
@@ -220,18 +229,24 @@ async fn resolve_session_and_remember(
 
     // 3. session (X-Auth-Token header takes precedence over cookie)
     if let Some(session_id) = session_id {
-        if let Some(session) = state.sessions.get(&session_id) {
-            if let Ok(Some(user)) = user_dao.find_by_id(&session.user_id) {
-                return Outcome {
-                    auth: Some(Auth {
-                        user,
-                        source: AuthSource::Session,
-                        api_key_id: session.api_key.map(|k| k.id),
-                    }),
-                    new_session_id: None,
-                    activity: None,
-                };
+        // a store error reads as no session: the request falls through to the
+        // remaining auth methods (fail-closed)
+        match state.sessions.get(&session_id) {
+            Ok(Some(session)) => {
+                if let Ok(Some(user)) = user_dao.find_by_id(&session.user_id) {
+                    return Outcome {
+                        auth: Some(Auth {
+                            user,
+                            source: AuthSource::Session,
+                            api_key_id: None,
+                        }),
+                        new_session_id: None,
+                        activity: None,
+                    };
+                }
             }
+            Ok(None) => {}
+            Err(e) => tracing::warn!("failed to load session {session_id}: {e}"),
         }
     }
 
@@ -261,7 +276,13 @@ async fn resolve_session_and_remember(
                                 source: "RememberMe".into(),
                             };
                             return Outcome {
-                                new_session_id: Some(state.sessions.create(&user.id)),
+                                new_session_id: state
+                                    .sessions
+                                    .create(&user.id)
+                                    .map_err(|e| {
+                                        tracing::warn!("failed to persist session, continuing without one: {e}")
+                                    })
+                                    .ok(),
                                 auth: Some(Auth {
                                     user,
                                     source: AuthSource::RememberMe,

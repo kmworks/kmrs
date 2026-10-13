@@ -112,10 +112,10 @@ struct ErrorBody {
 }
 
 /// RFC 9457 ProblemDetail error for the `/api/v3` prefix (komga 1.29
-/// `ApiV3ErrorHandlingControllerAdvice`): every error under v3 is a ProblemDetail with
-/// `instance` set to the request path (Spring's return-value handler), serialized as
+/// `ApiV3ErrorHandlingControllerAdvice`): controller exceptions under v3 serialize as
 /// `application/problem+json`; the security-level 401/empty-404 stay as-is (the advice only
-/// wraps controller exceptions).
+/// wraps controller exceptions). `instance` carries the request path — an RFC 9457
+/// extension Spring leaves unset — for log correlation.
 pub struct V3Error {
     error: ApiError,
     /// request path for the ProblemDetail `instance`, without the query string
@@ -166,7 +166,7 @@ impl IntoResponse for V3Error {
             }
             ApiError::Violations(violations) => problem_response(
                 StatusCode::BAD_REQUEST,
-                "Validation failed.".to_string(),
+                "Invalid request content.".to_string(),
                 self.path,
                 Some(
                     violations

@@ -284,7 +284,10 @@ async fn callback(
     };
 
     // success: session + activity + redirect to the SPA root
-    let session_id = state.sessions.create(&user.id);
+    let session_id = state
+        .sessions
+        .create(&user.id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     state.record_activity_sync(
         &client_name,
         Some((&user.id, &user.email)),
@@ -713,7 +716,7 @@ mod tests {
         let state = test_state(oauth2_config(vec![], false, true));
         let app = test_app(&state);
         let user = seed_user(&state, "admin@komga.org");
-        let session = state.sessions.create(&user.id);
+        let session = state.sessions.create(&user.id).unwrap();
         let response = get_with(
             &app,
             "/api/v1/oauth2/providers",
@@ -744,7 +747,7 @@ mod tests {
         let state = test_state(oauth2_config(vec![github, custom], false, true));
         let app = test_app(&state);
         let user = seed_user(&state, "admin@komga.org");
-        let session = state.sessions.create(&user.id);
+        let session = state.sessions.create(&user.id).unwrap();
         let response = get_with(
             &app,
             "/api/v1/oauth2/providers",
@@ -851,7 +854,7 @@ mod tests {
             .split(';')
             .next()
             .unwrap();
-        assert!(state.sessions.get(session_id).is_some());
+        assert!(state.sessions.get(session_id).unwrap().is_some());
 
         // activity recorded with the OAuth2:github source
         let activities = wait_activities(&state, 1).await;
@@ -1034,7 +1037,7 @@ mod tests {
             .next()
             .unwrap();
         assert_eq!(
-            state.sessions.get(session_id).map(|s| s.user_id),
+            state.sessions.get(session_id).unwrap().map(|s| s.user_id),
             Some(created.id.clone())
         );
     }

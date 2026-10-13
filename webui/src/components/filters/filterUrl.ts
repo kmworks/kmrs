@@ -52,8 +52,9 @@ export function serializeAuthor(a: AuthorFilter): string {
   return `${a.name},${a.role}`
 }
 
-// the kind comes first and never contains a comma (the server lowercases it), so the
-// name — which may contain commas — is everything after the first comma
+// the kind is split off at the first comma, so names may contain commas; the round-trip
+// relies on kind being a fixed analyzer token (character/team/location) — a kind with a
+// comma of its own would not survive
 export function parseNotableEntity(raw: string): NotableEntityFilter {
   const i = raw.indexOf(',')
   return i < 0 ? { kind: raw, name: '' } : { kind: raw.slice(0, i), name: raw.slice(i + 1) }

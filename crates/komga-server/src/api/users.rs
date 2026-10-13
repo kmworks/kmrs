@@ -256,7 +256,7 @@ async fn update_user(
         || before.shared_all_libraries != existing.shared_all_libraries
         || before.shared_libraries_ids != existing.shared_libraries_ids;
     if expire_sessions {
-        state.sessions.invalidate_user(&id);
+        state.sessions.invalidate_user(&id)?;
     }
     let _ = state.events.send(DomainEvent::UserUpdated {
         user: existing,
@@ -279,7 +279,7 @@ async fn delete_user(
         .find_by_id(&id)?
         .ok_or_else(|| ApiError::not_found(""))?;
     dao.delete(&id, &user.email)?;
-    state.sessions.invalidate_user(&id);
+    state.sessions.invalidate_user(&id)?;
     // Java publishes UserUpdated (not UserDeleted) on delete, with sessions expired
     let _ = state.events.send(DomainEvent::UserUpdated {
         user,
@@ -308,7 +308,7 @@ async fn update_password_by_id(
     // changing someone else's password invalidates their sessions; changing your own does not
     let expire_sessions = auth.0.user.id != id;
     if expire_sessions {
-        state.sessions.invalidate_user(&id);
+        state.sessions.invalidate_user(&id)?;
     }
     let _ = state.events.send(DomainEvent::UserUpdated {
         user,
@@ -609,7 +609,7 @@ mod tests {
     async fn api_key_with_session_is_stateless_and_records_every_time() {
         let (state, _rx) = test_state();
         let user_id = seed_user(&state, "admin@example.com");
-        let session_id = state.sessions.create(&user_id);
+        let session_id = state.sessions.create(&user_id).unwrap();
         let app = test_router(state.clone());
 
         let call = |key: &str| {
@@ -640,13 +640,6 @@ mod tests {
             );
         }
         wait_activity_count(&state, &user_id, "admin@example.com", 3).await;
-        // the presented session stays anonymous: not marked with the API key
-        assert!(state
-            .sessions
-            .get(&session_id)
-            .expect("session still there")
-            .api_key
-            .is_none());
     }
 
     /// Without a session there is no stored context to reuse: every API-key request records,
@@ -809,7 +802,7 @@ mod tests {
         let (state, _rx) = test_state();
         seed_user(&state, "admin@b.c");
         let target = seed_plain_user(&state, "user@b.c");
-        let sid = state.sessions.create(&target);
+        let sid = state.sessions.create(&target).unwrap();
         let mut events = state.events.subscribe();
 
         let status = call_with_body(
@@ -822,7 +815,7 @@ mod tests {
         assert_eq!(status, StatusCode::NO_CONTENT);
 
         assert_eq!(next_user_updated(&mut events).await, (target.clone(), true));
-        assert!(state.sessions.get(&sid).is_none());
+        assert!(state.sessions.get(&sid).unwrap().is_none());
     }
 
     #[tokio::test]
@@ -830,7 +823,7 @@ mod tests {
         let (state, _rx) = test_state();
         seed_user(&state, "admin@b.c");
         let target = seed_plain_user(&state, "user@b.c");
-        let sid = state.sessions.create(&target);
+        let sid = state.sessions.create(&target).unwrap();
         let mut events = state.events.subscribe();
 
         let status = call_with_body(
@@ -846,7 +839,7 @@ mod tests {
             next_user_updated(&mut events).await,
             (target.clone(), false)
         );
-        assert!(state.sessions.get(&sid).is_some());
+        assert!(state.sessions.get(&sid).unwrap().is_some());
     }
 
     #[tokio::test]

@@ -4,9 +4,8 @@
 //! - Sliding expiration (default 7 days, idle-based): every access refreshes
 //!   `LAST_ACCESS_TIME`/`EXPIRY_TIME`, like the `SessionRepositoryFilter` saving
 //!   the session at the end of each request.
-//! - Session data stores the user id plus the API-key mark left by API-key authentication
-//!   (Spring persists the replaced SecurityContext into the session); user info is fetched
-//!   from the DB each time (immediate effect of permission changes is handled by explicit invalidation).
+//! - Session data stores the user id; user info is fetched from the DB each time
+//!   (immediate effect of permission changes is handled by explicit invalidation).
 //!
 //! JDBC mapping notes (see `komga_db::dao::session`): the row mirrors
 //! `JdbcIndexedSessionRepository` — distinct `PRIMARY_ID`/`SESSION_ID` UUIDs,
@@ -19,24 +18,16 @@
 
 use komga_db::dao::session::SessionDao;
 use komga_db::pool::Database;
+use komga_db::Result;
 use moka::sync::Cache;
 use std::time::Duration;
 
 pub const SESSION_COOKIE_NAME: &str = "KOMGA-SESSION";
 pub const SESSION_HEADER_NAME: &str = "X-Auth-Token";
 
-/// Set once an API-key authentication replaces the session's security context
-/// (Java stores the `ApiKeyAuthenticationToken`, whose name is the masked key hash, in the session).
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct SessionApiKey {
-    pub id: String,
-    pub hash: String,
-}
-
 #[derive(Clone)]
 pub struct SessionData {
     pub user_id: String,
-    pub api_key: Option<SessionApiKey>,
     /// Epoch millis; tracked for the actuator `/actuator/sessions` descriptors.
     pub created_at: u64,
     pub last_accessed_at: u64,
@@ -46,14 +37,12 @@ pub struct SessionData {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct SessionPayload {
     user_id: String,
-    api_key: Option<SessionApiKey>,
 }
 
 impl SessionPayload {
-    fn encode(user_id: &str, api_key: Option<&SessionApiKey>) -> Vec<u8> {
+    fn encode(user_id: &str) -> Vec<u8> {
         serde_json::to_vec(&SessionPayload {
             user_id: user_id.to_string(),
-            api_key: api_key.cloned(),
         })
         .expect("session payload serializes")
     }
@@ -104,7 +93,7 @@ impl SessionStore {
         }
     }
 
-    pub fn create(&self, user_id: &str) -> String {
+    pub fn create(&self, user_id: &str) -> Result<String> {
         match &*self.inner {
             StoreInner::Memory { cache } => {
                 let id = uuid::Uuid::new_v4().to_string();
@@ -113,12 +102,11 @@ impl SessionStore {
                     id.clone(),
                     SessionData {
                         user_id: user_id.to_string(),
-                        api_key: None,
                         created_at: now,
                         last_accessed_at: now,
                     },
                 );
-                id
+                Ok(id)
             }
             StoreInner::Jdbc { dao, timeout } => {
                 let id = uuid::Uuid::new_v4().to_string();
@@ -130,52 +118,56 @@ impl SessionStore {
                     now,
                     timeout_secs(*timeout),
                     user_id,
-                    &SessionPayload::encode(user_id, None),
-                )
-                .expect("insert session");
-                id
+                    &SessionPayload::encode(user_id),
+                )?;
+                Ok(id)
             }
         }
     }
 
-    pub fn get(&self, id: &str) -> Option<SessionData> {
+    pub fn get(&self, id: &str) -> Result<Option<SessionData>> {
         match &*self.inner {
             StoreInner::Memory { cache } => {
-                let data = cache.get(id)?;
+                let Some(data) = cache.get(id) else {
+                    return Ok(None);
+                };
                 let mut data = data;
                 data.last_accessed_at = now_millis();
                 cache.insert(id.to_string(), data.clone());
-                Some(data)
+                Ok(Some(data))
             }
             // `findById`: an expired row is deleted and reads as missing, a live
             // one has its sliding expiration refreshed.
             StoreInner::Jdbc { dao, timeout } => {
-                let row = dao.find_by_id(id).expect("load session")?;
+                let Some(row) = dao.find_by_id(id)? else {
+                    return Ok(None);
+                };
                 let now = now_millis() as i64;
                 if row.is_expired(now) {
-                    dao.delete_by_id(id).expect("delete expired session");
-                    return None;
+                    dao.delete_by_id(id)?;
+                    return Ok(None);
                 }
-                let payload = row.payload.as_deref().and_then(SessionPayload::decode)?;
-                dao.touch(id, now, timeout_secs(*timeout))
-                    .expect("refresh session");
-                Some(SessionData {
+                let Some(payload) = row.payload.as_deref().and_then(SessionPayload::decode) else {
+                    return Ok(None);
+                };
+                dao.touch(id, now, timeout_secs(*timeout))?;
+                Ok(Some(SessionData {
                     user_id: payload.user_id,
-                    api_key: payload.api_key,
                     created_at: row.created_at as u64,
                     last_accessed_at: now as u64,
-                })
+                }))
             }
         }
     }
 
     /// All live sessions, for the actuator `/actuator/sessions` listing.
-    pub fn all(&self) -> Vec<(String, SessionData)> {
+    pub fn all(&self) -> Result<Vec<(String, SessionData)>> {
         match &*self.inner {
-            StoreInner::Memory { cache } => cache.iter().map(|(k, v)| ((*k).clone(), v)).collect(),
-            StoreInner::Jdbc { dao, .. } => dao
-                .list_live(now_millis() as i64)
-                .expect("list sessions")
+            StoreInner::Memory { cache } => {
+                Ok(cache.iter().map(|(k, v)| ((*k).clone(), v)).collect())
+            }
+            StoreInner::Jdbc { dao, .. } => Ok(dao
+                .list_live(now_millis() as i64)?
                 .into_iter()
                 .filter_map(|row| {
                     let payload = row.payload.as_deref().and_then(SessionPayload::decode)?;
@@ -183,70 +175,25 @@ impl SessionStore {
                         row.id,
                         SessionData {
                             user_id: payload.user_id,
-                            api_key: payload.api_key,
                             created_at: row.created_at as u64,
                             last_accessed_at: row.last_accessed_at as u64,
                         },
                     ))
                 })
-                .collect(),
+                .collect()),
         }
     }
 
-    /// Replaces the session's identity with the API-key authentication, like Spring's
-    /// `SecurityContextRepository` saving the new context. Unknown session ids are ignored:
-    /// the caller creates the session first when the request had none.
-    pub fn mark_api_key(&self, id: &str, user_id: &str, key_id: &str, key_hash: &str) {
-        match &*self.inner {
-            StoreInner::Memory { cache } => {
-                if let Some(existing) = cache.get(id) {
-                    cache.insert(
-                        id.to_string(),
-                        SessionData {
-                            user_id: user_id.to_string(),
-                            api_key: Some(SessionApiKey {
-                                id: key_id.to_string(),
-                                hash: key_hash.to_string(),
-                            }),
-                            created_at: existing.created_at,
-                            last_accessed_at: now_millis(),
-                        },
-                    );
-                }
-            }
-            StoreInner::Jdbc { dao, timeout } => {
-                let now = now_millis() as i64;
-                if let Some(row) = dao.find_by_id(id).expect("load session") {
-                    if row.is_expired(now) {
-                        dao.delete_by_id(id).expect("delete expired session");
-                        return;
-                    }
-                    let api_key = SessionApiKey {
-                        id: key_id.to_string(),
-                        hash: key_hash.to_string(),
-                    };
-                    dao.update_identity(
-                        &row.primary_id,
-                        now,
-                        timeout_secs(*timeout),
-                        key_hash,
-                        &SessionPayload::encode(user_id, Some(&api_key)),
-                    )
-                    .expect("mark session api key");
-                }
-            }
-        }
-    }
-
-    pub fn invalidate(&self, id: &str) {
+    pub fn invalidate(&self, id: &str) -> Result<()> {
         match &*self.inner {
             StoreInner::Memory { cache } => cache.invalidate(id),
-            StoreInner::Jdbc { dao, .. } => dao.delete_by_id(id).expect("delete session"),
+            StoreInner::Jdbc { dao, .. } => dao.delete_by_id(id)?,
         }
+        Ok(())
     }
 
     /// Invalidates all sessions of a user (on password change / permission change / user deletion).
-    pub fn invalidate_user(&self, user_id: &str) {
+    pub fn invalidate_user(&self, user_id: &str) -> Result<()> {
         match &*self.inner {
             StoreInner::Memory { cache } => {
                 let ids: Vec<String> = cache
@@ -259,12 +206,11 @@ impl SessionStore {
                 }
             }
             StoreInner::Jdbc { dao, .. } => {
-                // like the memory backend, invalidation keys off the stored user
-                // id — not the PRINCIPAL_NAME column, which holds the API-key
-                // hash once the session context was replaced by API-key auth.
+                // like the memory backend, invalidation keys off the stored payload's
+                // user id: rows written by Java komga have an undecodable payload
+                // and are left alone
                 let ids: Vec<String> = dao
-                    .list_live(now_millis() as i64)
-                    .expect("list sessions")
+                    .list_live(now_millis() as i64)?
                     .into_iter()
                     .filter(|row| {
                         row.payload
@@ -275,21 +221,20 @@ impl SessionStore {
                     .map(|row| row.id)
                     .collect();
                 for id in ids {
-                    dao.delete_by_id(&id).expect("delete user session");
+                    dao.delete_by_id(&id)?;
                 }
             }
         }
+        Ok(())
     }
 
     /// Hourly expired-session cleanup (Java's `cleanup-cron: "0 0 * * * *"`); a
     /// no-op for the memory backend, whose cache evicts idle entries itself.
     /// Returns the number of rows removed.
-    pub fn cleanup_expired(&self) -> u64 {
+    pub fn cleanup_expired(&self) -> Result<u64> {
         match &*self.inner {
-            StoreInner::Memory { .. } => 0,
-            StoreInner::Jdbc { dao, .. } => dao
-                .delete_expired(now_millis() as i64)
-                .expect("cleanup expired sessions"),
+            StoreInner::Memory { .. } => Ok(0),
+            StoreInner::Jdbc { dao, .. } => dao.delete_expired(now_millis() as i64),
         }
     }
 }
@@ -311,51 +256,29 @@ mod tests {
         SessionStore::jdbc(db, Duration::from_secs(60))
     }
 
-    fn mark_api_key_replaces_identity_and_ignores_unknown_sessions(store: &SessionStore) {
-        store.mark_api_key("ghost", "u1", "k1", "h1");
-        assert!(store.get("ghost").is_none());
-
-        let id = store.create("u1");
-        store.mark_api_key(&id, "u2", "k1", "h1");
-        let session = store.get(&id).unwrap();
-        assert_eq!(session.user_id, "u2");
-        let key = session.api_key.unwrap();
-        assert_eq!(key.id, "k1");
-        assert_eq!(key.hash, "h1");
-
-        store.invalidate_user("u2");
-        assert!(store.get(&id).is_none());
-    }
-
-    #[test]
-    fn memory_mark_api_key_replaces_identity_and_ignores_unknown_sessions() {
-        mark_api_key_replaces_identity_and_ignores_unknown_sessions(&memory_store());
-    }
-
-    #[test]
-    fn jdbc_mark_api_key_replaces_identity_and_ignores_unknown_sessions() {
-        mark_api_key_replaces_identity_and_ignores_unknown_sessions(&jdbc_store());
-    }
-
     fn lifecycle_round_trip(store: &SessionStore) {
         // create + get refreshes the sliding expiration
-        let id = store.create("u1");
-        let first = store.get(&id).unwrap();
+        let id = store.create("u1").unwrap();
+        let first = store.get(&id).unwrap().unwrap();
         assert_eq!(first.user_id, "u1");
-        assert!(first.api_key.is_none());
         assert!(first.created_at > 0);
         assert!(first.last_accessed_at >= first.created_at);
-        assert_eq!(store.get(&id).unwrap().user_id, "u1");
+        assert_eq!(store.get(&id).unwrap().unwrap().user_id, "u1");
 
         // invalidate kills the session
-        store.invalidate(&id);
-        assert!(store.get(&id).is_none());
-        store.invalidate(&id); // idempotent
+        store.invalidate(&id).unwrap();
+        assert!(store.get(&id).unwrap().is_none());
+        store.invalidate(&id).unwrap(); // idempotent
 
         // all() lists live sessions
-        let a = store.create("u1");
-        let b = store.create("u2");
-        let mut ids: Vec<String> = store.all().iter().map(|(id, _)| id.clone()).collect();
+        let a = store.create("u1").unwrap();
+        let b = store.create("u2").unwrap();
+        let mut ids: Vec<String> = store
+            .all()
+            .unwrap()
+            .iter()
+            .map(|(id, _)| id.clone())
+            .collect();
         ids.sort();
         let mut expected = vec![a, b];
         expected.sort();
@@ -390,15 +313,13 @@ mod tests {
         };
 
         let store = open();
-        let id = store.create("u1");
-        store.mark_api_key(&id, "u1", "k1", "h1");
+        let id = store.create("u1").unwrap();
         drop(store);
 
-        // a new store over the same file sees the session, with its identity mark
+        // a new store over the same file sees the session
         let store = open();
-        let session = store.get(&id).unwrap();
+        let session = store.get(&id).unwrap().unwrap();
         assert_eq!(session.user_id, "u1");
-        assert_eq!(session.api_key.unwrap().hash, "h1");
     }
 
     #[test]
@@ -410,11 +331,11 @@ mod tests {
             .unwrap();
         // a 1ns timeout expires the session before the next read
         let store = SessionStore::jdbc(db.clone(), Duration::from_nanos(1));
-        let id = store.create("u1");
-        assert!(store.get(&id).is_none());
+        let id = store.create("u1").unwrap();
+        assert!(store.get(&id).unwrap().is_none());
         // the expired row is gone (deleted on read); cleanup finds nothing
-        assert_eq!(store.cleanup_expired(), 0);
-        assert!(store.all().is_empty());
+        assert_eq!(store.cleanup_expired().unwrap(), 0);
+        assert!(store.all().unwrap().is_empty());
 
         // an expired row never read is removed by the hourly cleanup instead
         let dao = komga_db::dao::session::SessionDao::new(db);
@@ -425,11 +346,11 @@ mod tests {
             past,
             30,
             "u1",
-            &SessionPayload::encode("u1", None),
+            &SessionPayload::encode("u1"),
         )
         .unwrap();
-        assert_eq!(store.cleanup_expired(), 1);
-        assert!(store.all().is_empty());
-        assert_eq!(store.cleanup_expired(), 0);
+        assert_eq!(store.cleanup_expired().unwrap(), 1);
+        assert!(store.all().unwrap().is_empty());
+        assert_eq!(store.cleanup_expired().unwrap(), 0);
     }
 }

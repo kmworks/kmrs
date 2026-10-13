@@ -2,7 +2,7 @@
 //! and `ReferentialV3Controller` (`/api/v3`, komga 1.29 notable entities).
 
 use crate::auth::RequireAuth;
-use crate::dto::common::{Page, Pageable};
+use crate::dto::common::{Page, PageResponse, Pageable};
 use crate::error::{ApiError, V3Error};
 use crate::http::pagination::{QueryExt, QueryPageable};
 use crate::state::AppState;
@@ -528,7 +528,7 @@ async fn get_notable_entities_v3(
     auth: RequireAuth,
     OriginalUri(uri): OriginalUri,
     QueryPageable { params, pageable }: QueryPageable,
-) -> Result<Json<Page<NotableEntityDto>>, V3Error> {
+) -> Result<Json<PageResponse<NotableEntityDto>>, V3Error> {
     dao(&state)
         .find_notable_entities(
             &search_ctx(&auth.0.user),
@@ -537,7 +537,7 @@ async fn get_notable_entities_v3(
             filter_by_lcsr(&params).as_ref(),
             &to_page_request(&pageable),
         )
-        .map(|result| Json(to_page(result, &pageable)))
+        .map(|result| Json(PageResponse::of_dto(result, &pageable)))
         .map_err(|e| V3Error::new(e.into(), uri.path()))
 }
 
@@ -546,14 +546,14 @@ async fn get_notable_entities_kinds_v3(
     auth: RequireAuth,
     OriginalUri(uri): OriginalUri,
     QueryPageable { params, pageable }: QueryPageable,
-) -> Result<Json<Page<String>>, V3Error> {
+) -> Result<Json<PageResponse<String>>, V3Error> {
     dao(&state)
         .find_notable_entities_kinds(
             &search_ctx(&auth.0.user),
             filter_by_lcsr(&params).as_ref(),
             &to_page_request(&pageable),
         )
-        .map(|result| Json(to_page(result, &pageable)))
+        .map(|result| Json(PageResponse::of_dto(result, &pageable)))
         .map_err(|e| V3Error::new(e.into(), uri.path()))
 }
 
@@ -562,7 +562,7 @@ async fn get_notable_entities_names_v3(
     auth: RequireAuth,
     OriginalUri(uri): OriginalUri,
     QueryPageable { params, pageable }: QueryPageable,
-) -> Result<Json<Page<String>>, V3Error> {
+) -> Result<Json<PageResponse<String>>, V3Error> {
     dao(&state)
         .find_notable_entities_names(
             &search_ctx(&auth.0.user),
@@ -571,7 +571,7 @@ async fn get_notable_entities_names_v3(
             filter_by_lcsr(&params).as_ref(),
             &to_page_request(&pageable),
         )
-        .map(|result| Json(to_page(result, &pageable)))
+        .map(|result| Json(PageResponse::of_dto(result, &pageable)))
         .map_err(|e| V3Error::new(e.into(), uri.path()))
 }
 
@@ -1059,6 +1059,15 @@ mod tests {
             .get_json("/api/v3/notable-entities?unpaged=true", &key)
             .await;
         assert_eq!(status, StatusCode::OK);
+        // v3's flat PageResponse shape, not the v1/v2 PageImpl JSON
+        assert_eq!(body["page"], 0);
+        assert_eq!(body["size"], 2);
+        assert_eq!(body["totalElements"], 2);
+        assert_eq!(body["totalPages"], 1);
+        assert_eq!(body["first"], true);
+        assert_eq!(body["last"], true);
+        assert!(body.get("pageable").is_none());
+        assert!(body.get("number").is_none());
         assert_eq!(
             body["content"].as_array().unwrap(),
             &[
@@ -1072,7 +1081,10 @@ mod tests {
             .get_json("/api/v3/notable-entities?kind=character", &key)
             .await;
         assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["page"], 0);
+        assert_eq!(body["size"], 20);
         assert_eq!(body["totalElements"], 1);
+        assert_eq!(body["totalPages"], 1);
         assert_eq!(
             body["content"].as_array().unwrap(),
             &[serde_json::json!({"kind": "character", "name": "Guts"})]
@@ -1102,6 +1114,10 @@ mod tests {
             .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["totalElements"], 0);
+        // upstream: empty page reports totalPages=0, which makes last=true
+        assert_eq!(body["totalPages"], 0);
+        assert_eq!(body["first"], true);
+        assert_eq!(body["last"], true);
     }
 
     /// v3 errors are RFC 9457 ProblemDetail, not the v1/v2 Spring error body.

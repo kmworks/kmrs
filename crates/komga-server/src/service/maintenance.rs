@@ -69,7 +69,8 @@ impl MaintenanceScheduler {
                 })
                 .await;
                 match removed {
-                    Ok(n) if n > 0 => tracing::info!("Removed {n} expired sessions"),
+                    Ok(Ok(n)) if n > 0 => tracing::info!("Removed {n} expired sessions"),
+                    Ok(Err(e)) => tracing::error!("Failed to cleanup expired sessions: {e}"),
                     Err(e) => tracing::error!("Session cleanup task failed: {e}"),
                     _ => {}
                 }

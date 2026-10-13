@@ -22,7 +22,7 @@
     "search": "Recherche : {{q}}",
     "value": "{{group}} : {{value}}",
     "value_negated": "{{group}} : sauf {{value}}",
-    "notableEntity": "{{kind}}: {{name}}"
+    "notableEntity": "{{kind}} : {{name}}"
   },
   "mode": {
     "any": "Au moins un",

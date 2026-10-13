@@ -532,7 +532,9 @@ export function FilterGroupDetail({
   onSetNegated,
   onSetExclusive,
 }: DetailProps) {
-  const values = def.kind === 'authors' ? [] : (state[def.key] as string[])
+  // authors and notableEntities carry structured values consumed via `state` directly,
+  // not the flat string list
+  const values = def.kind === 'authors' || def.kind === 'notableEntities' ? [] : (state[def.key] as string[])
   return (
     <div className="py-4">
       <GroupControls def={def} state={state} onSetMode={onSetMode} onSetNegated={onSetNegated} className="mb-3" />

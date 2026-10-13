@@ -13,11 +13,10 @@
 //!   kmrs-encoded (Java uses JDK serialization), so a session written by one
 //!   implementation is unreadable by the other: both sides treat it as an unknown
 //!   session and the user re-authenticates.
-//! - `PRINCIPAL_NAME` holds the kmrs user id (Java holds the login email, or the
-//!   API-key hash once API-key auth replaces the context). kmrs invalidation and
-//!   the actuator `?username=` filter both key off the user id and resolve the
-//!   email lazily, exactly like the in-memory store, so the observable behavior
-//!   is identical across backends.
+//! - `PRINCIPAL_NAME` holds the kmrs user id (Java holds the login email). kmrs
+//!   invalidation and the actuator `?username=` filter both key off the user id and
+//!   resolve the email lazily, exactly like the in-memory store, so the observable
+//!   behavior is identical across backends.
 
 use crate::error::Result;
 use crate::pool::Database;
@@ -102,7 +101,7 @@ impl SessionDao {
         let conn = self.db.ro()?;
         let mut stmt = conn.prepare(
             "SELECT S.PRIMARY_ID, S.SESSION_ID, S.CREATION_TIME, S.LAST_ACCESS_TIME, \
-                    S.MAX_INACTIVE_INTERVAL, S.EXPIRY_TIME, S.PRINCIPAL_NAME, SA.ATTRIBUTE_BYTES \
+                    S.MAX_INACTIVE_INTERVAL, S.PRINCIPAL_NAME, SA.ATTRIBUTE_BYTES \
              FROM SPRING_SESSION S \
              LEFT JOIN SPRING_SESSION_ATTRIBUTES SA \
                ON S.PRIMARY_ID = SA.SESSION_PRIMARY_ID \
@@ -127,42 +126,6 @@ impl SessionDao {
         Ok(())
     }
 
-    /// Replaces the session identity (API-key auth over an existing session):
-    /// principal becomes the key hash and the payload carries the key mark.
-    pub fn update_identity(
-        &self,
-        primary_id: &str,
-        now_millis: i64,
-        max_inactive_secs: i64,
-        principal: &str,
-        payload: &[u8],
-    ) -> Result<()> {
-        let conn = self.db.rw()?;
-        let tx = conn.unchecked_transaction()?;
-        tx.execute(
-            "UPDATE SPRING_SESSION \
-             SET LAST_ACCESS_TIME = ?, EXPIRY_TIME = ?, PRINCIPAL_NAME = ? \
-             WHERE PRIMARY_ID = ?",
-            params![
-                now_millis,
-                expiry_time(now_millis, max_inactive_secs),
-                principal,
-                primary_id,
-            ],
-        )?;
-        // komga's sqlite upsert: concurrent saves must not fail on the PK
-        tx.execute(
-            "INSERT INTO SPRING_SESSION_ATTRIBUTES \
-             (SESSION_PRIMARY_ID, ATTRIBUTE_NAME, ATTRIBUTE_BYTES) \
-             VALUES (?, ?, ?) \
-             ON CONFLICT(SESSION_PRIMARY_ID, ATTRIBUTE_NAME) DO UPDATE SET \
-               ATTRIBUTE_BYTES = excluded.ATTRIBUTE_BYTES",
-            params![primary_id, SECURITY_CONTEXT_ATTRIBUTE, payload],
-        )?;
-        tx.commit()?;
-        Ok(())
-    }
-
     /// `DELETE_SESSION_QUERY`: immortal sessions (negative interval) survive.
     pub fn delete_by_id(&self, id: &str) -> Result<()> {
         let conn = self.db.rw()?;
@@ -178,7 +141,7 @@ impl SessionDao {
         let conn = self.db.ro()?;
         let mut stmt = conn.prepare(
             "SELECT S.PRIMARY_ID, S.SESSION_ID, S.CREATION_TIME, S.LAST_ACCESS_TIME, \
-                    S.MAX_INACTIVE_INTERVAL, S.EXPIRY_TIME, S.PRINCIPAL_NAME, SA.ATTRIBUTE_BYTES \
+                    S.MAX_INACTIVE_INTERVAL, S.PRINCIPAL_NAME, SA.ATTRIBUTE_BYTES \
              FROM SPRING_SESSION S \
              LEFT JOIN SPRING_SESSION_ATTRIBUTES SA \
                ON S.PRIMARY_ID = SA.SESSION_PRIMARY_ID \
@@ -211,16 +174,13 @@ fn expiry_time(now_millis: i64, max_inactive_secs: i64) -> i64 {
 }
 
 fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
-    // EXPIRY_TIME (index 5) is derived from LAST_ACCESS_TIME +
-    // MAX_INACTIVE_INTERVAL instead of being stored on the row.
-    let _expiry_time: i64 = row.get(5)?;
     Ok(SessionRow {
         primary_id: row.get(0)?,
         id: row.get(1)?,
         created_at: row.get(2)?,
         last_accessed_at: row.get(3)?,
         max_inactive_secs: row.get(4)?,
-        principal: row.get(6)?,
-        payload: row.get(7)?,
+        principal: row.get(5)?,
+        payload: row.get(6)?,
     })
 }

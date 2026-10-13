@@ -50,7 +50,7 @@ export function tagChipItems(tags: string[], base: '/series' | '/books', locale:
     }))
 }
 
-/** notable entities grouped by kind (kind asc, name by locale); chips link to the browse page under `base` with the entity filter */
+/** chips link to the browse page under `base` with the entity filter */
 export function notableEntityChipItems(entities: NotableEntityDto[], base: '/series' | '/books', locale: string): DetailChipItem[] {
   return [...entities]
     .sort((a, b) => a.kind.localeCompare(b.kind, locale) || a.name.localeCompare(b.name, locale))
