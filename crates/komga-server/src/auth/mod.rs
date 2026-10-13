@@ -24,18 +24,21 @@ pub use session::{SessionStore, SESSION_COOKIE_NAME, SESSION_HEADER_NAME};
 /// One successful API-key activity row per key per window: upstream komga writes a row for
 /// every API-key request, which floods the login-activity view for stateless clients that
 /// send their key on each one. Failures stay per-request — they are the brute-force signal.
-pub(crate) const API_KEY_ACTIVITY_WINDOW: std::time::Duration =
-    std::time::Duration::from_secs(3600);
+const API_KEY_ACTIVITY_WINDOW: std::time::Duration = std::time::Duration::from_secs(3600);
 
-pub(crate) struct ApiKeyActivityThrottle {
+/// LoginListener's source label for API-key authentications; persisted in
+/// AUTHENTICATION_ACTIVITY, it must stay the Java value.
+pub(crate) const SOURCE_API_KEY: &str = "ApiKey";
+
+pub struct ApiKeyActivityThrottle {
     window: std::time::Duration,
     last: std::sync::Mutex<std::collections::HashMap<String, std::time::Instant>>,
 }
 
 impl ApiKeyActivityThrottle {
-    pub(crate) fn new(window: std::time::Duration) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            window,
+            window: API_KEY_ACTIVITY_WINDOW,
             last: std::sync::Mutex::new(std::collections::HashMap::new()),
         }
     }
@@ -56,6 +59,12 @@ impl ApiKeyActivityThrottle {
     #[cfg(test)]
     pub(crate) fn expire(&self, api_key_id: &str) {
         self.last.lock().unwrap().remove(api_key_id);
+    }
+}
+
+impl Default for ApiKeyActivityThrottle {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -166,7 +175,7 @@ fn resolve(state: &AppState, parts: &Parts) -> Outcome {
                     api_key_comment: Some(api_key.comment),
                     success: true,
                     error: None,
-                    source: "ApiKey".into(),
+                    source: SOURCE_API_KEY.into(),
                 };
                 Outcome {
                     auth: Some(Auth {
@@ -189,7 +198,7 @@ fn resolve(state: &AppState, parts: &Parts) -> Outcome {
                     api_key_comment: Some(masked),
                     success: false,
                     error: Some("Bad credentials".into()),
-                    source: "ApiKey".into(),
+                    source: SOURCE_API_KEY.into(),
                 }),
             },
         };
@@ -448,6 +457,7 @@ pub(crate) fn append_set_cookie(response: &mut Response, cookie: &str) {
 
 /// Extracts the authenticated user; unauthenticated → 401 (empty body + WWW-Authenticate).
 pub struct RequireAuth(pub Auth);
+
 impl axum::extract::FromRequestParts<AppState> for RequireAuth {
     type Rejection = crate::error::ApiError;
 
@@ -492,7 +502,7 @@ mod tests {
 
     #[test]
     fn api_key_activity_throttle_collapses_within_window_per_key() {
-        let throttle = ApiKeyActivityThrottle::new(Duration::from_secs(3600));
+        let throttle = ApiKeyActivityThrottle::new();
         let t0 = Instant::now();
 
         assert!(throttle.should_record("k1", t0));
@@ -504,7 +514,7 @@ mod tests {
 
     #[test]
     fn api_key_activity_throttle_expire_forgets_the_key() {
-        let throttle = ApiKeyActivityThrottle::new(Duration::from_secs(3600));
+        let throttle = ApiKeyActivityThrottle::new();
         let t0 = Instant::now();
 
         assert!(throttle.should_record("k1", t0));

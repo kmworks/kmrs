@@ -140,9 +140,7 @@ async fn main() -> anyhow::Result<()> {
         kepub: service::kepub::KepubConverter::new(service::kepub::default_tmp_dir()),
         kobo_proxy: service::kobo_proxy::KoboProxy::new(),
         shutdown_tx,
-        api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new(
-            crate::auth::API_KEY_ACTIVITY_WINDOW,
-        )),
+        api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
         db,
         task_db,
         tasks_db,

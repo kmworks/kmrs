@@ -478,9 +478,7 @@ mod tests {
             kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
 
             shutdown_tx,
-            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new(
-                crate::auth::API_KEY_ACTIVITY_WINDOW,
-            )),
+            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
         };
         (state, shutdown_rx)
     }
