@@ -141,6 +141,9 @@ mod tests {
             kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
             kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
             shutdown_tx: tokio::sync::watch::channel(false).0,
+            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new(
+                crate::auth::API_KEY_ACTIVITY_WINDOW,
+            )),
         }
     }
 
