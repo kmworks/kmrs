@@ -602,22 +602,13 @@ mod tests {
         panic!("expected {expected} activities");
     }
 
-    /// The session stores the API-key authentication, so further requests with the same key
-    /// skip re-authentication: one activity per session per key, like the Java filter chain.
+    /// 1.29 made API-key authentication stateless (request-scoped SecurityContext, no session
+    /// persistence): a session presented alongside the key neither suppresses re-authentication
+    /// nor is marked with the key — every request records its own activity.
     #[tokio::test]
-    async fn api_key_with_session_records_activity_once_per_key() {
+    async fn api_key_with_session_is_stateless_and_records_every_time() {
         let (state, _rx) = test_state();
         let user_id = seed_user(&state, "admin@example.com");
-        UserDao::new(state.db.clone())
-            .insert_api_key(&ApiKey {
-                id: String::new(),
-                user_id: user_id.clone(),
-                key: crate::auth::sha512_hex("secret2"),
-                comment: "test2".into(),
-                created_date: now_utc(),
-                last_modified_date: now_utc(),
-            })
-            .unwrap();
         let session_id = state.sessions.create(&user_id);
         let app = test_router(state.clone());
 
@@ -640,25 +631,22 @@ mod tests {
             }
         };
 
-        assert_eq!(call("secret").await.status(), StatusCode::OK);
-        wait_activity_count(&state, &user_id, "admin@example.com", 1).await;
-        assert_eq!(call("secret").await.status(), StatusCode::OK);
-        assert_eq!(call("secret").await.status(), StatusCode::OK);
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        assert_eq!(
-            activity_count(&state, &user_id, "admin@example.com").await,
-            1
-        );
-
-        // a different key has a different hash → re-authenticates once
-        assert_eq!(call("secret2").await.status(), StatusCode::OK);
-        wait_activity_count(&state, &user_id, "admin@example.com", 2).await;
-        assert_eq!(call("secret2").await.status(), StatusCode::OK);
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        assert_eq!(
-            activity_count(&state, &user_id, "admin@example.com").await,
-            2
-        );
+        for _ in 0..3 {
+            let response = call("secret").await;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert!(
+                response.headers().get("set-cookie").is_none(),
+                "API-key authentication must not issue a session cookie"
+            );
+        }
+        wait_activity_count(&state, &user_id, "admin@example.com", 3).await;
+        // the presented session stays anonymous: not marked with the API key
+        assert!(state
+            .sessions
+            .get(&session_id)
+            .expect("session still there")
+            .api_key
+            .is_none());
     }
 
     /// Without a session there is no stored context to reuse: every API-key request records,
@@ -687,38 +675,14 @@ mod tests {
         wait_activity_count(&state, &user_id, "admin@example.com", 2).await;
     }
 
-    /// Java's context persistence creates a session on the first API-key authentication and
-    /// issues the cookie; a client that returns it (KMReader) reuses the stored context,
-    /// so only the first request records an activity.
+    /// 1.29's API-key filter never creates a session: no Set-Cookie/X-Auth-Token on the
+    /// response, and a cookie the client might still hold from an earlier login is not
+    /// touched by API-key requests.
     #[tokio::test]
-    async fn api_key_issued_session_cookie_skips_further_activity() {
+    async fn api_key_never_issues_session_cookie() {
         let (state, _rx) = test_state();
         let user_id = seed_user(&state, "admin@example.com");
         let app = test_router(state.clone());
-
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/api/v2/users/me")
-                    .header("X-API-Key", "secret")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let cookie = response
-            .headers()
-            .get("set-cookie")
-            .expect("the first API-key response must issue a session cookie")
-            .to_str()
-            .unwrap()
-            .split(';')
-            .next()
-            .unwrap()
-            .to_string();
 
         for _ in 0..2 {
             let response = app
@@ -728,21 +692,17 @@ mod tests {
                         .method("GET")
                         .uri("/api/v2/users/me")
                         .header("X-API-Key", "secret")
-                        .header("Cookie", &cookie)
                         .body(Body::empty())
                         .unwrap(),
                 )
                 .await
                 .unwrap();
             assert_eq!(response.status(), StatusCode::OK);
+            assert!(response.headers().get("set-cookie").is_none());
+            assert!(response.headers().get("x-auth-token").is_none());
         }
 
-        wait_activity_count(&state, &user_id, "admin@example.com", 1).await;
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        assert_eq!(
-            activity_count(&state, &user_id, "admin@example.com").await,
-            1
-        );
+        wait_activity_count(&state, &user_id, "admin@example.com", 2).await;
     }
 
     /// LoginListener.onFailure for an ApiKey source records the masked key (XXH3-128) as

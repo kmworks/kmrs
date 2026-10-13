@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { cn } from '@/lib/utils/cn'
 import { displayFilterValue, groupSelectedCount } from './filterUrl'
-import { AGE_RATING_UNSET, LETTERS, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type ReferentialKind } from './types'
+import { AGE_RATING_UNSET, LETTERS, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter, type ReferentialKind } from './types'
 
 const MODE_OPTIONS: { value: GroupMode; labelKey: string }[] = [
   { value: 'any', labelKey: 'filters:mode.any' },
@@ -317,6 +317,70 @@ function AuthorsOptions({
   )
 }
 
+function notableEntityLabel(e: NotableEntityFilter): string {
+  return `${e.name} (${e.kind})`
+}
+
+function NotableEntitiesOptions({
+  scope,
+  selected,
+  enabled,
+  onToggle,
+}: {
+  scope?: ReferentialScope
+  selected: NotableEntityFilter[]
+  enabled: boolean
+  onToggle: (entity: NotableEntityFilter) => void
+}) {
+  const [filter, setFilter] = useState('')
+  const { t, i18n } = useTranslation('filters')
+  const query = useQuery({
+    queryKey: ['referential', 'notableEntities', scope],
+    queryFn: () => referentialApi.notableEntities(scope),
+    enabled,
+    staleTime: 60_000,
+  })
+
+  const same = (a: NotableEntityFilter, b: NotableEntityFilter) => a.kind === b.kind && a.name === b.name
+  const options = useMemo(() => {
+    const arr = [...(query.data ?? [])]
+    arr.sort((a, b) => a.kind.localeCompare(b.kind, i18n.language) || notableEntityLabel(a).localeCompare(notableEntityLabel(b), i18n.language))
+    return arr
+  }, [query.data, i18n.language])
+  const visible = useMemo(() => {
+    const f = filter.trim().toLowerCase()
+    // selected values stay visible so they can be deselected while filtering
+    return options.filter((o) => selected.some((s) => same(o, s)) || !f || notableEntityLabel(o).toLowerCase().includes(f))
+  }, [options, filter, selected])
+
+  return (
+    <div>
+      {options.length > GROUP_SEARCH_THRESHOLD && (
+        <GroupSearchInput value={filter} onChange={setFilter} placeholder={t('notableEntities.searchPlaceholder')} />
+      )}
+      {query.isPending ? (
+        <LoadingChips />
+      ) : query.isLoadingError ? (
+        <LoadError onRetry={() => query.refetch()} />
+      ) : visible.length === 0 ? (
+        <p className="text-xs text-ink-3">{t('notableEntities.noMatch')}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {visible.map((e) => {
+            const active = selected.some((s) => same(e, s))
+            return (
+              <OptionChip key={`${e.kind},${e.name}`} active={active} onClick={() => onToggle({ kind: e.kind, name: e.name })}>
+                {e.name} <span className="text-ink-3">({e.kind})</span>
+                {active && <X className="size-3" />}
+              </OptionChip>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface ControlProps {
   def: FilterGroupDef
   state: FilterState
@@ -409,6 +473,7 @@ export function FlagFilterRow({ def, value, onCycle }: { def: FilterGroupDef; va
 function groupSummary(def: FilterGroupDef, state: FilterState, locale: string, labelFor?: (key: GroupKey, id: string) => string): string {
   const list = new Intl.ListFormat(locale, { style: 'narrow', type: 'conjunction' })
   if (def.kind === 'authors') return list.format(state.authors.map((a) => (a.role ? `${a.name} (${a.role})` : a.name)))
+  if (def.kind === 'notableEntities') return list.format(state.notableEntities.map(notableEntityLabel))
   return list.format((state[def.key] as string[]).map((v) => labelFor?.(def.key, v) ?? displayFilterValue(def.key, v)))
 }
 
@@ -448,6 +513,7 @@ interface DetailProps {
   enabled: boolean
   onToggleValue: (key: GroupKey, value: string) => void
   onToggleAuthor: (author: AuthorFilter) => void
+  onToggleNotableEntity: (entity: NotableEntityFilter) => void
   onSetMode: (key: GroupKey, mode: GroupMode) => void
   onSetNegated: (key: GroupKey, negated: boolean) => void
   onSetExclusive: (key: GroupKey, value: string) => void
@@ -461,6 +527,7 @@ export function FilterGroupDetail({
   enabled,
   onToggleValue,
   onToggleAuthor,
+  onToggleNotableEntity,
   onSetMode,
   onSetNegated,
   onSetExclusive,
@@ -484,6 +551,9 @@ export function FilterGroupDetail({
       {def.kind === 'letters' && <LetterOptions selected={values} onSelect={(l) => onSetExclusive(def.key, l)} />}
       {def.kind === 'authors' && (
         <AuthorsOptions scope={scope} selected={state.authors} enabled={enabled} onToggle={onToggleAuthor} />
+      )}
+      {def.kind === 'notableEntities' && (
+        <NotableEntitiesOptions scope={scope} selected={state.notableEntities} enabled={enabled} onToggle={onToggleNotableEntity} />
       )}
     </div>
   )

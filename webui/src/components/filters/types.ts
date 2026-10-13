@@ -13,6 +13,7 @@ export type GroupKey =
   | 'languages'
   | 'releaseYears'
   | 'authors'
+  | 'notableEntities'
   | 'mediaProfiles'
   | 'mediaStatuses'
   | 'poster'
@@ -26,6 +27,11 @@ export type GroupMode = 'any' | 'all'
 export interface AuthorFilter {
   name: string
   role: string
+}
+
+export interface NotableEntityFilter {
+  kind: string
+  name: string
 }
 
 export interface FilterState {
@@ -44,6 +50,7 @@ export interface FilterState {
   languages: string[]
   releaseYears: string[]
   authors: AuthorFilter[]
+  notableEntities: NotableEntityFilter[]
   mediaProfiles: string[]
   mediaStatuses: string[]
   poster: string[]
@@ -71,7 +78,7 @@ export interface FilterGroupDef {
   key: GroupKey
   /** translation key, resolved with t() at render sites */
   labelKey: string
-  kind: 'enum' | 'referential' | 'authors' | 'letters' | 'entities'
+  kind: 'enum' | 'referential' | 'authors' | 'notableEntities' | 'letters' | 'entities'
   options?: { value: string; labelKey: string }[]
   referential?: ReferentialKind
   /** which entity list feeds an 'entities' group */
@@ -140,6 +147,7 @@ export const SERIES_FILTER_GROUPS: FilterGroupDef[] = [
   { key: 'languages', labelKey: 'filters:group.languages', kind: 'referential', referential: 'languages' },
   { key: 'releaseYears', labelKey: 'filters:group.releaseYears', kind: 'referential', referential: 'releaseDates' },
   { key: 'authors', labelKey: 'filters:group.authors', kind: 'authors' },
+  { key: 'notableEntities', labelKey: 'filters:group.notableEntities', kind: 'notableEntities' },
 ]
 
 export const BOOK_FILTER_GROUPS: FilterGroupDef[] = [
@@ -174,10 +182,16 @@ export const BOOK_FILTER_GROUPS: FilterGroupDef[] = [
     options: [
       { value: 'selected', labelKey: 'filters:option.poster.selected' },
       { value: 'missing', labelKey: 'filters:option.poster.missing' },
+      // poster-type chips reuse the poster manager's type labels; `is {type}` matches any
+      // thumbnail row of that type, selected or not (komga 1.29 SearchCondition.Poster)
+      { value: 'GENERATED', labelKey: 'metadata:poster.type.generated' },
+      { value: 'SIDECAR', labelKey: 'metadata:poster.type.sidecar' },
+      { value: 'USER_UPLOADED', labelKey: 'metadata:poster.type.uploaded' },
     ],
   },
   { key: 'releaseYears', labelKey: 'filters:group.releaseYears', kind: 'referential', referential: 'releaseDates' },
   { key: 'authors', labelKey: 'filters:group.authors', kind: 'authors' },
+  { key: 'notableEntities', labelKey: 'filters:group.notableEntities', kind: 'notableEntities' },
 ]
 
 export const SERIES_SORT_OPTIONS: SortOption[] = [

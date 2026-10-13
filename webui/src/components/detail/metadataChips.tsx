@@ -1,7 +1,7 @@
-import { Buildings, MaskHappy, Tag, UsersThree } from '@phosphor-icons/react'
-import type { AuthorDto } from '@/lib/api/types'
+import { Buildings, MaskHappy, Sparkle, Tag, UsersThree } from '@phosphor-icons/react'
+import type { AuthorDto, NotableEntityDto } from '@/lib/api/types'
 import { sortAuthorsByRole } from '@/lib/utils/authors'
-import { serializeAuthor } from '@/components/filters/filterUrl'
+import { serializeAuthor, serializeNotableEntity } from '@/components/filters/filterUrl'
 import type { DetailChipItem } from './DetailChipFlow'
 
 const iconCls = 'size-3.5'
@@ -47,6 +47,22 @@ export function tagChipItems(tags: string[], base: '/series' | '/books', locale:
       icon: <Tag className={iconCls} />,
       to: `${base}?tags=${encodeURIComponent(t)}`,
       className,
+    }))
+}
+
+/** notable entities grouped by kind (kind asc, name by locale); chips link to the browse page under `base` with the entity filter */
+export function notableEntityChipItems(entities: NotableEntityDto[], base: '/series' | '/books', locale: string): DetailChipItem[] {
+  return [...entities]
+    .sort((a, b) => a.kind.localeCompare(b.kind, locale) || a.name.localeCompare(b.name, locale))
+    .map((e) => ({
+      key: `entity-${e.kind}-${e.name}`,
+      label: (
+        <>
+          {e.name} <span className="text-ink-3">({e.kind})</span>
+        </>
+      ),
+      icon: <Sparkle className={iconCls} />,
+      to: `${base}?notableEntities=${encodeURIComponent(serializeNotableEntity(e))}`,
     }))
 }
 

@@ -1362,13 +1362,13 @@ mod tests {
             .unwrap()
             .ends_with('Z'));
 
+        // API-key authentication is stateless (1.29): it never creates sessions, so the
+        // unfiltered list only carries the session seeded above
         let (status, _headers, bytes) = call(&app, "GET", "/actuator/sessions", Some("k1")).await;
         assert_eq!(status, StatusCode::OK);
         let body = json(&bytes);
         let sessions = body["sessions"].as_array().unwrap();
-        // each API-key call above created its own session, so the unfiltered list is
-        // longer than the email-filtered one
-        assert!(sessions.len() > 1);
+        assert_eq!(sessions.len(), 1);
         assert!(sessions.iter().any(|s| s["id"] == session_id));
 
         let (status, _headers, bytes) = call(

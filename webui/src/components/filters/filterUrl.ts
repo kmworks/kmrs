@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import i18n from '@/lib/i18n'
 import { useLibraryPrefs } from '@/lib/store/libraryPrefs'
-import { AGE_RATING_UNSET, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode } from './types'
+import { AGE_RATING_UNSET, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from './types'
 
 /** multi-value URL params, one key per filter group (values repeat the key) */
 const MULTI_KEYS: GroupKey[] = [
@@ -20,6 +20,7 @@ const MULTI_KEYS: GroupKey[] = [
   'languages',
   'releaseYears',
   'authors',
+  'notableEntities',
   'mediaProfiles',
   'mediaStatuses',
   'poster',
@@ -51,6 +52,17 @@ export function serializeAuthor(a: AuthorFilter): string {
   return `${a.name},${a.role}`
 }
 
+// the kind comes first and never contains a comma (the server lowercases it), so the
+// name — which may contain commas — is everything after the first comma
+export function parseNotableEntity(raw: string): NotableEntityFilter {
+  const i = raw.indexOf(',')
+  return i < 0 ? { kind: raw, name: '' } : { kind: raw.slice(0, i), name: raw.slice(i + 1) }
+}
+
+export function serializeNotableEntity(e: NotableEntityFilter): string {
+  return `${e.kind},${e.name}`
+}
+
 export function parseFilterState(params: URLSearchParams): FilterState {
   return {
     q: params.get('q') ?? '',
@@ -68,6 +80,7 @@ export function parseFilterState(params: URLSearchParams): FilterState {
     languages: params.getAll('languages'),
     releaseYears: params.getAll('releaseYears'),
     authors: params.getAll('authors').map(parseAuthor),
+    notableEntities: params.getAll('notableEntities').map(parseNotableEntity),
     mediaProfiles: params.getAll('mediaProfiles'),
     mediaStatuses: params.getAll('mediaStatuses'),
     poster: params.getAll('poster'),
@@ -85,7 +98,9 @@ export function serializeFilters(s: FilterState): string {
 }
 
 export function groupSelectedCount(def: FilterGroupDef, s: FilterState): number {
-  return def.kind === 'authors' ? s.authors.length : (s[def.key] as string[]).length
+  if (def.kind === 'authors') return s.authors.length
+  if (def.kind === 'notableEntities') return s.notableEntities.length
+  return (s[def.key] as string[]).length
 }
 
 export function activeFilterCount(s: FilterState): number {
@@ -104,6 +119,7 @@ export function activeFilterCount(s: FilterState): number {
     s.languages.length +
     s.releaseYears.length +
     s.authors.length +
+    s.notableEntities.length +
     s.mediaProfiles.length +
     s.mediaStatuses.length +
     s.poster.length +
@@ -136,6 +152,17 @@ export function describeActiveFilters(state: FilterState, groups: FilterGroupDef
           label: i18n.t('filters:chip.author', { name: a.role ? `${a.name} (${a.role})` : a.name }),
           group: 'authors',
           value: serializeAuthor(a),
+        })
+      }
+      continue
+    }
+    if (def.kind === 'notableEntities') {
+      for (const e of state.notableEntities) {
+        items.push({
+          key: `notableEntities:${serializeNotableEntity(e)}`,
+          label: i18n.t('filters:chip.notableEntity', { kind: e.kind, name: e.name }),
+          group: 'notableEntities',
+          value: serializeNotableEntity(e),
         })
       }
       continue
@@ -232,6 +259,11 @@ export function useBrowseFilters(scope?: string, disabledKeys: readonly GroupKey
     [update],
   )
 
+  const toggleNotableEntity = useCallback(
+    (entity: NotableEntityFilter) => update((p) => toggleParam(p, 'notableEntities', serializeNotableEntity(entity))),
+    [update],
+  )
+
   const setMode = useCallback(
     (key: GroupKey, mode: GroupMode) =>
       update((p) => {
@@ -307,5 +339,5 @@ export function useBrowseFilters(scope?: string, disabledKeys: readonly GroupKey
     [update],
   )
 
-  return { state, toggleValue, toggleAuthor, setMode, setNegated, setExclusive, cycleValue, clearGroup, setQ, clearAll }
+  return { state, toggleValue, toggleAuthor, toggleNotableEntity, setMode, setNegated, setExclusive, cycleValue, clearGroup, setQ, clearAll }
 }

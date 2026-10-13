@@ -2,7 +2,7 @@
 // useBrowseFilters, plus the reverse conversion from a stored search document.
 import { useCallback, useState } from 'react'
 import type { BookSearch, ConditionGroup, ConditionLeaf, SearchCondition, SeriesSearch, SmartListTarget } from '@/lib/api/types'
-import { AGE_RATING_UNSET, type AuthorFilter, type FilterState, type GroupKey, type GroupMode } from '@/components/filters/types'
+import { AGE_RATING_UNSET, type AuthorFilter, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from '@/components/filters/types'
 
 export function emptyFilterState(): FilterState {
   return {
@@ -21,6 +21,7 @@ export function emptyFilterState(): FilterState {
     languages: [],
     releaseYears: [],
     authors: [],
+    notableEntities: [],
     mediaProfiles: [],
     mediaStatuses: [],
     poster: [],
@@ -54,6 +55,14 @@ export function useFilterState(initial: FilterState = emptyFilterState()) {
       const same = (a: AuthorFilter) => a.name === author.name && a.role === author.role
       const exists = s.authors.some(same)
       return { ...s, authors: exists ? s.authors.filter((a) => !same(a)) : [...s.authors, author] }
+    })
+  }, [])
+
+  const toggleNotableEntity = useCallback((entity: NotableEntityFilter) => {
+    setState((s) => {
+      const same = (e: NotableEntityFilter) => e.kind === entity.kind && e.name === entity.name
+      const exists = s.notableEntities.some(same)
+      return { ...s, notableEntities: exists ? s.notableEntities.filter((e) => !same(e)) : [...s.notableEntities, entity] }
     })
   }, [])
 
@@ -92,7 +101,7 @@ export function useFilterState(initial: FilterState = emptyFilterState()) {
   const clearAll = useCallback(() => setState(emptyFilterState()), [])
   const reset = useCallback((next: FilterState) => setState(next), [])
 
-  return { state, toggleValue: toggleIn, toggleAuthor, setMode, setNegated, setExclusive, cycleValue, clearGroup, setQ, clearAll, reset }
+  return { state, toggleValue: toggleIn, toggleAuthor, toggleNotableEntity, setMode, setNegated, setExclusive, cycleValue, clearGroup, setQ, clearAll, reset }
 }
 
 // ---- stored search document -> FilterState ----
@@ -164,6 +173,8 @@ function groupKeyForCondition(key: string, target: SmartListTarget): GroupKey | 
       return { publisher: 'publishers', genre: 'genres', tag: 'tags', sharingLabel: 'sharingLabels', language: 'languages' }[key] as GroupKey
     case 'author':
       return 'authors'
+    case 'notableEntity':
+      return 'notableEntities'
     case 'libraryId':
       return 'libraries'
     case 'readListId':
@@ -257,9 +268,13 @@ export function searchToFilterState(search: BookSearch | SeriesSearch, target: S
         bucket('mediaStatuses').values.push(op.value)
         return true
       case 'poster': {
-        const selected = op.value !== undefined && (op.value as { selected?: boolean }).selected === true
+        const v = op.value !== undefined && typeof op.value === 'object' ? (op.value as { selected?: unknown; type?: unknown }) : undefined
+        const selected = v?.selected === true
+        const type = v?.type
         if (op.operator === 'is' && selected) bucket('poster').values.push('selected')
         else if (op.operator === 'isNot' && selected) bucket('poster').values.push('missing')
+        else if (op.operator === 'is' && (type === 'GENERATED' || type === 'SIDECAR' || type === 'USER_UPLOADED'))
+          bucket('poster').values.push(type)
         else return false
         return true
       }
@@ -270,6 +285,15 @@ export function searchToFilterState(search: BookSearch | SeriesSearch, target: S
         state.authors.push({ name: a.name, role: typeof a.role === 'string' ? a.role : '' })
         // marker for mode-conflict detection; state.authors carries the real values
         bucket('authors').values.push(a.name)
+        return true
+      }
+      case 'notableEntity': {
+        if (op.operator !== 'is' || typeof op.value !== 'object' || op.value === null) return false
+        const e = op.value as { kind?: unknown; name?: unknown }
+        if (typeof e.kind !== 'string' || typeof e.name !== 'string') return false
+        state.notableEntities.push({ kind: e.kind, name: e.name })
+        // marker for mode-conflict detection; state.notableEntities carries the real values
+        bucket('notableEntities').values.push(e.name)
         return true
       }
       case 'libraryId':
@@ -361,8 +385,8 @@ export function searchToFilterState(search: BookSearch | SeriesSearch, target: S
   }
 
   for (const [key, b] of buckets) {
-    // authors are structured objects already collected in state.authors; the bucket only tracks the mode
-    if (key !== 'authors') (state[key] as string[]) = [...new Set(b.values)]
+    // authors and notable entities are structured objects already collected in state; the bucket only tracks the mode
+    if (key !== 'authors' && key !== 'notableEntities') (state[key] as string[]) = [...new Set(b.values)]
     if (b.negated) state.exclude = [...state.exclude, key]
     if (b.mode === 'all') state.matchAll = [...state.matchAll, key]
   }
