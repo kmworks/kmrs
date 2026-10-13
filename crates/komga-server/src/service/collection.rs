@@ -261,18 +261,17 @@ pub(crate) fn create_mosaic(images: &[Vec<u8>], max_edge: u32) -> komga_db::Resu
             komga_db::Error::EnumValue(format!("could not decode mosaic image: {e}"))
         })?);
     }
-    // which decoded cover each cell takes: mirrors partial grids across the diagonal
-    let order: &[usize] = match decoded.len() {
-        0 => &[],
-        1 => &[0],
-        2 => &[0, 1, 1, 0],
-        3 => &[0, 1, 2, 0],
-        _ => &[0, 1, 2, 3],
-    };
-    let rects: &[(u32, u32, u32, u32)] = match decoded.len() {
-        0 => &[],
-        1 => &[(margin, margin, width - 2 * margin, height - 2 * margin)],
-        _ => &grid,
+    type Cell = (u32, u32, u32, u32);
+    // partial grids mirror covers across the diagonal instead of leaving cells empty
+    let (order, rects): (&[usize], &[Cell]) = match decoded.len() {
+        0 => (&[], &[]),
+        1 => (
+            &[0],
+            &[(margin, margin, width - 2 * margin, height - 2 * margin)],
+        ),
+        2 => (&[0, 1, 1, 0], &grid),
+        3 => (&[0, 1, 2, 0], &grid),
+        _ => (&[0, 1, 2, 3], &grid),
     };
     let mut mosaic = backdrop(decoded.first(), width, height);
     for (&idx, &(x, y, w, h)) in order.iter().zip(rects) {
