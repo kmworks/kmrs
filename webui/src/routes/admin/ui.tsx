@@ -30,11 +30,13 @@ export function AdminUiPage() {
   const providerCount = providersQuery.data?.length ?? 0
 
   const save = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: boolean }) =>
-      clientSettingsApi.saveGlobal({
+    mutationFn: (changes: Record<string, boolean>) =>
+      clientSettingsApi.saveGlobal(
         // allowUnauthorized: the login page is anonymous and must be able to read this
-        [key]: { value: String(value), allowUnauthorized: true },
-      }),
+        Object.fromEntries(
+          Object.entries(changes).map(([key, value]) => [key, { value: String(value), allowUnauthorized: true }]),
+        ),
+      ),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'client-settings', 'global'] }),
   })
 
@@ -64,7 +66,10 @@ export function AdminUiPage() {
             </div>
             <Switch
               checked={hidePassword}
-              onCheckedChange={(v) => save.mutate({ key: HIDE_PASSWORD_KEY, value: v })}
+              onCheckedChange={(v) =>
+                // auto-login only works with the form hidden, so hiding-off must turn it off too
+                save.mutate(v ? { [HIDE_PASSWORD_KEY]: true } : { [HIDE_PASSWORD_KEY]: false, [OAUTH_AUTO_KEY]: false })
+              }
               disabled={save.isPending}
               label={t('ui.hidePassword')}
             />
@@ -79,8 +84,8 @@ export function AdminUiPage() {
             </div>
             <Switch
               checked={oauthAuto}
-              onCheckedChange={(v) => save.mutate({ key: OAUTH_AUTO_KEY, value: v })}
-              disabled={save.isPending}
+              onCheckedChange={(v) => save.mutate({ [OAUTH_AUTO_KEY]: v })}
+              disabled={save.isPending || !hidePassword}
               label={t('ui.oauthAuto')}
             />
           </div>

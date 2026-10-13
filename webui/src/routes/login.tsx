@@ -38,13 +38,15 @@ const KNOWN_OAUTH_ERRORS = new Set([
   'invalid_token_response',
   'invalid_user_info_response',
   'server_error',
+  'ERR_1024',
   'ERR_1025',
+  'ERR_1026',
+  'ERR_1027',
+  'ERR_1028',
 ])
 
 function oauthErrorMessage(code: string): string {
-  return KNOWN_OAUTH_ERRORS.has(code)
-    ? i18n.t(`auth:oauthError.${code}`)
-    : i18n.t('signInFailedWithReason', { reason: code })
+  return KNOWN_OAUTH_ERRORS.has(code) ? i18n.t(`auth:oauthError.${code}`) : code
 }
 
 export function LoginPage() {
@@ -157,6 +159,9 @@ export function LoginPage() {
                 : t('signInSubtitle')}
           </p>
 
+          {/* outside the password form: OAuth2 callback errors must also show when the form is hidden */}
+          {error && <p className="mt-6 text-sm text-danger">{error}</p>}
+
           {!hidePasswordForm && (
             <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
             <TextField
@@ -197,8 +202,6 @@ export function LoginPage() {
               />
               {t('keepSignedIn')}
             </label>
-
-            {error && <p className="text-sm text-danger">{error}</p>}
 
             <Button type="submit" variant="primary" loading={busy} className="mt-1 h-11">
               {claimMode ? t('createAccount') : t('signIn')}
