@@ -18,7 +18,8 @@
     "search": "Suche: {{q}}",
     "value": "{{group}}: {{value}}",
     "value_negated": "{{group}}: nicht {{value}}",
-    "notableEntity": "{{kind}}: {{name}}"
+    "notableEntity": "{{kind}}: {{name}}",
+    "notableEntity_negated": "{{kind}}: nicht {{name}}"
   },
   "mode": {
     "any": "Beliebig",
@@ -118,6 +119,9 @@
   },
   "notableEntities": {
     "searchPlaceholder": "Entitäten suchen",
-    "noMatch": "Keine passenden Entitäten."
+    "noMatch": "Keine passenden Entitäten.",
+    "anyKind": "Alle Entitäten",
+    "any": "Beliebig",
+    "none": "Keine"
   }
 }

@@ -2,7 +2,7 @@
 // useBrowseFilters, plus the reverse conversion from a stored search document.
 import { useCallback, useState } from 'react'
 import type { BookSearch, ConditionGroup, ConditionLeaf, SearchCondition, SeriesSearch, SmartListTarget } from '@/lib/api/types'
-import { AGE_RATING_UNSET, type AuthorFilter, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from '@/components/filters/types'
+import { AGE_RATING_UNSET, NOTABLE_ENTITY_ANYKIND, type AuthorFilter, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from '@/components/filters/types'
 
 export function emptyFilterState(): FilterState {
   return {
@@ -61,8 +61,11 @@ export function useFilterState(initial: FilterState = emptyFilterState()) {
   const toggleNotableEntity = useCallback((entity: NotableEntityFilter) => {
     setState((s) => {
       const same = (e: NotableEntityFilter) => e.kind === entity.kind && e.name === entity.name
-      const exists = s.notableEntities.some(same)
-      return { ...s, notableEntities: exists ? s.notableEntities.filter((e) => !same(e)) : [...s.notableEntities, entity] }
+      const cur = s.notableEntities.find(same)
+      const rest = s.notableEntities.filter((e) => !same(e))
+      // the same include/exclude form toggles off; a different form replaces the entry, so a
+      // tri-state chip can move include → exclude in one call
+      return { ...s, notableEntities: !cur || !cur.exclude !== !entity.exclude ? [...rest, entity] : rest }
     })
   }, [])
 
@@ -190,7 +193,8 @@ function groupKeyForCondition(key: string, target: SmartListTarget): GroupKey | 
  * Reverses buildBookSearch/buildSeriesSearch for the subset the group editor can express:
  * a top-level leaf per group, same-key leaves combined as anyOf/allOf branches, the
  * library/read-list/collection membership anyOf, and canonical release-year pairs.
- * Anything else (nested logic, mixed is/isNot per group, regex-era shapes) sets `lossy`.
+ * Anything else (nested logic, mixed is/isNot within one group — notable entities excepted,
+ * they negate per value —, regex-era shapes) sets `lossy`.
  */
 export function searchToFilterState(search: BookSearch | SeriesSearch, target: SmartListTarget): ParsedSearch {
   const state = emptyFilterState()
@@ -288,12 +292,20 @@ export function searchToFilterState(search: BookSearch | SeriesSearch, target: S
         return true
       }
       case 'notableEntity': {
-        if (op.operator !== 'is' || typeof op.value !== 'object' || op.value === null) return false
+        if (op.operator !== 'is' && op.operator !== 'isNot') return false
+        if (typeof op.value !== 'object' || op.value === null) return false
         const e = op.value as { kind?: unknown; name?: unknown }
-        if (typeof e.kind !== 'string' || typeof e.name !== 'string') return false
-        state.notableEntities.push({ kind: e.kind, name: e.name })
+        // kind and name are both optional on the backend: kind-only is the any/none-of-kind
+        // match, name-only matches across kinds and lands on the any-kind panel
+        if (e.kind !== undefined && typeof e.kind !== 'string') return false
+        if (e.name !== undefined && typeof e.name !== 'string') return false
+        state.notableEntities.push({
+          kind: (e.kind as string | undefined) ?? NOTABLE_ENTITY_ANYKIND,
+          name: (e.name as string | undefined) ?? '',
+          ...(op.operator === 'isNot' && { exclude: true as const }),
+        })
         // marker for mode-conflict detection; state.notableEntities carries the real values
-        bucket('notableEntities').values.push(e.name)
+        bucket('notableEntities').values.push(`${e.kind ?? ''},${e.name ?? ''}`)
         return true
       }
       case 'libraryId':

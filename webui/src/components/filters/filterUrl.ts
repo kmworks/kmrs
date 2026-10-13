@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import i18n from '@/lib/i18n'
 import { useLibraryPrefs } from '@/lib/store/libraryPrefs'
-import { AGE_RATING_UNSET, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from './types'
+import { entityKindLabel } from '@/lib/utils/notableEntities'
+import { AGE_RATING_UNSET, NOTABLE_ENTITY_ANYKIND, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from './types'
 
 /** multi-value URL params, one key per filter group (values repeat the key) */
 const MULTI_KEYS: GroupKey[] = [
@@ -52,16 +53,18 @@ export function serializeAuthor(a: AuthorFilter): string {
   return `${a.name},${a.role}`
 }
 
-// the kind is split off at the first comma, so names may contain commas; the round-trip
-// relies on kind being a fixed analyzer token (character/team/location) — a kind with a
-// comma of its own would not survive
+// a per-value negation is a '!' prefix on the serialized form; the kind is split off at the
+// first comma, so names may contain commas (a kind with a comma of its own would not survive)
 export function parseNotableEntity(raw: string): NotableEntityFilter {
-  const i = raw.indexOf(',')
-  return i < 0 ? { kind: raw, name: '' } : { kind: raw.slice(0, i), name: raw.slice(i + 1) }
+  const exclude = raw.startsWith('!')
+  const s = exclude ? raw.slice(1) : raw
+  const i = s.indexOf(',')
+  const base: NotableEntityFilter = i < 0 ? { kind: s, name: '' } : { kind: s.slice(0, i), name: s.slice(i + 1) }
+  return exclude ? { ...base, exclude: true } : base
 }
 
 export function serializeNotableEntity(e: NotableEntityFilter): string {
-  return `${e.kind},${e.name}`
+  return `${e.exclude ? '!' : ''}${e.kind}${e.name ? `,${e.name}` : ''}`
 }
 
 export function parseFilterState(params: URLSearchParams): FilterState {
@@ -143,6 +146,20 @@ export function displayFilterValue(key: string, v: string): string {
   return key === 'ageRatings' && v === AGE_RATING_UNSET ? i18n.t('filters:option.ageRating.unset') : v
 }
 
+/** known kinds get a translated label; custom analyzer kinds fall back to their raw token */
+export function notableEntityKindLabel(kind: string): string {
+  if (kind === NOTABLE_ENTITY_ANYKIND) return i18n.t('filters:notableEntities.anyKind')
+  return entityKindLabel(kind)
+}
+
+/** chip and group-summary label: "Team: Endless", "Team: Any", "Location: not Hell's Kitchen" */
+export function notableEntityChipLabel(e: NotableEntityFilter): string {
+  const kind = notableEntityKindLabel(e.kind)
+  // a nameless entry is the any/none pseudo-value; "none" already carries the negation
+  if (!e.name) return i18n.t('filters:chip.notableEntity', { kind, name: i18n.t(`filters:notableEntities.${e.exclude ? 'none' : 'any'}`) })
+  return i18n.t('filters:chip.notableEntity', { context: e.exclude ? 'negated' : undefined, kind, name: e.name })
+}
+
 export function describeActiveFilters(state: FilterState, groups: FilterGroupDef[]): ActiveFilterItem[] {
   const items: ActiveFilterItem[] = []
   for (const def of groups) {
@@ -161,7 +178,7 @@ export function describeActiveFilters(state: FilterState, groups: FilterGroupDef
       for (const e of state.notableEntities) {
         items.push({
           key: `notableEntities:${serializeNotableEntity(e)}`,
-          label: i18n.t('filters:chip.notableEntity', { kind: e.kind, name: e.name }),
+          label: notableEntityChipLabel(e),
           group: 'notableEntities',
           value: serializeNotableEntity(e),
         })
@@ -261,7 +278,18 @@ export function useBrowseFilters(scope?: string, disabledKeys: readonly GroupKey
   )
 
   const toggleNotableEntity = useCallback(
-    (entity: NotableEntityFilter) => update((p) => toggleParam(p, 'notableEntities', serializeNotableEntity(entity))),
+    (entity: NotableEntityFilter) =>
+      update((p) => {
+        const all = p.getAll('notableEntities').map(parseNotableEntity)
+        const same = (e: NotableEntityFilter) => e.kind === entity.kind && e.name === entity.name
+        const cur = all.find(same)
+        p.delete('notableEntities')
+        const next = all.filter((e) => !same(e))
+        // the same include/exclude form toggles off; a different form replaces the entry, so a
+        // tri-state chip can move include → exclude in one call
+        if (!cur || !cur.exclude !== !entity.exclude) next.push(entity)
+        for (const e of next) p.append('notableEntities', serializeNotableEntity(e))
+      }),
     [update],
   )
 

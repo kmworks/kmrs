@@ -1,6 +1,7 @@
 import { Buildings, MaskHappy, Sparkle, Tag, UsersThree } from '@phosphor-icons/react'
 import type { AuthorDto, NotableEntityDto } from '@/lib/api/types'
 import { sortAuthorsByRole } from '@/lib/utils/authors'
+import { KNOWN_ENTITY_KINDS } from '@/lib/utils/notableEntities'
 import { serializeAuthor, serializeNotableEntity } from '@/components/filters/filterUrl'
 import type { DetailChipItem } from './DetailChipFlow'
 
@@ -50,19 +51,35 @@ export function tagChipItems(tags: string[], base: '/series' | '/books', locale:
     }))
 }
 
-/** chips link to the browse page under `base` with the entity filter */
-export function notableEntityChipItems(entities: NotableEntityDto[], base: '/series' | '/books', locale: string): DetailChipItem[] {
-  return [...entities]
-    .sort((a, b) => a.kind.localeCompare(b.kind, locale) || a.name.localeCompare(b.name, locale))
-    .map((e) => ({
-      key: `entity-${e.kind}-${e.name}`,
-      label: (
-        <>
-          {e.name} <span className="text-ink-3">({e.kind})</span>
-        </>
-      ),
-      icon: <Sparkle className={iconCls} />,
-      to: `${base}?notableEntities=${encodeURIComponent(serializeNotableEntity(e))}`,
+export interface NotableEntityChipGroup {
+  kind: string
+  items: DetailChipItem[]
+}
+
+/** one group per kind: known kinds first, customs in data order; names locale-sorted */
+export function notableEntityChipGroups(entities: NotableEntityDto[], base: '/series' | '/books', locale: string): NotableEntityChipGroup[] {
+  const byKind = new Map<string, NotableEntityDto[]>()
+  for (const e of entities) {
+    const list = byKind.get(e.kind) ?? []
+    list.push(e)
+    byKind.set(e.kind, list)
+  }
+  const rank = (kind: string) => {
+    const i = (KNOWN_ENTITY_KINDS as readonly string[]).indexOf(kind)
+    return i === -1 ? KNOWN_ENTITY_KINDS.length : i
+  }
+  return [...byKind.entries()]
+    .sort((a, b) => rank(a[0]) - rank(b[0]))
+    .map(([kind, list]) => ({
+      kind,
+      items: [...list]
+        .sort((a, b) => a.name.localeCompare(b.name, locale))
+        .map((e) => ({
+          key: `entity-${e.kind}-${e.name}`,
+          label: e.name,
+          icon: <Sparkle className={iconCls} />,
+          to: `${base}?notableEntities=${encodeURIComponent(serializeNotableEntity(e))}`,
+        })),
     }))
 }
 

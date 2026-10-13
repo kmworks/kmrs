@@ -22,7 +22,8 @@
     "search": "Búsqueda: {{q}}",
     "value": "{{group}}: {{value}}",
     "value_negated": "{{group}}: no {{value}}",
-    "notableEntity": "{{kind}}: {{name}}"
+    "notableEntity": "{{kind}}: {{name}}",
+    "notableEntity_negated": "{{kind}}: no {{name}}"
   },
   "mode": {
     "any": "Cualquiera",
@@ -122,6 +123,9 @@
   },
   "notableEntities": {
     "searchPlaceholder": "Buscar entidades",
-    "noMatch": "No hay entidades que coincidan."
+    "noMatch": "No hay entidades que coincidan.",
+    "anyKind": "Todas las entidades",
+    "any": "Cualquiera",
+    "none": "Ninguno"
   }
 }

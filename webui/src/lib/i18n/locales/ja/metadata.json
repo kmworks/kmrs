@@ -75,7 +75,15 @@
     "author": "著者を追加",
     "link": "リンクを追加",
     "title": "タイトルを追加",
-    "entity": "エンティティを追加"
+    "entity": "エンティティを追加",
+    "kind": "種類を追加"
+  },
+  "entities": {
+    "empty": "注目のエンティティはまだありません。",
+    "customKind": "カスタム種類…",
+    "customKindLabel": "種類名",
+    "noMatch": "「{{search}}」に一致する結果はありません。Enterキーを押すかクリックして作成してください。",
+    "removeName": "{{name}} を取り除く"
   },
   "editBooks": {
     "dialogTitle_single": "本のメタデータを編集",

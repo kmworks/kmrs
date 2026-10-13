@@ -31,8 +31,15 @@ export interface AuthorFilter {
 
 export interface NotableEntityFilter {
   kind: string
+  /** empty for the any/none pseudo-value of a kind */
   name: string
+  /** per-value negation: the search condition uses isNot instead of is */
+  exclude?: boolean
 }
+
+/** pseudo-kind of the "all notable entities" panel: conditions built from it omit `kind`
+    so the server matches across kinds; it is never sent as a kind value itself */
+export const NOTABLE_ENTITY_ANYKIND = 'anykind'
 
 export interface FilterState {
   q: string

@@ -75,7 +75,15 @@
     "author": "Autor hinzufügen",
     "link": "Link hinzufügen",
     "title": "Titel hinzufügen",
-    "entity": "Entität hinzufügen"
+    "entity": "Entität hinzufügen",
+    "kind": "Art hinzufügen"
+  },
+  "entities": {
+    "empty": "Noch keine bemerkenswerten Entitäten.",
+    "customKind": "Benutzerdefinierte Art…",
+    "customKindLabel": "Name der Art",
+    "noMatch": "Keine Ergebnisse für „{{search}}“. Zum Erstellen Eingabetaste drücken oder klicken.",
+    "removeName": "{{name}} entfernen"
   },
   "editBooks": {
     "dialogTitle_single": "Buch-Metadaten bearbeiten",

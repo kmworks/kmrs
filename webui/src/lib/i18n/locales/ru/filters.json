@@ -26,7 +26,8 @@
     "search": "Поиск: {{q}}",
     "value": "{{group}}: {{value}}",
     "value_negated": "{{group}}: не {{value}}",
-    "notableEntity": "{{kind}}: {{name}}"
+    "notableEntity": "{{kind}}: {{name}}",
+    "notableEntity_negated": "{{kind}}: не {{name}}"
   },
   "mode": {
     "any": "Любой",
@@ -126,6 +127,9 @@
   },
   "notableEntities": {
     "searchPlaceholder": "Поиск сущностей",
-    "noMatch": "Подходящих сущностей нет."
+    "noMatch": "Подходящих сущностей нет.",
+    "anyKind": "Все сущности",
+    "any": "Любые",
+    "none": "Нет"
   }
 }

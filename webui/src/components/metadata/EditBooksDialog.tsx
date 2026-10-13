@@ -14,6 +14,7 @@ import { TextField } from '@/components/ui/TextField'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LabelListEditor } from '@/components/admin/users/LabelListEditor'
 import { BatchField, FormErrorBanner, LockToggle, PairListEditor, TextAreaField, TextInput, type Pair, type PairErrors } from './fields'
+import { NotableEntitiesEditor } from './NotableEntitiesEditor'
 import { isValidIsbn13, isValidUrl, mapViolations } from './validation'
 
 const GENERAL_FIELDS = ['title', 'summary', 'number', 'numberSort', 'releaseDate', 'isbn']
@@ -292,15 +293,10 @@ function SingleBookForm({ book, onClose }: { book: BookDto; onClose: () => void 
         )}
 
         {tab === 'entities' && (
-          <PairListEditor
+          <NotableEntitiesEditor
             label={t('field.notableEntities')}
             pairs={notableEntities}
             onChange={(p) => { setNotableEntities(p); autoLock('notableEntities') }}
-            aLabel={t('field.kind')}
-            bLabel={t('field.name')}
-            aPlaceholder={t('placeholder.entityKind')}
-            bPlaceholder={t('placeholder.entityName')}
-            addLabel={t('add.entity')}
             errors={pairErrors.notableEntities}
             trailing={<LockToggle locked={locks.notableEntities} onChange={() => toggleLock('notableEntities')} label={t('field.notableEntities')} />}
           />

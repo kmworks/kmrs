@@ -1,5 +1,5 @@
 import type { BookSearch, ConditionLeaf, SearchCondition, SearchOperator, SeriesSearch } from '@/lib/api/types'
-import { AGE_RATING_UNSET, LETTERS, type AuthorFilter, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from './types'
+import { AGE_RATING_UNSET, LETTERS, NOTABLE_ENTITY_ANYKIND, type AuthorFilter, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from './types'
 
 function leaf(key: string, operator: SearchOperator, value?: unknown): ConditionLeaf {
   return value === undefined ? { [key]: { operator } } : { [key]: { operator, value } }
@@ -33,7 +33,14 @@ function authorConditions(authors: AuthorFilter[]): SearchCondition[] {
 }
 
 function notableEntityConditions(entities: NotableEntityFilter[]): SearchCondition[] {
-  return entities.map((e) => leaf('notableEntity', 'is', { kind: e.kind, name: e.name }))
+  return entities.map((e) =>
+    leaf('notableEntity', e.exclude ? 'isNot' : 'is', {
+      // the any-kind panel omits kind to match across kinds; a nameless entry is the
+      // any/none match of its kind
+      ...(e.kind === NOTABLE_ENTITY_ANYKIND ? {} : { kind: e.kind }),
+      ...(e.name ? { name: e.name } : {}),
+    }),
+  )
 }
 
 /** boolean DSL leaves carry no value, just isTrue/isFalse */

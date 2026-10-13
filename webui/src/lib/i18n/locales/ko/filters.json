@@ -14,7 +14,8 @@
     "search": "검색: {{q}}",
     "value": "{{group}}: {{value}}",
     "value_negated": "{{group}}: {{value}} 아님",
-    "notableEntity": "{{kind}}: {{name}}"
+    "notableEntity": "{{kind}}: {{name}}",
+    "notableEntity_negated": "{{kind}}: {{name}} 아님"
   },
   "mode": {
     "any": "하나라도",
@@ -114,6 +115,9 @@
   },
   "notableEntities": {
     "searchPlaceholder": "엔터티 검색",
-    "noMatch": "일치하는 엔터티가 없습니다."
+    "noMatch": "일치하는 엔터티가 없습니다.",
+    "anyKind": "모든 엔터티",
+    "any": "임의",
+    "none": "없음"
   }
 }

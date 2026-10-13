@@ -14,7 +14,8 @@
     "search": "検索: {{q}}",
     "value": "{{group}}: {{value}}",
     "value_negated": "{{group}}: {{value}} 以外",
-    "notableEntity": "{{kind}}: {{name}}"
+    "notableEntity": "{{kind}}: {{name}}",
+    "notableEntity_negated": "{{kind}}: {{name}} 以外"
   },
   "mode": {
     "any": "いずれか",
@@ -114,6 +115,9 @@
   },
   "notableEntities": {
     "searchPlaceholder": "エンティティを検索",
-    "noMatch": "一致するエンティティがありません。"
+    "noMatch": "一致するエンティティがありません。",
+    "anyKind": "すべてのエンティティ",
+    "any": "任意",
+    "none": "なし"
   }
 }

@@ -75,7 +75,15 @@
     "author": "新增作者",
     "link": "新增連結",
     "title": "新增標題",
-    "entity": "新增實體"
+    "entity": "新增實體",
+    "kind": "新增類別"
+  },
+  "entities": {
+    "empty": "尚無著名實體。",
+    "customKind": "自訂類別…",
+    "customKindLabel": "類別名稱",
+    "noMatch": "沒有與「{{search}}」相符的結果。按 Enter 或點擊以建立。",
+    "removeName": "移除 {{name}}"
   },
   "editBooks": {
     "dialogTitle_single": "編輯書籍詮釋資料",

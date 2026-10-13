@@ -18,7 +18,8 @@
     "search": "Search: {{q}}",
     "value": "{{group}}: {{value}}",
     "value_negated": "{{group}}: not {{value}}",
-    "notableEntity": "{{kind}}: {{name}}"
+    "notableEntity": "{{kind}}: {{name}}",
+    "notableEntity_negated": "{{kind}}: not {{name}}"
   },
   "mode": {
     "any": "Any",
@@ -118,6 +119,9 @@
   },
   "notableEntities": {
     "searchPlaceholder": "Search notable entities",
-    "noMatch": "No matching notable entities."
+    "noMatch": "No matching notable entities.",
+    "anyKind": "All notable entities",
+    "any": "Any",
+    "none": "None"
   }
 }

@@ -14,7 +14,8 @@
     "search": "搜索：{{q}}",
     "value": "{{group}}：{{value}}",
     "value_negated": "{{group}}：非{{value}}",
-    "notableEntity": "{{kind}}：{{name}}"
+    "notableEntity": "{{kind}}：{{name}}",
+    "notableEntity_negated": "{{kind}}：非{{name}}"
   },
   "mode": {
     "any": "任一",
@@ -114,6 +115,9 @@
   },
   "notableEntities": {
     "searchPlaceholder": "搜索实体",
-    "noMatch": "没有匹配的实体。"
+    "noMatch": "没有匹配的实体。",
+    "anyKind": "所有实体",
+    "any": "任意",
+    "none": "无"
   }
 }

@@ -75,7 +75,15 @@
     "author": "Aggiungi autore",
     "link": "Aggiungi link",
     "title": "Aggiungi titolo",
-    "entity": "Aggiungi entità"
+    "entity": "Aggiungi entità",
+    "kind": "Aggiungi tipo"
+  },
+  "entities": {
+    "empty": "Ancora nessuna entità di rilievo.",
+    "customKind": "Tipo personalizzato…",
+    "customKindLabel": "Nome del tipo",
+    "noMatch": "Nessun risultato per «{{search}}». Premi Invio o fai clic per crearlo.",
+    "removeName": "Rimuovi {{name}}"
   },
   "editBooks": {
     "dialogTitle_single": "Modifica metadati libro",

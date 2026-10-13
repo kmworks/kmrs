@@ -14,7 +14,8 @@
     "search": "搜尋：{{q}}",
     "value": "{{group}}：{{value}}",
     "value_negated": "{{group}}：非 {{value}}",
-    "notableEntity": "{{kind}}：{{name}}"
+    "notableEntity": "{{kind}}：{{name}}",
+    "notableEntity_negated": "{{kind}}：非 {{name}}"
   },
   "mode": {
     "any": "任一",
@@ -114,6 +115,9 @@
   },
   "notableEntities": {
     "searchPlaceholder": "搜尋實體",
-    "noMatch": "沒有相符的實體。"
+    "noMatch": "沒有相符的實體。",
+    "anyKind": "所有實體",
+    "any": "任意",
+    "none": "無"
   }
 }

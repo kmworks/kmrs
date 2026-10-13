@@ -60,4 +60,14 @@ export const referentialApi = {
     api
       .get<Page<NotableEntityDto>>('/api/v3/notable-entities', { ...fullParams(scope), ...unpaged })
       .then((p) => p.content),
+  // name autocomplete within a kind; the server does the search, so large kinds stay cheap.
+  // kind omitted searches across kinds (the any-kind filter panel)
+  notableEntityNames: (kind: string | undefined, search?: string, scope?: ReferentialScope) =>
+    api
+      .get<Page<string>>('/api/v3/notable-entities/names', { kind, search, ...fullParams(scope), ...unpaged })
+      .then((p) => p.content),
+  notableEntityKinds: (scope?: ReferentialScope) =>
+    api
+      .get<Page<string>>('/api/v3/notable-entities/kinds', { ...fullParams(scope), ...unpaged })
+      .then((p) => p.content),
 }

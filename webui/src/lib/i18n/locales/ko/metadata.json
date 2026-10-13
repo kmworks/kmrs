@@ -75,7 +75,15 @@
     "author": "작가 추가",
     "link": "링크 추가",
     "title": "제목 추가",
-    "entity": "엔터티 추가"
+    "entity": "엔터티 추가",
+    "kind": "종류 추가"
+  },
+  "entities": {
+    "empty": "아직 주요 엔터티가 없습니다.",
+    "customKind": "사용자 지정 종류…",
+    "customKindLabel": "종류 이름",
+    "noMatch": "'{{search}}'와(과) 일치하는 결과가 없습니다. Enter를 누르거나 클릭하여 새로 만드세요.",
+    "removeName": "{{name}} 제거"
   },
   "editBooks": {
     "dialogTitle_single": "책 메타데이터 편집",
