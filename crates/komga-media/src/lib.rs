@@ -4,7 +4,6 @@ pub mod analyzer;
 pub mod container;
 pub mod detect;
 pub mod error;
-pub(crate) mod fsutil;
 pub mod hash;
 pub mod image;
 pub mod kepubify;

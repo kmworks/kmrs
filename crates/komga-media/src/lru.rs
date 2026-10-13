@@ -4,6 +4,7 @@
 //! eviction order is the only contract, and the whole thing is fifty lines — a crate
 //! dependency buys nothing here.
 
+use crate::error::MediaError;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
@@ -111,7 +112,7 @@ impl<K: Eq + Hash, V> Lru<K, V> {
 /// Identity of a book file for caching: path plus size and mtime, so a replaced file
 /// (different size or mtime) is a different key and reopens instead of serving the stale
 /// handle. Same-size-same-mtime replacement within timestamp resolution is undetectable
-/// by stat, as it was with a fresh open per request.
+/// by stat.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FileKey {
     path: PathBuf,
@@ -126,6 +127,14 @@ pub fn file_key(path: &Path) -> std::io::Result<FileKey> {
         size: metadata.len(),
         mtime: metadata.modified().ok(),
     })
+}
+
+/// `file_key` does I/O that can fail; callers surface the same error a fresh open would.
+pub fn key_error(path: &Path, e: std::io::Error) -> MediaError {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => MediaError::NoSuchFile(path.display().to_string()),
+        _ => MediaError::Other(e.into()),
+    }
 }
 
 #[cfg(test)]

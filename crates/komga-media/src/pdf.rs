@@ -18,7 +18,7 @@
 
 use crate::error::{MediaError, Result};
 use crate::image;
-use crate::lru::{file_key, FileKey, Lru};
+use crate::lru::{file_key, key_error, FileKey, Lru};
 use pdfium_render::prelude::*;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -89,9 +89,8 @@ pub fn pdf_available() -> bool {
 }
 
 fn load(pdfium: &'static Pdfium, path: &Path) -> Result<PdfDocument<'static>> {
-    // the reader is opened here (not `load_pdf_from_file`) so the file carries the
-    // delete-sharing flags the cache relies on, see `fsutil`
-    let file = crate::fsutil::open_book_file(path).map_err(|e| {
+    // opened here rather than `load_pdf_from_file` so a missing file maps to NoSuchFile
+    let file = std::fs::File::open(path).map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             MediaError::NoSuchFile(path.display().to_string())
         } else {
@@ -109,13 +108,6 @@ pub fn open_document(path: &Path) -> Result<PdfDocument<'static>> {
     load(pdfium, path)
 }
 
-fn key_error(path: &Path, e: std::io::Error) -> MediaError {
-    match e.kind() {
-        std::io::ErrorKind::NotFound => MediaError::NoSuchFile(path.display().to_string()),
-        _ => MediaError::Other(e.into()),
-    }
-}
-
 static DOCS: OnceLock<Mutex<Lru<FileKey, PdfDocument<'static>>>> = OnceLock::new();
 
 fn docs() -> &'static Mutex<Lru<FileKey, PdfDocument<'static>>> {
@@ -123,15 +115,14 @@ fn docs() -> &'static Mutex<Lru<FileKey, PdfDocument<'static>>> {
 }
 
 /// Runs `f` against the cached document for `path`, opening (and possibly evicting) as
-/// needed.
+/// needed. A poisoned lock is recovered, not surfaced: one panicking book must not take
+/// page serving down for every other book.
 fn with_cached_document<R>(
     path: &Path,
     f: impl FnOnce(&PdfDocument<'static>) -> Result<R>,
 ) -> Result<R> {
     let key = file_key(path).map_err(|e| key_error(path, e))?;
-    let mut docs = docs()
-        .lock()
-        .map_err(|e| MediaError::Other(anyhow::anyhow!("pdf document cache lock: {e}")))?;
+    let mut docs = docs().lock().unwrap_or_else(|e| e.into_inner());
     let document = docs.get_or_insert_with(&key, || load(pdfium()?, path))?;
     f(document)
 }

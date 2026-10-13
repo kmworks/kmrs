@@ -8,7 +8,7 @@
 use crate::error::{MediaError, Result};
 #[cfg(unix)]
 use crate::lru::Lru;
-use crate::lru::{file_key, FileKey};
+use crate::lru::{file_key, key_error, FileKey};
 #[cfg(unix)]
 use std::cell::RefCell;
 use std::path::Path;
@@ -20,9 +20,9 @@ use std::path::Path;
 /// O(position) per request.
 ///
 /// Unix only: unrar opens archives without `FILE_SHARE_DELETE`, so on Windows a cached
-/// handle would block deleting or renaming the book until eviction (see `fsutil`); Unix
-/// fds never block unlink/rename. The cap stays low because a solid handle also carries
-/// dictionary buffers. The `unrar` handle is native state and never crosses threads.
+/// handle would block deleting or renaming the book until eviction; Unix fds never block
+/// unlink/rename. The cap stays low because a solid handle also carries dictionary
+/// buffers. The `unrar` handle is native state and never crosses threads.
 #[cfg(unix)]
 const HANDLE_CACHE_CAP: usize = 2;
 
@@ -60,21 +60,15 @@ fn cache_rest(
 ) {
 }
 
-fn key_error(path: &Path, e: std::io::Error) -> MediaError {
-    match e.kind() {
-        std::io::ErrorKind::NotFound => MediaError::NoSuchFile(path.display().to_string()),
-        _ => MediaError::Other(e.into()),
-    }
-}
-
-/// Returns the bytes of `entry_name` inside the RAR archive at `path`.
+/// Returns the bytes of `entry_name` inside the RAR archive at `path`. With duplicate
+/// entry names (malformed archives) a warmed cursor yields the first occurrence at or
+/// after its position, not necessarily the archive's first.
 pub fn get_entry_bytes(path: &Path, entry_name: &str) -> Result<Vec<u8>> {
     let key = file_key(path).map_err(|e| key_error(path, e))?;
     let outcome = match take_cached(&key) {
         Some(archive) => match scan_forward(archive, entry_name) {
-            // the cursor already passed the entry (or the archive holds duplicate names):
-            // rescan from zero, exactly like a fresh open, so EntryNotFound keeps meaning
-            // "absent after one full pass"
+            // the cursor already passed the entry: rescan from zero, exactly like a
+            // fresh open, so EntryNotFound keeps meaning "absent after one full pass"
             Ok(None) => scan_forward(open_checked(path)?, entry_name),
             other => other,
         },
