@@ -329,7 +329,7 @@ impl ServerConfig {
             sessions_db,
             jdbc_session_enabled: env_bool(env, "KOMGA_JDBCSESSIONENABLED")
                 .or_else(|| server.and_then(|s| s.jdbc_session_enabled))
-                .unwrap_or(false),
+                .unwrap_or(true),
             session_timeout,
             sort_locale,
             cors_allowed_origins,
@@ -765,9 +765,10 @@ mod tests {
 
     #[test]
     fn sessions_db_defaults_file_and_env() {
-        // disabled by default (like the Java property): sessions stay in memory
+        // persisted sessions are the default on every install (upstream turns them
+        // on only in its Docker image); KOMGA_JDBCSESSIONENABLED=false opts out
         let config = ServerConfig::resolve(None, &Cli::default(), &[]).unwrap();
-        assert!(!config.jdbc_session_enabled);
+        assert!(config.jdbc_session_enabled);
         assert_eq!(
             config.sessions_db.file,
             default_config_dir().join("sessions.sqlite")
