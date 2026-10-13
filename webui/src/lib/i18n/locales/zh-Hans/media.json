@@ -15,17 +15,11 @@
     "addToCollection": "添加到合集",
     "download": "下载",
     "editMetadata": "编辑元数据",
-    "analyze": "分析",
-    "refreshMetadata": "刷新元数据",
     "deleteFile": "删除文件",
     "deleteFiles": "删除文件",
     "identifyWithKomf": "用 komf 识别"
   },
   "identifyQueued": "已加入识别队列",
-  "analysisQueued": "分析已加入队列",
-  "queueAnalysisFailed": "无法将分析加入队列",
-  "refreshQueued": "元数据刷新已加入队列",
-  "queueRefreshFailed": "无法将刷新加入队列",
   "select": {
     "select": "选择 {{title}}",
     "deselect": "取消选择 {{title}}"

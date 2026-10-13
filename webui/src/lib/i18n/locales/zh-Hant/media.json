@@ -15,17 +15,11 @@
     "addToCollection": "加入收藏",
     "download": "下載",
     "editMetadata": "編輯詮釋資料",
-    "analyze": "分析",
-    "refreshMetadata": "重新整理詮釋資料",
     "deleteFile": "刪除檔案",
     "deleteFiles": "刪除檔案",
     "identifyWithKomf": "以 komf 識別"
   },
   "identifyQueued": "已排入識別",
-  "analysisQueued": "已排入分析",
-  "queueAnalysisFailed": "無法排入分析",
-  "refreshQueued": "已排入詮釋資料重新整理",
-  "queueRefreshFailed": "無法排入重新整理",
   "select": {
     "select": "選取 {{title}}",
     "deselect": "取消選取 {{title}}"

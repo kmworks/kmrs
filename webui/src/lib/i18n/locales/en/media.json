@@ -16,17 +16,11 @@
     "addToCollection": "Add to collection",
     "download": "Download",
     "editMetadata": "Edit metadata",
-    "analyze": "Analyze",
-    "refreshMetadata": "Refresh metadata",
     "deleteFile": "Delete file",
     "deleteFiles": "Delete files",
     "identifyWithKomf": "Identify with komf"
   },
   "identifyQueued": "Identify queued",
-  "analysisQueued": "Analysis queued",
-  "queueAnalysisFailed": "Could not queue the analysis",
-  "refreshQueued": "Metadata refresh queued",
-  "queueRefreshFailed": "Could not queue the refresh",
   "select": {
     "select": "Select {{title}}",
     "deselect": "Deselect {{title}}"

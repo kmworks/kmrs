@@ -16,17 +16,11 @@
     "addToCollection": "Zu Sammlung hinzufügen",
     "download": "Herunterladen",
     "editMetadata": "Metadaten bearbeiten",
-    "analyze": "Analysieren",
-    "refreshMetadata": "Metadaten aktualisieren",
     "deleteFile": "Datei löschen",
     "deleteFiles": "Dateien löschen",
     "identifyWithKomf": "Mit komf identifizieren"
   },
   "identifyQueued": "Identifizierung eingereiht",
-  "analysisQueued": "Analyse eingereiht",
-  "queueAnalysisFailed": "Die Analyse konnte nicht eingereiht werden",
-  "refreshQueued": "Metadaten-Aktualisierung eingereiht",
-  "queueRefreshFailed": "Die Aktualisierung konnte nicht eingereiht werden",
   "select": {
     "select": "{{title}} auswählen",
     "deselect": "{{title}} abwählen"

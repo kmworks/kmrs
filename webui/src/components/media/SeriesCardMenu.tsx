@@ -45,13 +45,13 @@ export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDt
   })
   const analyzeMutation = useMutation({
     mutationFn: () => seriesApi.analyze(series.id),
-    onSuccess: () => showToast(t('analysisQueued')),
-    onError: (e) => showToast(e instanceof Error ? e.message : t('queueAnalysisFailed')),
+    onSuccess: () => showToast(t('detail:toast.analysisQueued')),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('detail:toast.queueAnalysisFailed')),
   })
   const refreshMutation = useMutation({
     mutationFn: () => seriesApi.refreshMetadata(series.id),
-    onSuccess: () => showToast(t('refreshQueued')),
-    onError: (e) => showToast(e instanceof Error ? e.message : t('queueRefreshFailed')),
+    onSuccess: () => showToast(t('detail:toast.refreshQueued')),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('detail:toast.queueRefreshFailed')),
   })
 
   return (
@@ -72,16 +72,16 @@ export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDt
         {isAdmin(user) && (
           <>
             <MenuItem onSelect={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending}>
-              <FileMagnifyingGlass className="size-4" /> {t('menu.analyze')}
+              <FileMagnifyingGlass className="size-4" /> {t('detail:menu.analyze')}
             </MenuItem>
             <MenuItem onSelect={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
-              <ArrowsClockwise className="size-4" /> {t('menu.refreshMetadata')}
+              <ArrowsClockwise className="size-4" /> {t('detail:menu.refreshMetadata')}
+            </MenuItem>
+            <MenuItem onSelect={() => setEditOpen(true)}>
+              <PencilSimple className="size-4" /> {t('menu.editMetadata')}
             </MenuItem>
           </>
         )}
-        <MenuItem onSelect={() => setEditOpen(true)}>
-          <PencilSimple className="size-4" /> {t('menu.editMetadata')}
-        </MenuItem>
         {komfReady && (
           <MenuItem onSelect={() => setIdentifyOpen(true)}>
             <Sparkle className="size-4" /> {t('menu.identifyWithKomf')}

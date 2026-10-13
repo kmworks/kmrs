@@ -61,13 +61,13 @@ export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuP
   })
   const analyzeMutation = useMutation({
     mutationFn: () => booksApi.analyze(book.id),
-    onSuccess: () => showToast(t('analysisQueued')),
-    onError: (e) => showToast(e instanceof Error ? e.message : t('queueAnalysisFailed')),
+    onSuccess: () => showToast(t('detail:toast.analysisQueued')),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('detail:toast.queueAnalysisFailed')),
   })
   const refreshMutation = useMutation({
     mutationFn: () => booksApi.refreshMetadata(book.id),
-    onSuccess: () => showToast(t('refreshQueued')),
-    onError: (e) => showToast(e instanceof Error ? e.message : t('queueRefreshFailed')),
+    onSuccess: () => showToast(t('detail:toast.refreshQueued')),
+    onError: (e) => showToast(e instanceof Error ? e.message : t('detail:toast.queueRefreshFailed')),
   })
 
   return (
@@ -108,10 +108,10 @@ export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuP
           <>
             <MenuSeparator />
             <MenuItem onSelect={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending}>
-              <FileMagnifyingGlass className="size-4" /> {t('menu.analyze')}
+              <FileMagnifyingGlass className="size-4" /> {t('detail:menu.analyze')}
             </MenuItem>
             <MenuItem onSelect={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
-              <ArrowsClockwise className="size-4" /> {t('menu.refreshMetadata')}
+              <ArrowsClockwise className="size-4" /> {t('detail:menu.refreshMetadata')}
             </MenuItem>
             <MenuItem onSelect={() => setEditOpen(true)}>
               <PencilSimple className="size-4" /> {t('menu.editMetadata')}

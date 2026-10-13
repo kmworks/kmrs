@@ -17,17 +17,11 @@
     "addToCollection": "Aggiungi a raccolta",
     "download": "Scarica",
     "editMetadata": "Modifica metadati",
-    "analyze": "Analizza",
-    "refreshMetadata": "Aggiorna metadati",
     "deleteFile": "Elimina file",
     "deleteFiles": "Elimina file",
     "identifyWithKomf": "Identifica con komf"
   },
   "identifyQueued": "Identificazione in coda",
-  "analysisQueued": "Analisi in coda",
-  "queueAnalysisFailed": "Impossibile mettere in coda l'analisi",
-  "refreshQueued": "Aggiornamento metadati in coda",
-  "queueRefreshFailed": "Impossibile mettere in coda l'aggiornamento",
   "select": {
     "select": "Seleziona {{title}}",
     "deselect": "Deseleziona {{title}}"
