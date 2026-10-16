@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { cn } from '@/lib/utils/cn'
 import { displayFilterValue, groupSelectedCount, notableEntityChipLabel, notableEntityKindLabel } from './filterUrl'
-import { AGE_RATING_UNSET, LETTERS, NOTABLE_ENTITY_ANYKIND, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter, type ReferentialKind } from './types'
+import { AGE_RATING_UNSET, LETTERS, NOTABLE_ENTITY_ANYKIND, REFERENTIAL_ANY, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter, type ReferentialKind } from './types'
 
 const MODE_OPTIONS: { value: GroupMode; labelKey: string }[] = [
   { value: 'any', labelKey: 'filters:mode.any' },
@@ -115,12 +115,16 @@ function ReferentialOptions({
   scope,
   selected,
   enabled,
+  anyNone,
+  negated,
   onToggle,
 }: {
   kind: ReferentialKind
   scope?: ReferentialScope
   selected: string[]
   enabled: boolean
+  anyNone?: boolean
+  negated: boolean
   onToggle: (value: string) => void
 }) {
   const [filter, setFilter] = useState('')
@@ -147,15 +151,22 @@ function ReferentialOptions({
   if (query.isPending) return <LoadingChips />
   if (query.isLoadingError) return <LoadError onRetry={() => query.refetch()} />
 
+  // the pseudo chip reads as "none" only while selected and negated, mirroring the group's is/is-not switch
+  const pseudoSelected = selected.includes(REFERENTIAL_ANY)
   return (
     <div>
       {options.length > GROUP_SEARCH_THRESHOLD && (
         <GroupSearchInput value={filter} onChange={setFilter} placeholder={t('options.filterPlaceholder')} />
       )}
-      {visible.length === 0 ? (
+      {visible.length === 0 && !anyNone ? (
         <p className="text-xs text-ink-3">{t('options.noMatch')}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
+          {anyNone && (
+            <OptionChip active={pseudoSelected && !negated} excluded={pseudoSelected && negated} onClick={() => onToggle(REFERENTIAL_ANY)}>
+              {pseudoSelected && negated ? t('option.none') : t('option.any')}
+            </OptionChip>
+          )}
           {visible.map((o) => (
             <OptionChip key={o} active={selected.includes(o)} onClick={() => onToggle(o)}>
               {displayFilterValue(kind, o)}
@@ -163,6 +174,7 @@ function ReferentialOptions({
           ))}
         </div>
       )}
+      {visible.length === 0 && anyNone && <p className="mt-2 text-xs text-ink-3">{t('options.noMatch')}</p>}
     </div>
   )
 }
@@ -611,6 +623,8 @@ export function FilterGroupDetail({
           scope={scope}
           selected={values}
           enabled={enabled}
+          anyNone={def.anyNone}
+          negated={state.exclude.includes(def.key)}
           onToggle={(v) => onToggleValue(def.key, v)}
         />
       )}

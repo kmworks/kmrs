@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import i18n from '@/lib/i18n'
 import { useLibraryPrefs } from '@/lib/store/libraryPrefs'
 import { entityKindLabel } from '@/lib/utils/notableEntities'
-import { AGE_RATING_UNSET, NOTABLE_ENTITY_ANYKIND, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from './types'
+import { AGE_RATING_UNSET, NOTABLE_ENTITY_ANYKIND, REFERENTIAL_ANY, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter } from './types'
 
 /** multi-value URL params, one key per filter group (values repeat the key) */
 const MULTI_KEYS: GroupKey[] = [
@@ -143,6 +143,7 @@ export interface ActiveFilterItem {
 
 // the sentinel is an English token baked into bookmarked URLs, so it has to go through i18n at display time
 export function displayFilterValue(key: string, v: string): string {
+  if (v === REFERENTIAL_ANY) return i18n.t('filters:option.any')
   return key === 'ageRatings' && v === AGE_RATING_UNSET ? i18n.t('filters:option.ageRating.unset') : v
 }
 
@@ -189,12 +190,14 @@ export function describeActiveFilters(state: FilterState, groups: FilterGroupDef
     const values = state[def.key] as string[]
     for (const v of values) {
       const labelKey = def.options?.find((o) => o.value === v)?.labelKey
+      // the any/none pseudo spells its own negation; wrapping it in "not" would double-negate
+      const selfNegating = v === REFERENTIAL_ANY
       items.push({
         key: `${def.key}:${v}`,
         label: i18n.t('filters:chip.value', {
-          context: negated ? 'negated' : undefined,
+          context: negated && !selfNegating ? 'negated' : undefined,
           group: i18n.t(def.labelKey),
-          value: labelKey ? i18n.t(labelKey) : displayFilterValue(def.key, v),
+          value: selfNegating && negated ? i18n.t('filters:option.none') : labelKey ? i18n.t(labelKey) : displayFilterValue(def.key, v),
         }),
         group: def.key,
         value: v,
