@@ -8,7 +8,8 @@ import { referentialApi, type ReferentialScope } from '@/lib/api/referential'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { cn } from '@/lib/utils/cn'
-import { displayFilterValue, groupSelectedCount, notableEntityChipLabel, notableEntityKindLabel } from './filterUrl'
+import { displayFilterValue, groupSelectedCount, notableEntityChipLabel, notableEntityKindLabel, authorChipLabel } from './filterUrl'
+import { ROLE_ORDER } from '@/lib/utils/authors'
 import { AGE_RATING_UNSET, LETTERS, NOTABLE_ENTITY_ANYKIND, REFERENTIAL_ANY, type AuthorFilter, type FilterGroupDef, type FilterState, type GroupKey, type GroupMode, type NotableEntityFilter, type ReferentialKind } from './types'
 
 const MODE_OPTIONS: { value: GroupMode; labelKey: string }[] = [
@@ -267,10 +268,6 @@ function LetterOptions({ selected, onSelect }: { selected: string[]; onSelect: (
   )
 }
 
-function authorLabel(a: AuthorFilter): string {
-  return a.role ? `${a.name} (${a.role})` : a.name
-}
-
 function AuthorsOptions({
   scope,
   selected,
@@ -294,14 +291,23 @@ function AuthorsOptions({
   const same = (a: AuthorFilter, b: AuthorFilter) => a.name === b.name && a.role === b.role
   const options = useMemo(() => {
     const arr = [...(query.data ?? [])]
-    arr.sort((a, b) => authorLabel(a).localeCompare(authorLabel(b), i18n.language))
+    arr.sort((a, b) => authorChipLabel(a).localeCompare(authorChipLabel(b), i18n.language))
     return arr
   }, [query.data, i18n.language])
   const visible = useMemo(() => {
     const f = filter.trim().toLowerCase()
     // selected values stay visible so they can be deselected while filtering
-    return options.filter((o) => selected.some((s) => same(o, s)) || !f || authorLabel(o).toLowerCase().includes(f))
+    return options.filter((o) => selected.some((s) => same(o, s)) || !f || authorChipLabel(o).toLowerCase().includes(f))
   }, [options, filter, selected])
+
+  // role-level any/none pseudo chips: off → any → none → off, same cycle as notable entities
+  const pseudoFor = (role: string) => selected.find((a) => a.name === '' && a.role === role)
+  const cycleRole = (role: string) => {
+    const cur = pseudoFor(role)
+    if (!cur) onToggle({ name: '', role })
+    else if (!cur.exclude) onToggle({ ...cur, exclude: true })
+    else onToggle(cur)
+  }
 
   return (
     <div>
@@ -312,21 +318,28 @@ function AuthorsOptions({
         <LoadingChips />
       ) : query.isLoadingError ? (
         <LoadError onRetry={() => query.refetch()} />
-      ) : visible.length === 0 ? (
-        <p className="text-xs text-ink-3">{t('authors.noMatch')}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
+          {ROLE_ORDER.map((role) => {
+            const cur = pseudoFor(role)
+            return (
+              <OptionChip key={role} active={!!cur && !cur.exclude} excluded={cur?.exclude} onClick={() => cycleRole(role)}>
+                {authorChipLabel({ name: '', role, exclude: cur?.exclude })}
+              </OptionChip>
+            )
+          })}
           {visible.map((a) => {
             const active = selected.some((s) => same(a, s))
             return (
               <OptionChip key={`${a.name},${a.role}`} active={active} onClick={() => onToggle({ name: a.name, role: a.role })}>
-                {authorLabel(a)}
+                {authorChipLabel(a)}
                 {active && <X className="size-3" />}
               </OptionChip>
             )
           })}
         </div>
       )}
+      {!query.isPending && !query.isLoadingError && visible.length === 0 && <p className="mt-2 text-xs text-ink-3">{t('authors.noMatch')}</p>}
     </div>
   )
 }
@@ -551,7 +564,7 @@ export function FlagFilterRow({ def, value, onCycle }: { def: FilterGroupDef; va
 
 function groupSummary(def: FilterGroupDef, state: FilterState, locale: string, labelFor?: (key: GroupKey, id: string) => string): string {
   const list = new Intl.ListFormat(locale, { style: 'narrow', type: 'conjunction' })
-  if (def.kind === 'authors') return list.format(state.authors.map((a) => (a.role ? `${a.name} (${a.role})` : a.name)))
+  if (def.kind === 'authors') return list.format(state.authors.map(authorChipLabel))
   if (def.kind === 'notableEntities') return list.format(state.notableEntities.map(notableEntityChipLabel))
   return list.format((state[def.key] as string[]).map((v) => labelFor?.(def.key, v) ?? displayFilterValue(def.key, v)))
 }

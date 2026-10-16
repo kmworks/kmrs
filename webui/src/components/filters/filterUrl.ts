@@ -43,14 +43,25 @@ function extractFilterParams(params: URLSearchParams): string {
   return out.toString()
 }
 
-// names may contain commas, so the role is split off at the last comma
+// names may contain commas, so the role is split off at the last comma; a per-entry negation is a
+// '!' prefix on the serialized form (same convention as notable entities; a name starting with '!'
+// would not survive)
 export function parseAuthor(raw: string): AuthorFilter {
-  const i = raw.lastIndexOf(',')
-  return i < 0 ? { name: raw, role: '' } : { name: raw.slice(0, i), role: raw.slice(i + 1) }
+  const exclude = raw.startsWith('!')
+  const s = exclude ? raw.slice(1) : raw
+  const i = s.lastIndexOf(',')
+  const base: AuthorFilter = i < 0 ? { name: s, role: '' } : { name: s.slice(0, i), role: s.slice(i + 1) }
+  return exclude ? { ...base, exclude: true } : base
 }
 
 export function serializeAuthor(a: AuthorFilter): string {
-  return `${a.name},${a.role}`
+  return `${a.exclude ? '!' : ''}${a.name},${a.role}`
+}
+
+/** chip and group-summary label: "Xu (writer)", "Any (colorist)", "None (editor)" */
+export function authorChipLabel(a: AuthorFilter): string {
+  const base = a.name || i18n.t(`filters:option.${a.exclude ? 'none' : 'any'}`)
+  return a.role ? `${base} (${a.role})` : base
 }
 
 // a per-value negation is a '!' prefix on the serialized form; the kind is split off at the
@@ -168,7 +179,7 @@ export function describeActiveFilters(state: FilterState, groups: FilterGroupDef
       for (const a of state.authors) {
         items.push({
           key: `authors:${serializeAuthor(a)}`,
-          label: i18n.t('filters:chip.author', { name: a.role ? `${a.name} (${a.role})` : a.name }),
+          label: i18n.t('filters:chip.author', { name: authorChipLabel(a) }),
           group: 'authors',
           value: serializeAuthor(a),
         })
@@ -276,7 +287,18 @@ export function useBrowseFilters(scope?: string, disabledKeys: readonly GroupKey
   )
 
   const toggleAuthor = useCallback(
-    (author: AuthorFilter) => update((p) => toggleParam(p, 'authors', serializeAuthor(author))),
+    (author: AuthorFilter) =>
+      update((p) => {
+        const all = p.getAll('authors').map(parseAuthor)
+        const same = (a: AuthorFilter) => a.name === author.name && a.role === author.role
+        const cur = all.find(same)
+        p.delete('authors')
+        const next = all.filter((a) => !same(a))
+        // the same include/exclude form toggles off; a different form replaces the entry, so a
+        // tri-state chip can move include → exclude in one call
+        if (!cur || !cur.exclude !== !author.exclude) next.push(author)
+        for (const a of next) p.append('authors', serializeAuthor(a))
+      }),
     [update],
   )
 

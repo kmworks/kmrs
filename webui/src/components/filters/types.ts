@@ -27,6 +27,8 @@ export type GroupMode = 'any' | 'all'
 export interface AuthorFilter {
   name: string
   role: string
+  /** per-entry negation; the UI only sets it on role-level any/none pseudo entries (name === '') */
+  exclude?: boolean
 }
 
 export interface NotableEntityFilter {

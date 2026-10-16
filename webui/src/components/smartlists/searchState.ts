@@ -53,8 +53,11 @@ export function useFilterState(initial: FilterState = emptyFilterState()) {
   const toggleAuthor = useCallback((author: AuthorFilter) => {
     setState((s) => {
       const same = (a: AuthorFilter) => a.name === author.name && a.role === author.role
-      const exists = s.authors.some(same)
-      return { ...s, authors: exists ? s.authors.filter((a) => !same(a)) : [...s.authors, author] }
+      const cur = s.authors.find(same)
+      const rest = s.authors.filter((a) => !same(a))
+      // the same include/exclude form toggles off; a different form replaces the entry, so a
+      // tri-state chip can move include → exclude in one call
+      return { ...s, authors: !cur || !cur.exclude !== !author.exclude ? [...rest, author] : rest }
     })
   }, [])
 
@@ -315,12 +318,21 @@ export function searchToFilterState(search: BookSearch | SeriesSearch, target: S
         return true
       }
       case 'author': {
-        if (op.operator !== 'is' || typeof op.value !== 'object' || op.value === null) return false
+        if (op.operator !== 'is' && op.operator !== 'isNot') return false
+        if (typeof op.value !== 'object' || op.value === null) return false
         const a = op.value as { name?: unknown; role?: unknown }
-        if (typeof a.name !== 'string') return false
-        state.authors.push({ name: a.name, role: typeof a.role === 'string' ? a.role : '' })
+        if (a.name !== undefined && typeof a.name !== 'string') return false
+        if (a.role !== undefined && typeof a.role !== 'string') return false
+        // a nameless entry is the role-level any/none pseudo; an entirely empty one would be
+        // dropped on rebuild, so it cannot round-trip
+        if (!a.name && !a.role) return false
+        state.authors.push({
+          name: (a.name as string | undefined) ?? '',
+          role: (a.role as string | undefined) ?? '',
+          ...(op.operator === 'isNot' && { exclude: true as const }),
+        })
         // marker for mode-conflict detection; state.authors carries the real values
-        bucket('authors').values.push(a.name)
+        bucket('authors').values.push(`${a.name ?? ''},${a.role ?? ''}`)
         return true
       }
       case 'notableEntity': {
