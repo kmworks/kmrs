@@ -162,7 +162,14 @@ function yearBranchShape(branch: SearchCondition): { year: string; negated: bool
   const year = yearFromBranch(branch)
   if (year !== undefined) return { year, negated: false }
   const negatedYear = negatedYearFromBranch(branch)
-  return negatedYear !== undefined ? { year: negatedYear, negated: true } : undefined
+  if (negatedYear !== undefined) return { year: negatedYear, negated: true }
+  // the any/none sentinel is a bare releaseDate leaf inside the year's anyOf/allOf run
+  const single = leafKeyAndOp(branch)
+  if (single && single[0] === 'releaseDate') {
+    if (single[1].operator === 'isNull') return { year: REFERENTIAL_ANY, negated: true }
+    if (single[1].operator === 'isNotNull') return { year: REFERENTIAL_ANY, negated: false }
+  }
+  return undefined
 }
 
 interface Bucket {
@@ -282,10 +289,6 @@ export function searchToFilterState(search: BookSearch | SeriesSearch, target: S
           return absorbIsValue(group, REFERENTIAL_ANY, op.operator === 'is')
         return absorbIsValue(group, op.value, op.operator === 'isNot')
       }
-      case 'releaseDate':
-        if (op.operator === 'isNull') return absorbIsValue('releaseYears', REFERENTIAL_ANY, true)
-        if (op.operator === 'isNotNull') return absorbIsValue('releaseYears', REFERENTIAL_ANY, false)
-        return false
       case 'ageRating':
         if (op.operator === 'isNull') return absorbIsValue('ageRatings', AGE_RATING_UNSET, false)
         if (op.operator === 'isNotNull') return absorbIsValue('ageRatings', AGE_RATING_UNSET, true)

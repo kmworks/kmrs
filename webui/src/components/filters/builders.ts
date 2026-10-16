@@ -6,9 +6,9 @@ function leaf(key: string, operator: SearchOperator, value?: unknown): Condition
 }
 
 // unset is NULL for genre/tag/sharingLabel but the empty string for publisher/language
-function referentialLeaf(key: string, emptyUnset: boolean, op: 'is' | 'isNot', v: string): ConditionLeaf {
+function referentialLeaf(key: string, unset: 'null' | 'empty', op: 'is' | 'isNot', v: string): ConditionLeaf {
   if (v !== REFERENTIAL_ANY) return leaf(key, op, v)
-  if (emptyUnset) return leaf(key, op === 'isNot' ? 'is' : 'isNot', '')
+  if (unset === 'empty') return leaf(key, op === 'isNot' ? 'is' : 'isNot', '')
   return leaf(key, op === 'isNot' ? 'isNull' : 'isNotNull')
 }
 
@@ -104,10 +104,10 @@ export function buildSeriesSearch(state: FilterState, libraryId?: string, extra?
   push(conditions, combine(state.complete.map((v) => boolLeaf('complete', v)), mode('complete')))
   push(conditions, combine(state.oneshot.map((v) => boolLeaf('oneShot', v)), mode('oneshot')))
   push(conditions, combine(state.deleted.map((v) => boolLeaf('deleted', v)), mode('deleted')))
-  push(conditions, combine(state.publishers.map((v) => referentialLeaf('publisher', true, isOp('publishers'), v)), mode('publishers')))
-  push(conditions, combine(state.genres.map((v) => referentialLeaf('genre', false, isOp('genres'), v)), mode('genres')))
-  push(conditions, combine(state.tags.map((v) => referentialLeaf('tag', false, isOp('tags'), v)), mode('tags')))
-  push(conditions, combine(state.sharingLabels.map((v) => referentialLeaf('sharingLabel', false, isOp('sharingLabels'), v)), mode('sharingLabels')))
+  push(conditions, combine(state.publishers.map((v) => referentialLeaf('publisher', 'empty', isOp('publishers'), v)), mode('publishers')))
+  push(conditions, combine(state.genres.map((v) => referentialLeaf('genre', 'null', isOp('genres'), v)), mode('genres')))
+  push(conditions, combine(state.tags.map((v) => referentialLeaf('tag', 'null', isOp('tags'), v)), mode('tags')))
+  push(conditions, combine(state.sharingLabels.map((v) => referentialLeaf('sharingLabel', 'null', isOp('sharingLabels'), v)), mode('sharingLabels')))
   push(
     conditions,
     combine(
@@ -119,7 +119,7 @@ export function buildSeriesSearch(state: FilterState, libraryId?: string, extra?
       mode('ageRatings'),
     ),
   )
-  push(conditions, combine(state.languages.map((v) => referentialLeaf('language', true, isOp('languages'), v)), mode('languages')))
+  push(conditions, combine(state.languages.map((v) => referentialLeaf('language', 'empty', isOp('languages'), v)), mode('languages')))
   push(conditions, combine(yearConditions(state.releaseYears, state.exclude.includes('releaseYears')), mode('releaseYears')))
   push(conditions, combine(authorConditions(state.authors), mode('authors')))
   push(conditions, combine(notableEntityConditions(state.notableEntities), mode('notableEntities')))
@@ -142,7 +142,7 @@ export function buildBookSearch(state: FilterState, libraryId?: string, extra?: 
   if (extra) conditions.push(extra)
   if (libraryId) conditions.push(leaf('libraryId', 'is', libraryId))
   push(conditions, combine(state.readStatus.map((v) => leaf('readStatus', isOp('readStatus'), v)), mode('readStatus')))
-  push(conditions, combine(state.tags.map((v) => referentialLeaf('tag', false, isOp('tags'), v)), mode('tags')))
+  push(conditions, combine(state.tags.map((v) => referentialLeaf('tag', 'null', isOp('tags'), v)), mode('tags')))
   push(conditions, combine(state.mediaProfiles.map((v) => leaf('mediaProfile', isOp('mediaProfiles'), v)), mode('mediaProfiles')))
   push(conditions, combine(state.mediaStatuses.map((v) => leaf('mediaStatus', isOp('mediaStatuses'), v)), mode('mediaStatuses')))
   // "no poster" must also match books with zero thumbnail rows, so it is isNot selected, not is unselected
