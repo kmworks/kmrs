@@ -1,7 +1,7 @@
 import type { AuthorDto } from '@/lib/api/types'
 
 // writers first, custom roles last (KMReader order); also the fixed role list of the
-// authors filter's any/none pseudo chips (komga-webui's authorRoles)
+// authors filter's any/none pseudo chips
 export const ROLE_ORDER = ['writer', 'penciller', 'inker', 'colorist', 'letterer', 'cover', 'editor', 'translator']
 
 export function sortAuthorsByRole(authors: AuthorDto[]): AuthorDto[] {
