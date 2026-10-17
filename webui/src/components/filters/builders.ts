@@ -34,7 +34,7 @@ function yearConditions(years: string[], negated: boolean): SearchCondition[] {
           { releaseDate: { operator: 'before', dateTime: `${year + 1}-01-01T00:00:00Z` } },
         ],
       }
-    // a year's complement covers unknown dates too (komga's releaseDate nValue shape)
+    // a year's complement covers unknown dates too
     return {
       anyOf: [
         { releaseDate: { operator: 'after', dateTime: `${year}-12-31T00:00:00Z` } },
