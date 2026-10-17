@@ -47,7 +47,8 @@ function yearConditions(years: string[], negated: boolean): SearchCondition[] {
 
 function authorConditions(authors: AuthorFilter[]): SearchCondition[] {
   return authors.flatMap((a) => {
-    // a nameless entry is the role-level any/none pseudo; an entirely empty one matches nothing
+    // a nameless entry is the role-level any/none pseudo; an entirely empty one would match
+    // anything that has an author, so it is rejected at parse time and dropped here
     if (!a.name && !a.role) return []
     const value = a.name ? (a.role ? { name: a.name, role: a.role } : { name: a.name }) : { role: a.role }
     return [leaf('author', a.exclude ? 'isNot' : 'is', value)]

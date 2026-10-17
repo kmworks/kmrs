@@ -329,11 +329,16 @@ function AuthorsOptions({
             )
           })}
           {visible.map((a) => {
-            const active = selected.some((s) => same(a, s))
+            const cur = selected.find((s) => same(a, s))
             return (
-              <OptionChip key={`${a.name},${a.role}`} active={active} onClick={() => onToggle({ name: a.name, role: a.role })}>
+              <OptionChip
+                key={`${a.name},${a.role}`}
+                active={!!cur && !cur.exclude}
+                excluded={cur?.exclude}
+                onClick={() => onToggle({ name: a.name, role: a.role })}
+              >
                 {authorChipLabel(a)}
-                {active && <X className="size-3" />}
+                {!!cur && <X className="size-3" />}
               </OptionChip>
             )
           })}

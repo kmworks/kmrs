@@ -94,7 +94,8 @@ export function parseFilterState(params: URLSearchParams): FilterState {
     ageRatings: params.getAll('ageRatings'),
     languages: params.getAll('languages'),
     releaseYears: params.getAll('releaseYears'),
-    authors: params.getAll('authors').map(parseAuthor),
+    // a fully empty entry (",") would only render as a phantom chip; the builder drops it anyway
+    authors: params.getAll('authors').map(parseAuthor).filter((a) => a.name || a.role),
     notableEntities: params.getAll('notableEntities').map(parseNotableEntity),
     mediaProfiles: params.getAll('mediaProfiles'),
     mediaStatuses: params.getAll('mediaStatuses'),
@@ -179,7 +180,11 @@ export function describeActiveFilters(state: FilterState, groups: FilterGroupDef
       for (const a of state.authors) {
         items.push({
           key: `authors:${serializeAuthor(a)}`,
-          label: i18n.t('filters:chip.author', { name: authorChipLabel(a) }),
+          // a negated named entry spells "Authors: not X (role)"; the role pseudo self-negates ("None (role)")
+          label:
+            a.name && a.exclude
+              ? i18n.t('filters:chip.value', { context: 'negated', group: i18n.t(def.labelKey), value: authorChipLabel(a) })
+              : i18n.t('filters:chip.author', { name: authorChipLabel(a) }),
           group: 'authors',
           value: serializeAuthor(a),
         })

@@ -224,8 +224,8 @@ function groupKeyForCondition(key: string, target: SmartListTarget): GroupKey | 
  * Reverses buildBookSearch/buildSeriesSearch for the subset the group editor can express:
  * a top-level leaf per group, same-key leaves combined as anyOf/allOf branches, the
  * library/read-list/collection membership anyOf, and canonical release-year pairs.
- * Anything else (nested logic, mixed is/isNot within one group — notable entities excepted,
- * they negate per value —, regex-era shapes) sets `lossy`.
+ * Anything else (nested logic, mixed is/isNot within one group — notable entities and authors
+ * excepted, they negate per value —, regex-era shapes) sets `lossy`.
  */
 export function searchToFilterState(search: BookSearch | SeriesSearch, target: SmartListTarget): ParsedSearch {
   const state = emptyFilterState()
