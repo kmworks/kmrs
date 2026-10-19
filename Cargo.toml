@@ -86,3 +86,8 @@ strip = "symbols"
 inherits = "release"
 debug = 1
 strip = "debuginfo"
+
+# macOS's unpacked default runs dsymutil on every linked artifact, scaling
+# with binary size; "off" keeps debug info in the binary, lldb unaffected
+[profile.dev]
+split-debuginfo = "off"
