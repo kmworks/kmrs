@@ -121,20 +121,23 @@ async fn process_one(state: &AppState, worker: u32) {
     let task_for_blocking = task.clone();
     // lifecycle work is synchronous and can run for minutes; keep it off the async threads,
     // and run it against the dedicated task pools so it never contends with API connections
-    let result = tokio::task::spawn_blocking(move || {
+    let outcome = match tokio::task::spawn_blocking(move || {
         let st = st.task_context();
         handle_task(&st, &task_for_blocking)
     })
-    .await;
-    if let Err(e) = result {
-        tracing::error!("Task {} execution panicked: {e}", task.describe());
-        crate::service::metrics::record_task_execution(
-            task.simple_type(),
-            std::time::Duration::ZERO,
-            false,
-        );
-        finish_task(state, &task, Some(e.to_string()));
-    }
+    .await
+    {
+        Ok(outcome) => outcome,
+        Err(e) => {
+            tracing::error!("Task {} execution panicked: {e}", task.describe());
+            crate::service::metrics::record_task_execution(
+                task.simple_type(),
+                std::time::Duration::ZERO,
+                false,
+            );
+            task_outcome(&task, Some(e.to_string()))
+        }
+    };
     let unique_id = task.unique_id();
     let deleted = {
         let db = state.tasks_db.clone();
@@ -146,9 +149,10 @@ async fn process_one(state: &AppState, worker: u32) {
         Ok(Err(e)) => tracing::error!("Failed to delete task {unique_id}: {e}"),
         Err(e) => tracing::error!("Task delete panicked for {unique_id}: {e}"),
     }
+    publish_task_outcome(state, &task, outcome);
 }
 
-fn handle_task(state: &AppState, task: &Task) {
+fn handle_task(state: &AppState, task: &Task) -> crate::service::tasks::TaskOutcome {
     tracing::info!("Executing task: {}", task.describe());
     hook_start(&task.unique_id());
     let start = std::time::Instant::now();
@@ -166,16 +170,23 @@ fn handle_task(state: &AppState, task: &Task) {
         }
     };
     hook_end(&task.unique_id());
-    finish_task(state, task, error);
+    task_outcome(task, error)
 }
 
-fn finish_task(state: &AppState, task: &Task, error: Option<String>) {
-    let outcome = crate::service::tasks::TaskOutcome {
+fn task_outcome(task: &Task, error: Option<String>) -> crate::service::tasks::TaskOutcome {
+    crate::service::tasks::TaskOutcome {
         task_id: task.unique_id(),
         task_type: task.simple_type(),
         finished_at: komga_core::time_codec::now_utc(),
         error,
-    };
+    }
+}
+
+fn publish_task_outcome(
+    state: &AppState,
+    task: &Task,
+    outcome: crate::service::tasks::TaskOutcome,
+) {
     state.task_emitter.record_outcome(outcome.clone());
     if matches!(task, Task::DeleteBook(_) | Task::DeleteSeries(_)) {
         let _ = state
@@ -1578,7 +1589,8 @@ mod tests {
         let task = Task::book(BookTaskKind::DeleteBook, &book.id, DEFAULT_PRIORITY, None);
         let mut events = state.events.subscribe();
 
-        handle_task(&state, &task);
+        let outcome = handle_task(&state, &task);
+        publish_task_outcome(&state, &task, outcome);
 
         let DomainEvent::FileDeletionCompleted(outcome) = events.try_recv().unwrap() else {
             panic!("expected deletion outcome");
@@ -1612,7 +1624,8 @@ mod tests {
         let task = Task::series(SeriesTaskKind::DeleteSeries, "s1", DEFAULT_PRIORITY);
         let mut events = state.events.subscribe();
 
-        handle_task(&state, &task);
+        let outcome = handle_task(&state, &task);
+        publish_task_outcome(&state, &task, outcome);
 
         assert!(matches!(
             events.try_recv(),
@@ -1674,5 +1687,41 @@ mod tests {
         assert!(outcome.is_success());
         assert!(!series_dir.exists());
         assert!(drained);
+    }
+
+    #[tokio::test]
+    async fn completion_is_published_after_queue_row_is_deleted() {
+        let state = series_tests::test_state();
+        seed_library(&state.db, &test_library("lib-del", "file:/l/"));
+        seed_series(&state.db, "lib-del", "s1");
+        let dir = tempfile::tempdir().unwrap();
+        let book_path = dir.path().join("v01.cbz");
+        std::fs::create_dir(&book_path).unwrap();
+        let book = seed_book(
+            &state.db,
+            "lib-del",
+            "s1",
+            &komga_media::scanner::path_to_url(&book_path),
+        );
+        state
+            .task_emitter
+            .delete_book(&book.id, DEFAULT_PRIORITY)
+            .unwrap();
+        let mut events = state.events.subscribe();
+
+        let worker_state = state.clone();
+        let worker = tokio::spawn(async move { process_one(&worker_state, 99).await });
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Ok(DomainEvent::FileDeletionCompleted(_)) = events.recv().await {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("deletion outcome was not emitted");
+
+        assert!(queue_empty(&state));
+        worker.await.unwrap();
     }
 }

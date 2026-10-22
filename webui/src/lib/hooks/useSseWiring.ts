@@ -127,6 +127,7 @@ export function useSseWiring() {
       sse.on('FileDeletionCompleted', (data) => {
         const outcome = data as FileDeletionOutcome
         void queryClient.invalidateQueries({ queryKey: ['admin', 'stats', 'server'] })
+        void queryClient.invalidateQueries({ queryKey: ['admin', 'duplicates'] })
         if (!outcome.success) showToast(outcome.error || t('detail:toast.deleteFilesFailed'))
       }),
     )
