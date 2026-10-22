@@ -1404,6 +1404,21 @@ export interface LibrariesStatsDto {
   }
 }
 
+export interface FileDeletionOutcome {
+  taskId: string
+  taskType: string
+  finishedAt: string
+  success: boolean
+  error: string | null
+}
+
+export interface TaskFailure {
+  taskId: string
+  taskType: string
+  finishedAt: string
+  error: string
+}
+
 export interface TaskTypeStatsDto {
   type: string
   queued: number
@@ -1411,6 +1426,7 @@ export interface TaskTypeStatsDto {
   totalTimeMs: number
   maxTimeMs: number
   failures: number
+  lastFailure?: TaskFailure
 }
 
 export interface ServerStatsDto {
