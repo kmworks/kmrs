@@ -27,3 +27,15 @@ pub mod transient_book;
 pub mod update_check;
 pub mod user;
 pub use tasks::{TaskEmitter, TaskNotify};
+
+pub(crate) fn io_error(
+    action: &str,
+    path: &std::path::Path,
+    error: std::io::Error,
+) -> komga_db::Error {
+    let kind = error.kind();
+    komga_db::Error::Io(std::io::Error::new(
+        kind,
+        format!("{action} {}: {error}", path.display()),
+    ))
+}

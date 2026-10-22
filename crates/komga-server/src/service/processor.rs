@@ -555,14 +555,7 @@ pub(crate) fn dispatch_task(state: &AppState, task: &Task) -> anyhow::Result<()>
             let Some(book) = BookDao::new(state.db.clone()).find_by_id(&t.book_id)? else {
                 return Ok(());
             };
-            if book.oneshot {
-                let series = SeriesDao::new(state.db.clone())
-                    .find_by_id(&book.series_id)?
-                    .expect("book references a missing series");
-                series::delete_series_files(state, &series)?;
-            } else {
-                book::delete_book_files(state, &book)?;
-            }
+            book::delete_book_or_series_files(state, &book)?;
             Ok(())
         }
         Task::DeleteSeries(t) => {

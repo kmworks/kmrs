@@ -565,52 +565,53 @@ pub fn delete_series_files(state: &AppState, series: &Series) -> Result<()> {
         );
         return Ok(());
     }
-    if !is_writable(&path) {
-        tracing::info!(
-            "Cannot delete series folder, path is not writable: {}",
-            path.display()
-        );
-        return Ok(());
-    }
 
     let thumbnails: Vec<PathBuf> = ThumbnailSeriesDao::new(state.db.clone())
         .find_all_by_series_id_and_type(&series.id, ThumbnailType::Sidecar)?
         .into_iter()
         .filter_map(|t| t.url)
         .map(|u| PathBuf::from(komga_core::dto::url_to_file_path(&u)))
-        .filter(|p| p.exists() && is_writable(p))
+        .filter(|p| p.exists())
         .collect();
 
     for book in BookDao::new(state.db.clone()).find_by_series_id(&series.id)? {
         crate::service::book::delete_book_files(state, &book)?;
     }
     for thumbnail in thumbnails {
-        if std::fs::remove_file(&thumbnail).is_ok() {
-            tracing::info!("Deleted file: {}", thumbnail.display());
-        }
+        std::fs::remove_file(&thumbnail)
+            .map_err(|e| crate::service::io_error("Cannot delete thumbnail", &thumbnail, e))?;
+        tracing::info!("Deleted file: {}", thumbnail.display());
     }
 
-    if path.exists()
-        && path.read_dir().is_ok_and(|mut d| d.next().is_none())
-        && std::fs::remove_dir(&path).is_ok()
-    {
-        tracing::info!("Deleted directory: {}", path.display());
-        HistoricalEventDao::new(state.db.clone()).insert(&HistoricalEvent {
-            id: String::new(),
-            type_: HistoricalEventType::SeriesFolderDeleted,
-            book_id: None,
-            series_id: Some(series.id.clone()),
-            properties: [
-                (
-                    "reason".to_string(),
-                    "Folder was deleted because it was empty".to_string(),
-                ),
-                ("name".to_string(), path.display().to_string()),
-            ]
-            .into_iter()
-            .collect(),
-            timestamp: time_codec::now_utc(),
-        })?;
+    if path.exists() {
+        let is_empty = path
+            .read_dir()
+            .map_err(|e| crate::service::io_error("Cannot read series folder", &path, e))?
+            .next()
+            .transpose()
+            .map_err(|e| crate::service::io_error("Cannot read series folder", &path, e))?
+            .is_none();
+        if is_empty {
+            std::fs::remove_dir(&path)
+                .map_err(|e| crate::service::io_error("Cannot delete series folder", &path, e))?;
+            tracing::info!("Deleted directory: {}", path.display());
+            HistoricalEventDao::new(state.db.clone()).insert(&HistoricalEvent {
+                id: String::new(),
+                type_: HistoricalEventType::SeriesFolderDeleted,
+                book_id: None,
+                series_id: Some(series.id.clone()),
+                properties: [
+                    (
+                        "reason".to_string(),
+                        "Folder was deleted because it was empty".to_string(),
+                    ),
+                    ("name".to_string(), path.display().to_string()),
+                ]
+                .into_iter()
+                .collect(),
+                timestamp: time_codec::now_utc(),
+            })?;
+        }
     }
 
     soft_delete_many(state, std::slice::from_ref(series))
@@ -646,11 +647,6 @@ fn thumbnail_exists(thumbnail: &ThumbnailSeries) -> bool {
         Some(url) => Path::new(&komga_core::dto::url_to_file_path(url)).exists(),
         None => thumbnail.thumbnail.is_some(),
     }
-}
-
-/// `Files.isWritable` approximation: an open-for-write attempt without truncation
-fn is_writable(path: &Path) -> bool {
-    std::fs::OpenOptions::new().write(true).open(path).is_ok()
 }
 
 #[cfg(test)]
@@ -1410,5 +1406,41 @@ pub(crate) mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(bytes, vec![9, 9, 9]);
+    }
+
+    #[test]
+    fn delete_series_files_removes_writable_directory() {
+        let state = test_state();
+        seed_library(&state.db, "lib1");
+        let dir = tempfile::tempdir().unwrap();
+        let series_dir = dir.path().join("series");
+        std::fs::create_dir(&series_dir).unwrap();
+        let book_path = series_dir.join("v01.cbz");
+        std::fs::write(&book_path, b"book").unwrap();
+
+        let mut series = sample_series("lib1", "S");
+        series.url = komga_media::scanner::path_to_url(&series_dir);
+        let series = create_series(&state, &series).unwrap();
+        let mut book = sample_book(&series.id, &series.library_id, "v01");
+        book.url = komga_media::scanner::path_to_url(&book_path);
+        let id = BookDao::new(state.db.clone()).insert(&book).unwrap();
+        let book = Book { id, ..book };
+
+        delete_series_files(&state, &series).unwrap();
+
+        assert!(!book_path.exists());
+        assert!(!series_dir.exists());
+        assert!(BookDao::new(state.db.clone())
+            .find_by_id(&book.id)
+            .unwrap()
+            .unwrap()
+            .deleted_date
+            .is_some());
+        assert!(SeriesDao::new(state.db.clone())
+            .find_by_id(&series.id)
+            .unwrap()
+            .unwrap()
+            .deleted_date
+            .is_some());
     }
 }

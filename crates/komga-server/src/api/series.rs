@@ -31,7 +31,7 @@ use komga_core::model::series::SeriesStatus;
 use komga_core::model::thumbnail::{Dimension, ThumbnailSeries, ThumbnailType};
 use komga_core::model::user::{KomgaUser, UserRole};
 use komga_core::search::*;
-use komga_core::task::{BookMetadataPatchCapability, HIGHEST_PRIORITY, HIGH_PRIORITY};
+use komga_core::task::{BookMetadataPatchCapability, HIGH_PRIORITY};
 use komga_core::time_codec::now_utc;
 use komga_db::dao::book::BookDao;
 use komga_db::dao::media::MediaDao;
@@ -994,9 +994,14 @@ async fn delete_series_file(
     Path(series_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     auth.0.require_admin()?;
-    state
-        .task_emitter
-        .delete_series(&series_id, HIGHEST_PRIORITY)?;
+    tokio::task::spawn_blocking(move || -> komga_db::Result<()> {
+        let Some(series) = SeriesDao::new(state.db.clone()).find_by_id(&series_id)? else {
+            return Ok(());
+        };
+        crate::service::series::delete_series_files(&state, &series)
+    })
+    .await
+    .map_err(|e| ApiError::Internal(e.to_string()))??;
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -2195,11 +2200,61 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn series_delete_file_submits_task() {
+    async fn series_delete_file_returns_io_error() {
         let state = test_state();
         admin(&state);
         seed_library(&state, "lib1", "Library One");
         seed_series(&state, "s1", "lib1", "Berserk");
+        seed_book(&state, "b1", "s1", "lib1", "Berserk v01", 1.0, 10);
+        let dir = tempfile::tempdir().unwrap();
+        let series_dir = dir.path().join("series");
+        std::fs::create_dir(&series_dir).unwrap();
+        let book_path = series_dir.join("v01.cbz");
+        std::fs::create_dir(&book_path).unwrap();
+        let conn = state.db.rw().unwrap();
+        conn.execute(
+            "UPDATE SERIES SET URL = ? WHERE ID = 's1'",
+            [komga_media::scanner::path_to_url(&series_dir)],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE BOOK SET URL = ? WHERE ID = 'b1'",
+            [komga_media::scanner::path_to_url(&book_path)],
+        )
+        .unwrap();
+        drop(conn);
+        let app = test_app(&state);
+
+        let request = Request::delete("/api/v1/series/s1/file")
+            .header("X-API-Key", ADMIN_KEY)
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body = body_json(response).await;
+        let message = body["message"].as_str().unwrap();
+        assert!(message.contains("v01.cbz"), "{message}");
+    }
+
+    #[tokio::test]
+    async fn series_delete_file_removes_directory() {
+        let state = test_state();
+        admin(&state);
+        seed_library(&state, "lib1", "Library One");
+        seed_series(&state, "s1", "lib1", "Berserk");
+        let dir = tempfile::tempdir().unwrap();
+        let series_dir = dir.path().join("series");
+        std::fs::create_dir(&series_dir).unwrap();
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute(
+                "UPDATE SERIES SET URL = ? WHERE ID = 's1'",
+                [komga_media::scanner::path_to_url(&series_dir)],
+            )
+            .unwrap();
         let app = test_app(&state);
 
         let request = Request::delete("/api/v1/series/s1/file")
@@ -2208,13 +2263,17 @@ mod tests {
             .unwrap();
         let response = app.clone().oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::ACCEPTED);
-
+        assert!(!series_dir.exists());
+        assert!(SeriesDao::new(state.db.clone())
+            .find_by_id("s1")
+            .unwrap()
+            .unwrap()
+            .deleted_date
+            .is_some());
         let tasks = komga_db::dao::tasks::TasksDao::new(state.tasks_db.clone())
             .find_all()
             .unwrap();
-        assert_eq!(tasks.len(), 1);
-        assert_eq!(tasks[0].unique_id(), "DELETE_SERIES_s1");
-        assert_eq!(tasks[0].priority(), 8);
+        assert!(tasks.is_empty());
 
         // non-admin: 403
         seed_user(&state, "user@komga.org", &[], "user-key");

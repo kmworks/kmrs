@@ -75,11 +75,6 @@ fn book_path(book: &Book) -> PathBuf {
     PathBuf::from(url_to_file_path(&book.url))
 }
 
-/// `Files.isWritable` approximation: an open-for-write attempt without truncation.
-fn is_writable(path: &Path) -> bool {
-    std::fs::OpenOptions::new().write(true).open(path).is_ok()
-}
-
 /// `ThumbnailBook.exists()`: a URL-backed thumbnail must point to an existing file;
 /// a blob-backed one always exists.
 fn thumbnail_exists(thumbnail: &ThumbnailBook) -> bool {
@@ -670,6 +665,17 @@ fn insert_history(
     Ok(())
 }
 
+pub fn delete_book_or_series_files(state: &AppState, book: &Book) -> komga_db::Result<()> {
+    if book.oneshot {
+        let series = komga_db::dao::series::SeriesDao::new(state.db.clone())
+            .find_by_id(&book.series_id)?
+            .expect("book references a missing series");
+        crate::service::series::delete_series_files(state, &series)
+    } else {
+        delete_book_files(state, book)
+    }
+}
+
 pub fn delete_book_files(state: &AppState, book: &Book) -> komga_db::Result<()> {
     let path = book_path(book);
     if !path.exists() {
@@ -679,44 +685,41 @@ pub fn delete_book_files(state: &AppState, book: &Book) -> komga_db::Result<()> 
         );
         return Ok(());
     }
-    if !is_writable(&path) {
-        tracing::info!(
-            "Cannot delete book file, path is not writable: {}",
-            path.display()
-        );
-        return Ok(());
-    }
 
     let thumbnails: Vec<PathBuf> = ThumbnailBookDao::new(state.db.clone())
         .find_all_by_book_id_and_type(&book.id, ThumbnailType::Sidecar)?
         .into_iter()
         .filter_map(|t| t.url.map(|u| PathBuf::from(url_to_file_path(&u))))
-        .filter(|p| p.exists() && is_writable(p))
+        .filter(|p| p.exists())
         .collect();
 
-    if std::fs::remove_file(&path).is_ok() {
-        tracing::info!("Deleted file: {}", path.display());
-        insert_history(
-            state,
-            HistoricalEventType::BookFileDeleted,
-            Some(&book.id),
-            Some(&book.series_id),
-            "File was deleted by user request",
-            &path,
-        )?;
-    }
+    std::fs::remove_file(&path)
+        .map_err(|e| crate::service::io_error("Cannot delete book file", &path, e))?;
+    tracing::info!("Deleted file: {}", path.display());
+    insert_history(
+        state,
+        HistoricalEventType::BookFileDeleted,
+        Some(&book.id),
+        Some(&book.series_id),
+        "File was deleted by user request",
+        &path,
+    )?;
     for thumbnail in thumbnails {
-        if std::fs::remove_file(&thumbnail).is_ok() {
-            tracing::info!("Deleted file: {}", thumbnail.display());
-        }
+        std::fs::remove_file(&thumbnail)
+            .map_err(|e| crate::service::io_error("Cannot delete thumbnail", &thumbnail, e))?;
+        tracing::info!("Deleted file: {}", thumbnail.display());
     }
 
     if let Some(parent) = path.parent() {
         let is_empty = std::fs::read_dir(parent)
-            .map_err(|e| service_error(e.to_string()))?
+            .map_err(|e| crate::service::io_error("Cannot read series folder", parent, e))?
             .next()
+            .transpose()
+            .map_err(|e| crate::service::io_error("Cannot read series folder", parent, e))?
             .is_none();
-        if is_empty && std::fs::remove_dir(parent).is_ok() {
+        if is_empty {
+            std::fs::remove_dir(parent)
+                .map_err(|e| crate::service::io_error("Cannot delete series folder", parent, e))?;
             tracing::info!("Deleted directory: {}", parent.display());
             insert_history(
                 state,
@@ -2169,5 +2172,32 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM HISTORICAL_EVENT", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn delete_book_files_returns_error_and_keeps_record_when_removal_fails() {
+        let state = test_state();
+        seed_library(&state, "lib1", true);
+        seed_series(&state, "lib1", "s1");
+        let dir = tmpdir();
+        let book_path = dir.join("v01.cbz");
+        std::fs::create_dir(&book_path).unwrap();
+        let book = seed_book(
+            &state,
+            "lib1",
+            "s1",
+            &komga_media::scanner::path_to_url(&book_path),
+            1,
+        );
+
+        let err = delete_book_files(&state, &book).unwrap_err();
+
+        assert!(err.to_string().contains("v01.cbz"), "{err}");
+        assert!(BookDao::new(state.db.clone())
+            .find_by_id(&book.id)
+            .unwrap()
+            .unwrap()
+            .deleted_date
+            .is_none());
     }
 }
