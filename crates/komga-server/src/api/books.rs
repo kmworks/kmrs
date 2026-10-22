@@ -2119,14 +2119,7 @@ async fn delete_book_file(
     Path(book_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     auth.0.require_admin()?;
-    tokio::task::spawn_blocking(move || -> komga_db::Result<()> {
-        let Some(book) = BookDao::new(state.db.clone()).find_by_id(&book_id)? else {
-            return Ok(());
-        };
-        crate::service::book::delete_book_or_series_files(&state, &book)
-    })
-    .await
-    .map_err(|e| ApiError::Internal(e.to_string()))??;
+    state.task_emitter.delete_book(&book_id, HIGHEST_PRIORITY)?;
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -3962,41 +3955,6 @@ mod tests {
     // region M4 write endpoints
 
     #[tokio::test]
-    async fn book_delete_file_returns_io_error() {
-        let state = test_state_with_settings();
-        let db = state.db.clone();
-        seed_library(&db, "l1");
-        seed_series(&db, "s1", "l1");
-        let dir = tempfile::tempdir().unwrap();
-        let book_path = dir.path().join("v01.cbz");
-        std::fs::create_dir(&book_path).unwrap();
-        seed_book(
-            &db,
-            "b1",
-            "s1",
-            "l1",
-            &komga_media::scanner::path_to_url(&book_path),
-        );
-        seed_user(&db, "admin@example.org", "pw", true);
-        let app = test_router(state.clone());
-        let auth = basic("admin@example.org", "pw");
-
-        let (status, _, body) =
-            call(&app, "DELETE", "/api/v1/books/b1/file", Some(&auth), None).await;
-
-        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
-        let body = json(&body);
-        let message = body["message"].as_str().unwrap();
-        assert!(message.contains("v01.cbz"), "{message}");
-        assert!(BookDao::new(state.db.clone())
-            .find_by_id("b1")
-            .unwrap()
-            .unwrap()
-            .deleted_date
-            .is_none());
-    }
-
-    #[tokio::test]
     async fn book_analyze_and_refresh_and_delete_file() {
         let state = test_state_with_settings();
         let db = state.db.clone();
@@ -4054,7 +4012,7 @@ mod tests {
             .iter()
             .map(|t| t.unique_id())
             .collect();
-        assert!(!ids.contains(&"DELETE_BOOK_b1".to_string()), "{ids:?}");
+        assert!(ids.contains(&"DELETE_BOOK_b1".to_string()), "{ids:?}");
 
         // 404s
         let (status, _, _) = call(

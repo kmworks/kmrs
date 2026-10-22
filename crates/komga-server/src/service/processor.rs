@@ -5,7 +5,6 @@
 //! bounded by `task_pool_size`; GROUP_ID exclusion is enforced by the SQL in `take_first`, so
 //! workers never run two tasks of the same group at once.
 
-#[cfg(test)]
 use crate::events::DomainEvent;
 use crate::service::{book, convert, import, library_content, series, TaskNotify};
 use crate::state::AppState;
@@ -134,6 +133,7 @@ async fn process_one(state: &AppState, worker: u32) {
             std::time::Duration::ZERO,
             false,
         );
+        finish_task(state, &task, Some(e.to_string()));
     }
     let unique_id = task.unique_id();
     let deleted = {
@@ -158,10 +158,30 @@ fn handle_task(state: &AppState, task: &Task) {
         start.elapsed(),
         result.is_ok(),
     );
-    if let Err(e) = result {
-        tracing::error!("Task {} execution failed: {e}", task.describe());
-    }
+    let error = match &result {
+        Ok(()) => None,
+        Err(e) => {
+            tracing::error!("Task {} execution failed: {e}", task.describe());
+            Some(e.to_string())
+        }
+    };
     hook_end(&task.unique_id());
+    finish_task(state, task, error);
+}
+
+fn finish_task(state: &AppState, task: &Task, error: Option<String>) {
+    let outcome = crate::service::tasks::TaskOutcome {
+        task_id: task.unique_id(),
+        task_type: task.simple_type(),
+        finished_at: komga_core::time_codec::now_utc(),
+        error,
+    };
+    state.task_emitter.record_outcome(outcome.clone());
+    if matches!(task, Task::DeleteBook(_) | Task::DeleteSeries(_)) {
+        let _ = state
+            .events
+            .send(DomainEvent::FileDeletionCompleted(outcome));
+    }
 }
 
 #[cfg(test)]
@@ -1539,5 +1559,120 @@ mod tests {
         )
         .unwrap();
         assert!(task_ids(&state).is_empty());
+    }
+
+    #[test]
+    fn delete_book_failure_publishes_outcome() {
+        let state = series_tests::test_state();
+        seed_library(&state.db, &test_library("lib-del", "file:/l/"));
+        seed_series(&state.db, "lib-del", "s1");
+        let dir = tempfile::tempdir().unwrap();
+        let book_path = dir.path().join("v01.cbz");
+        std::fs::create_dir(&book_path).unwrap();
+        let book = seed_book(
+            &state.db,
+            "lib-del",
+            "s1",
+            &komga_media::scanner::path_to_url(&book_path),
+        );
+        let task = Task::book(BookTaskKind::DeleteBook, &book.id, DEFAULT_PRIORITY, None);
+        let mut events = state.events.subscribe();
+
+        handle_task(&state, &task);
+
+        let DomainEvent::FileDeletionCompleted(outcome) = events.try_recv().unwrap() else {
+            panic!("expected deletion outcome");
+        };
+        assert_eq!(outcome.task_id, format!("DELETE_BOOK_{}", book.id));
+        assert!(!outcome.is_success());
+        assert!(outcome.error.as_deref().unwrap().contains("v01.cbz"));
+        assert_eq!(
+            state
+                .task_emitter
+                .last_failure("DeleteBook")
+                .unwrap()
+                .task_id,
+            outcome.task_id
+        );
+    }
+
+    #[test]
+    fn delete_series_success_publishes_outcome() {
+        let state = series_tests::test_state();
+        seed_library(&state.db, &test_library("lib-del", "file:/l/"));
+        let dir = tempfile::tempdir().unwrap();
+        let series_dir = dir.path().join("series");
+        std::fs::create_dir(&series_dir).unwrap();
+        seed_series_at(
+            &state.db,
+            "lib-del",
+            "s1",
+            &komga_media::scanner::path_to_url(&series_dir),
+        );
+        let task = Task::series(SeriesTaskKind::DeleteSeries, "s1", DEFAULT_PRIORITY);
+        let mut events = state.events.subscribe();
+
+        handle_task(&state, &task);
+
+        assert!(matches!(
+            events.try_recv(),
+            Ok(DomainEvent::SeriesUpdated(_))
+        ));
+        let DomainEvent::FileDeletionCompleted(outcome) = events.try_recv().unwrap() else {
+            panic!("expected deletion outcome");
+        };
+        assert_eq!(outcome.task_id, "DELETE_SERIES_s1");
+        assert!(outcome.is_success());
+        assert!(outcome.error.is_none());
+        assert!(!series_dir.exists());
+        assert!(state.task_emitter.last_failure("DeleteSeries").is_none());
+    }
+
+    #[tokio::test]
+    async fn queued_delete_series_emits_completion() {
+        let state = series_tests::test_state();
+        seed_library(&state.db, &test_library("lib-del", "file:/l/"));
+        let dir = tempfile::tempdir().unwrap();
+        let series_dir = dir.path().join("series");
+        std::fs::create_dir(&series_dir).unwrap();
+        seed_series_at(
+            &state.db,
+            "lib-del",
+            "s1",
+            &komga_media::scanner::path_to_url(&series_dir),
+        );
+        let notify: TaskNotify = std::sync::Arc::new(tokio::sync::Notify::new());
+        let emitter = crate::service::TaskEmitter::new(
+            state.db.clone(),
+            state.tasks_db.clone(),
+            notify.clone(),
+        );
+        let state = AppState {
+            task_emitter: std::sync::Arc::new(emitter),
+            ..state
+        };
+        let handle = TaskProcessor::start(state.clone(), notify);
+        let mut events = state.events.subscribe();
+
+        state
+            .task_emitter
+            .delete_series("s1", DEFAULT_PRIORITY)
+            .unwrap();
+
+        let outcome = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Ok(DomainEvent::FileDeletionCompleted(outcome)) = events.recv().await {
+                    break outcome;
+                }
+            }
+        })
+        .await
+        .expect("deletion outcome was not emitted");
+        let drained = wait_until(|| queue_empty(&state)).await;
+        handle.abort();
+        assert_eq!(outcome.task_id, "DELETE_SERIES_s1");
+        assert!(outcome.is_success());
+        assert!(!series_dir.exists());
+        assert!(drained);
     }
 }
