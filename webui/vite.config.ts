@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html}'],
+        globPatterns: ['**/*.{js,css,html,woff2}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         importScripts: ['sw-cleanup.js'],
@@ -44,6 +44,7 @@ export default defineConfig(({ mode }) => ({
           /^\/koreader(?:\/|$)/,
           /^\/v3(?:\/|$)/,
           /^\/debug(?:\/|$)/,
+          /^\/login\/oauth2(?:\/|$)/,
         ],
       },
       devOptions: {
