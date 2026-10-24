@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { LibraryFilterMenu } from '@/components/admin/LibraryFilterMenu'
 import { Sentinel } from '@/components/filters/Sentinel'
+import { useBustGeneration } from '@/lib/store/thumbnails'
 
 const STATUSES: MediaStatus[] = ['ERROR', 'UNSUPPORTED']
 
@@ -47,6 +48,7 @@ function StatusBadge({ status }: { status: MediaStatus }) {
 function Row({ book, libraryName }: { book: BookDto; libraryName: string }) {
   const { t } = useTranslation('admin-maintenance')
   const queryClient = useQueryClient()
+  const bustGeneration = useBustGeneration()
   const [feedback, setFeedback] = useState<string | null>(null)
 
   const invalidate = () => {
@@ -67,7 +69,7 @@ function Row({ book, libraryName }: { book: BookDto; libraryName: string }) {
         <div
           aria-hidden
           className="h-14 w-10 rounded-md bg-raised bg-cover bg-center"
-          style={{ backgroundImage: `url(${urls.bookThumbnail(book.id)})` }}
+          style={{ backgroundImage: `url(${urls.bookThumbnail(book.id, bustGeneration)})` }}
         />
       </Link>
       <div className="min-w-0 flex-1">

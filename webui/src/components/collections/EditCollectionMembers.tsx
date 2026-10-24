@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/Switch'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { CoverImage } from '@/components/media/CoverImage'
+import { useBustGeneration } from '@/lib/store/thumbnails'
 
 interface EditCollectionMembersProps {
   collection: CollectionDto
@@ -188,11 +189,12 @@ export function EditCollectionMembers({ collection, onExit }: EditCollectionMemb
 
 function SeriesCell({ series }: { series?: SeriesDto }) {
   const { t } = useTranslation('detail')
+  const bustGeneration = useBustGeneration()
   if (!series) return null
   const title = series.metadata.title || series.name
   return (
     <>
-      <CoverImage src={urls.seriesThumbnail(series.id)} alt={title} className="w-9 shrink-0" />
+      <CoverImage src={urls.seriesThumbnail(series.id, bustGeneration)} alt={title} className="w-9 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-ink">{title}</p>
         <p className="text-xs text-ink-3">{t('bookCount', { count: series.booksCount })}</p>

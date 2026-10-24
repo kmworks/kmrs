@@ -19,6 +19,7 @@ import { Switch } from '@/components/ui/Switch'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { showToast } from '@/lib/store/toast'
+import { useBustGeneration } from '@/lib/store/thumbnails'
 
 const PROVIDERS: KomfOAuthProvider[] = ['anilist', 'bangumi', 'mal', 'mangabaka']
 
@@ -28,6 +29,7 @@ export function TrackersPage() {
   const { t } = useTranslation('trackers')
   useDocumentTitle(t('page.title'))
   const queryClient = useQueryClient()
+  const bustGeneration = useBustGeneration()
   const [searchParams, setSearchParams] = useSearchParams()
   const [deleting, setDeleting] = useState<{
     seriesId: string
@@ -107,7 +109,7 @@ export function TrackersPage() {
         <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
           {links.map((link) => (
             <li key={`${link.seriesId}-${link.provider}`} className="flex items-center gap-3 px-4 py-3">
-              <CoverImage src={urls.seriesThumbnail(link.seriesId)} alt={link.title ?? link.trackId} className="w-11 shrink-0" />
+              <CoverImage src={urls.seriesThumbnail(link.seriesId, bustGeneration)} alt={link.title ?? link.trackId} className="w-11 shrink-0" />
               <div className="min-w-0 flex-1">
                 <Link
                   to={`/series/${link.seriesId}`}

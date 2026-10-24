@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/Switch'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { CoverImage } from '@/components/media/CoverImage'
+import { useBustGeneration } from '@/lib/store/thumbnails'
 
 interface EditReadListBooksProps {
   readlist: ReadListDto
@@ -183,11 +184,12 @@ export function EditReadListBooks({ readlist, onExit }: EditReadListBooksProps) 
 }
 
 function BookCell({ book }: { book?: BookDto }) {
+  const bustGeneration = useBustGeneration()
   if (!book) return null
   const title = book.metadata.title || book.name
   return (
     <>
-      <CoverImage src={urls.bookThumbnail(book.id)} alt={title} className="w-9 shrink-0" />
+      <CoverImage src={urls.bookThumbnail(book.id, bustGeneration)} alt={title} className="w-9 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-ink">{title}</p>
         <p className="truncate text-xs text-ink-3">

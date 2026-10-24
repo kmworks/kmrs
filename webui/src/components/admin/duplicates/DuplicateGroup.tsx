@@ -6,6 +6,7 @@ import { urls } from '@/lib/utils/urls'
 import { formatBytes } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
+import { useBustGeneration } from '@/lib/store/thumbnails'
 
 interface DuplicateGroupProps {
   fileHash: string
@@ -19,11 +20,12 @@ function fileName(url: string): string {
 }
 
 function Cover({ book }: { book: BookDto }) {
+  const bustGeneration = useBustGeneration()
   return (
     <div
       aria-hidden
       className="h-14 w-10 shrink-0 rounded-md bg-raised bg-cover bg-center"
-      style={{ backgroundImage: `url(${urls.bookThumbnail(book.id)})` }}
+      style={{ backgroundImage: `url(${urls.bookThumbnail(book.id, bustGeneration)})` }}
     />
   )
 }
