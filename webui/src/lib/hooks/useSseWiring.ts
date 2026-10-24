@@ -57,7 +57,6 @@ export function useSseWiring() {
   const queryClient = useQueryClient()
   const clear = useAuthStore((s) => s.clear)
   const bump = useThumbnailBust((s) => s.bump)
-  const resetThumbnails = useThumbnailBust((s) => s.reset)
   const setTaskStatus = useTaskQueue((s) => s.setStatus)
   const readerOpen = useMatch('/book/:bookId/read') !== null
 
@@ -114,16 +113,6 @@ export function useSseWiring() {
       )
     }
     offs.push(
-      sse.on('Reset', () => {
-        clearTimeout(timer)
-        timer = undefined
-        pendingKeys.current.clear()
-        pendingThumbs.current.clear()
-        void queryClient.invalidateQueries()
-        resetThumbnails()
-      }),
-    )
-    offs.push(
       sse.on('SessionExpired', () => {
         clear()
         queryClient.clear()
@@ -150,5 +139,5 @@ export function useSseWiring() {
       clearTimeout(timer)
       offs.forEach((off) => off())
     }
-  }, [status, queryClient, clear, bump, resetThumbnails, setTaskStatus, readerOpen, t])
+  }, [status, queryClient, clear, bump, setTaskStatus, readerOpen, t])
 }

@@ -96,7 +96,6 @@ pub struct RecordedEvent {
 pub enum Resume {
     Live,
     Replay(Vec<RecordedEvent>),
-    Reset(String),
 }
 
 pub struct DomainReceiver(tokio::sync::broadcast::Receiver<RecordedEvent>);
@@ -112,9 +111,9 @@ impl DomainReceiver {
 }
 
 /// Process-wide event bus. Broadcast receivers skip ahead when they lag, which the
-/// webhook consumers and one-shot event waiters tolerate. SSE resumes from the bounded
-/// history when continuity can be proven and resets otherwise. Consumers that must not
-/// miss events (the search indexer, reading stats, tracker sync) register a `tap`: an
+/// webhook consumers and one-shot event waiters tolerate. SSE replays from the bounded
+/// history when continuity can be proven and starts live otherwise. Consumers that must
+/// not miss events (the search indexer, reading stats, tracker sync) register a `tap`: an
 /// unbounded queue fed on every publish — unbounded because publishers are synchronous
 /// code that cannot await backpressure.
 #[derive(Clone)]
@@ -133,10 +132,6 @@ struct EventHistory {
 impl EventHistory {
     fn id(&self, sequence: u64) -> String {
         format!("{}:{sequence}", self.boot_id)
-    }
-
-    fn latest_id(&self) -> String {
-        self.id(self.latest_sequence)
     }
 
     fn sequence(&self, id: &str) -> Option<u64> {
@@ -167,10 +162,10 @@ impl EventHistory {
             return Resume::Live;
         };
         let Some(sequence) = self.sequence(last_event_id) else {
-            return Resume::Reset(self.latest_id());
+            return Resume::Live;
         };
         if sequence > self.latest_sequence {
-            return Resume::Reset(self.latest_id());
+            return Resume::Live;
         }
         if sequence == self.latest_sequence {
             return Resume::Replay(Vec::new());
@@ -180,7 +175,7 @@ impl EventHistory {
             .front()
             .is_some_and(|oldest| sequence >= oldest.sequence.saturating_sub(1));
         if !continuous {
-            return Resume::Reset(self.latest_id());
+            return Resume::Live;
         }
         Resume::Replay(
             self.events
@@ -300,13 +295,6 @@ mod tests {
         }
     }
 
-    fn expect_reset(resume: Resume) -> String {
-        match resume {
-            Resume::Reset(id) => id,
-            other => panic!("expected reset, got {other:?}"),
-        }
-    }
-
     #[tokio::test]
     async fn replay_includes_events_published_without_receivers() {
         let bus = event_bus();
@@ -330,7 +318,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unusable_cursor_resets_to_latest() {
+    async fn unusable_cursor_starts_live() {
         let bus = event_bus();
         let (mut initial, resume) = bus.subscribe_with_replay(None);
         assert!(matches!(resume, Resume::Live));
@@ -342,14 +330,14 @@ mod tests {
 
         for invalid in ["not-an-event-id", future.as_str()] {
             let (_receiver, resume) = bus.subscribe_with_replay(Some(invalid));
-            assert_eq!(expect_reset(resume), first.id);
+            assert!(matches!(resume, Resume::Live));
         }
         let (_receiver, resume) = bus.subscribe_with_replay(Some(&first.id));
         assert!(expect_replay(resume).is_empty());
     }
 
     #[tokio::test]
-    async fn foreign_boot_id_resets_to_empty_history_cursor() {
+    async fn foreign_boot_id_starts_live() {
         let previous = event_bus();
         let (mut initial, resume) = previous.subscribe_with_replay(None);
         assert!(matches!(resume, Resume::Live));
@@ -359,14 +347,11 @@ mod tests {
 
         let current = event_bus();
         let (_receiver, resume) = current.subscribe_with_replay(Some(&previous_id));
-        let reset_id = expect_reset(resume);
-        assert_ne!(reset_id, previous_id);
-        let (_receiver, resume) = current.subscribe_with_replay(Some(&reset_id));
-        assert!(expect_replay(resume).is_empty());
+        assert!(matches!(resume, Resume::Live));
     }
 
     #[tokio::test]
-    async fn expired_cursor_resets_only_when_history_is_discontinuous() {
+    async fn expired_cursor_starts_live_only_when_history_is_discontinuous() {
         let bus = event_bus();
         let (mut initial, resume) = bus.subscribe_with_replay(None);
         assert!(matches!(resume, Resume::Live));
@@ -390,9 +375,7 @@ mod tests {
 
         let _ = bus.send(event(EVENT_HISTORY_CAPACITY + 2));
         let (_receiver, resume) = bus.subscribe_with_replay(Some(&first.id));
-        let reset_id = expect_reset(resume);
-        let (_receiver, resume) = bus.subscribe_with_replay(Some(&reset_id));
-        assert!(expect_replay(resume).is_empty());
+        assert!(matches!(resume, Resume::Live));
     }
 
     #[tokio::test]

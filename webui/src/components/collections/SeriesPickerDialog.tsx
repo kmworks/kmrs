@@ -13,7 +13,6 @@ import { CardSkeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { CoverImage } from '@/components/media/CoverImage'
 import { Sentinel } from '@/components/filters/Sentinel'
-import { useBustGeneration } from '@/lib/store/thumbnails'
 
 interface SeriesPickerDialogProps {
   open: boolean
@@ -42,7 +41,6 @@ export function SeriesPickerDialog({
   error,
 }: SeriesPickerDialogProps) {
   const { t } = useTranslation('detail')
-  const bustGeneration = useBustGeneration()
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Map<string, SeriesDto>>(new Map())
@@ -170,7 +168,7 @@ export function SeriesPickerDialog({
                         isSelected && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
                       )}
                     >
-                      <CoverImage src={urls.seriesThumbnail(s.id, bustGeneration)} alt={label} />
+                      <CoverImage src={urls.seriesThumbnail(s.id)} alt={label} />
                       {isSelected && (
                         <span className="absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-accent text-accent-ink">
                           <Check className="size-3.5" weight="bold" />

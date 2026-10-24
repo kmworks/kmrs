@@ -127,16 +127,6 @@ async fn sse_events(
                     }
                 }
             }
-            crate::events::Resume::Reset(id) => {
-                let wire = Wire::Event {
-                    id,
-                    name: "Reset",
-                    data: "{}".into(),
-                };
-                if tx.send(wire).await.is_err() {
-                    return;
-                }
-            }
         }
 
         let mut heartbeat = tokio::time::interval(intervals.heartbeat);
@@ -856,7 +846,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reset_replaces_unavailable_replay() {
+    async fn incomplete_history_is_not_replayed() {
         let state = test_state();
         let user_id = insert_user(&state.db, "admin@komga.org", true);
         insert_api_key(&state.db, &user_id, "key1");
@@ -889,8 +879,8 @@ mod tests {
         )
         .await;
         assert!(
-            acc.contains("event:Reset\ndata:{}"),
-            "missing reset: {acc:?}"
+            !acc.contains("event:Reset"),
+            "unexpected custom event: {acc:?}"
         );
         assert!(
             !acc.contains("offline-"),
@@ -902,8 +892,8 @@ mod tests {
             "unexpected replay: {acc:?}"
         );
 
-        let reset_id = event_id(&acc, "Reset");
-        let mut resumed_again = connect_with_last_event_id(&state, "key1", &reset_id).await;
+        let live_id = event_id(&acc, "SeriesAdded");
+        let mut resumed_again = connect_with_last_event_id(&state, "key1", &live_id).await;
         state
             .events
             .send(DomainEvent::SeriesAdded(sample_series("after", "l1")))
@@ -916,11 +906,12 @@ mod tests {
         .await;
         assert!(
             acc.contains("\"seriesId\":\"after\""),
-            "live event after reset was lost: {acc:?}"
+            "live event after incomplete resume was lost: {acc:?}"
         );
-        assert!(
-            !acc.contains("event:Reset"),
-            "reset cursor did not advance: {acc:?}"
+        assert_eq!(
+            acc.matches("event:SeriesAdded").count(),
+            1,
+            "duplicate event: {acc:?}"
         );
     }
 
@@ -1004,7 +995,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn non_utf8_last_event_id_resets() {
+    async fn non_utf8_last_event_id_starts_live() {
         let state = test_state();
         let user_id = insert_user(&state.db, "admin@komga.org", true);
         insert_api_key(&state.db, &user_id, "key1");
@@ -1019,15 +1010,19 @@ mod tests {
         let response = test_app(&state).oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        let acc = read_until(
-            &mut response.into_body(),
-            "event:Reset",
-            Duration::from_secs(2),
-        )
-        .await;
+        let mut body = response.into_body();
+        state
+            .events
+            .send(DomainEvent::SeriesAdded(sample_series("live", "l1")))
+            .unwrap();
+        let acc = read_until(&mut body, "\"seriesId\":\"live\"", Duration::from_secs(2)).await;
         assert!(
-            acc.contains("event:Reset\ndata:{}"),
-            "missing reset: {acc:?}"
+            !acc.contains("event:Reset"),
+            "unexpected custom event: {acc:?}"
+        );
+        assert!(
+            acc.contains("\"seriesId\":\"live\""),
+            "live event was lost: {acc:?}"
         );
     }
 

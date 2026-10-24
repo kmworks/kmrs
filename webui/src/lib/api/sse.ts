@@ -36,7 +36,6 @@ export const SSE_EVENTS = [
   'SessionExpired',
   'TaskQueueStatus',
   'FileDeletionCompleted',
-  'Reset',
 ] as const
 
 export type SseEventName = (typeof SSE_EVENTS)[number]
