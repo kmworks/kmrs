@@ -14,6 +14,7 @@ import {
   ClockCounterClockwise,
   Copy,
   Database,
+  FileArrowDown,
   FileMagnifyingGlass,
   ChartLineUp,
   Funnel,
@@ -268,7 +269,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               {t('nav.administration')}
             </div>
             <NavGroup icon={<TrayArrowDown />} label={t('nav.import')} match={['/import']}>
-              <NavItem to="/import/books" icon={<TrayArrowDown />} onClick={onNavigate}>
+              <NavItem to="/import/books" icon={<FileArrowDown />} onClick={onNavigate}>
                 {t('nav.importBooks')}
               </NavItem>
               <NavItem to="/import/readlist" icon={<Playlist />} onClick={onNavigate}>
