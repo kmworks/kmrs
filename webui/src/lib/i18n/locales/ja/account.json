@@ -43,7 +43,9 @@
       "current": "現在の",
       "signOut": "サインアウト",
       "signOutFailed": "セッションをサインアウトできませんでした。",
-      "showAll_other": "{{count}} 件のセッションをすべて表示"
+      "page": "{{current}} / {{total}} ページ",
+      "previous": "前へ",
+      "next": "次へ"
     },
     "activity": {
       "title": "ログイン履歴",

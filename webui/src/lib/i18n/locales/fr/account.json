@@ -45,9 +45,9 @@
       "current": "Actuelle",
       "signOut": "Déconnexion",
       "signOutFailed": "Impossible de déconnecter la session.",
-      "showAll_one": "Afficher toutes les sessions ({{count}})",
-      "showAll_many": "Afficher toutes les sessions ({{count}})",
-      "showAll_other": "Afficher toutes les sessions ({{count}})"
+      "page": "Page {{current}} sur {{total}}",
+      "previous": "Précédent",
+      "next": "Suivant"
     },
     "activity": {
       "title": "Activité de connexion",

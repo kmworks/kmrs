@@ -43,7 +43,9 @@
       "current": "目前",
       "signOut": "登出",
       "signOutFailed": "無法將該工作階段登出。",
-      "showAll_other": "顯示全部 {{count}} 個工作階段"
+      "page": "第 {{current}} 頁，共 {{total}} 頁",
+      "previous": "上一頁",
+      "next": "下一頁"
     },
     "activity": {
       "title": "登入活動",

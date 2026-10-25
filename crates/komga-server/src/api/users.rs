@@ -422,10 +422,26 @@ fn session_instant(millis: u64) -> String {
     )
 }
 
+/// The session store only reads in full, so sorting and paging happen in memory.
+fn page_of_sorted<T: Serialize>(items: Vec<T>, pageable: &Pageable) -> Page<T> {
+    let total = items.len() as u64;
+    let content = if pageable.unpaged {
+        items
+    } else {
+        items
+            .into_iter()
+            .skip(pageable.offset().min(total) as usize)
+            .take(pageable.size as usize)
+            .collect()
+    };
+    Page::of(content, total, pageable)
+}
+
 async fn my_sessions(
     State(state): State<AppState>,
     auth: RequireAuth,
-) -> Result<Json<Vec<MySessionDto>>, ApiError> {
+    query: QueryPageable,
+) -> Result<Json<Page<MySessionDto>>, ApiError> {
     let current = auth.0.session_id.as_deref();
     let mut sessions: Vec<MySessionDto> = state
         .sessions
@@ -440,7 +456,7 @@ async fn my_sessions(
         })
         .collect();
     sessions.sort_by(|a, b| b.last_accessed_time.cmp(&a.last_accessed_time));
-    Ok(Json(sessions))
+    Ok(Json(page_of_sorted(sessions, &query.pageable)))
 }
 
 async fn delete_my_session(
@@ -461,7 +477,8 @@ async fn delete_my_session(
 async fn sessions(
     State(state): State<AppState>,
     auth: RequireAuth,
-) -> Result<Json<Vec<UserSessionDto>>, ApiError> {
+    query: QueryPageable,
+) -> Result<Json<Page<UserSessionDto>>, ApiError> {
     auth.0.require_admin()?;
     let emails: std::collections::HashMap<String, String> = user_dao(&state)
         .find_all()?
@@ -481,7 +498,7 @@ async fn sessions(
         })
         .collect();
     sessions.sort_by(|a, b| b.last_accessed_time.cmp(&a.last_accessed_time));
-    Ok(Json(sessions))
+    Ok(Json(page_of_sorted(sessions, &query.pageable)))
 }
 
 async fn delete_session(
@@ -1163,8 +1180,9 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let body = json_body(response).await;
-        let sessions = body.as_array().unwrap();
+        let sessions = body["content"].as_array().unwrap();
         assert_eq!(sessions.len(), 2);
+        assert_eq!(body["totalElements"], 2);
         for session in sessions {
             assert!(session["creationTime"].as_str().unwrap().ends_with('Z'));
             assert_eq!(
@@ -1173,6 +1191,24 @@ mod tests {
             );
         }
         assert!(!sessions.iter().any(|s| s["id"] == admins));
+
+        // page params slice the sorted list
+        let body = json_body(
+            test_router(state.clone())
+                .oneshot(session_request(
+                    "GET",
+                    "/api/v2/users/me/sessions?page=1&size=1",
+                    &current,
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(body["content"].as_array().unwrap().len(), 1);
+        assert_eq!(body["totalElements"], 2);
+        assert_eq!(body["totalPages"], 2);
+        assert_eq!(body["number"], 1);
+        assert_eq!(body["last"], true);
 
         // someone else's session reads as missing
         let status = test_router(state.clone())
@@ -1207,7 +1243,7 @@ mod tests {
                 .unwrap(),
         )
         .await;
-        assert_eq!(body.as_array().unwrap().len(), 1);
+        assert_eq!(body["content"].as_array().unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -1253,8 +1289,9 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let body = json_body(response).await;
-        let sessions = body.as_array().unwrap();
+        let sessions = body["content"].as_array().unwrap();
         assert_eq!(sessions.len(), 2);
+        assert_eq!(body["totalElements"], 2);
         let row = sessions.iter().find(|s| s["id"] == user_session).unwrap();
         assert_eq!(row["userId"], user_id);
         assert_eq!(row["email"], "user@t.c");
@@ -1276,7 +1313,7 @@ mod tests {
                 .unwrap(),
         )
         .await;
-        assert!(body
+        assert!(body["content"]
             .as_array()
             .unwrap()
             .iter()

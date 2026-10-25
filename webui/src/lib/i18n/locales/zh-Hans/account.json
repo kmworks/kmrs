@@ -43,7 +43,9 @@
       "current": "当前",
       "signOut": "退出",
       "signOutFailed": "无法将该会话退出。",
-      "showAll_other": "显示全部 {{count}} 个会话"
+      "page": "第 {{current}} / {{total}} 页",
+      "previous": "上一页",
+      "next": "下一页"
     },
     "activity": {
       "title": "登录活动",

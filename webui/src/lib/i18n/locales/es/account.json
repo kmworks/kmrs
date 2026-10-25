@@ -45,9 +45,9 @@
       "current": "Actual",
       "signOut": "Cerrar sesión",
       "signOutFailed": "No se pudo cerrar la sesión.",
-      "showAll_one": "Mostrar {{count}} sesión",
-      "showAll_many": "Mostrar las {{count}} sesiones",
-      "showAll_other": "Mostrar las {{count}} sesiones"
+      "page": "Página {{current}} de {{total}}",
+      "previous": "Anterior",
+      "next": "Siguiente"
     },
     "activity": {
       "title": "Actividad de inicio de sesión",

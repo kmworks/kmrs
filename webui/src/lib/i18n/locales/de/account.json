@@ -44,8 +44,9 @@
       "current": "Aktuell",
       "signOut": "Abmelden",
       "signOutFailed": "Die Sitzung konnte nicht abgemeldet werden.",
-      "showAll_one": "{{count}} Sitzung anzeigen",
-      "showAll_other": "Alle {{count}} Sitzungen anzeigen"
+      "page": "Seite {{current}} von {{total}}",
+      "previous": "Zurück",
+      "next": "Weiter"
     },
     "activity": {
       "title": "Anmeldeaktivität",
