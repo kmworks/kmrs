@@ -32,7 +32,7 @@ ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 LABEL org.opencontainers.image.source="https://github.com/kmworks/kmrs" \
-      org.opencontainers.image.description="Full-featured Komga drop-in replacement in Rust, with bundled web UI and additional capabilities" \
+      org.opencontainers.image.description="Full-featured Komga drop-in replacement in Rust, with bundled web UI, additional capabilities, and a small footprint" \
       org.opencontainers.image.licenses="MIT"
 # Drop-in replacement for gotson/komga: same port, same /config and /data
 # mounts, same KOMGA_* env vars.

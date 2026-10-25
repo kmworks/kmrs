@@ -7,7 +7,7 @@
 
 **[Documentation](https://kmworks.date/server/)** · [Installation](https://kmworks.date/server/installation) · [Configuration](https://kmworks.date/server/configuration)
 
-A full-featured drop-in replacement for [Komga](https://komga.org) in Rust — same library formats, API, and database, plus additional capabilities. It supports CBZ, CBR, PDF, and EPUB, with a bundled web UI in a single static binary.
+A full-featured drop-in replacement for [Komga](https://komga.org) in Rust — same library formats, API, and database, plus additional capabilities. It supports CBZ, CBR, PDF, and EPUB, with a bundled web UI in a single static binary — no JVM and a small memory footprint.
 
 *kmrs: Keep Manga Reading Simple.*
 
@@ -16,6 +16,7 @@ A full-featured drop-in replacement for [Komga](https://komga.org) in Rust — s
 - **Library formats**: CBZ/ZIP, CBR/RAR, PDF, and EPUB — scanning, metadata extraction, thumbnails, and Komga-compatible page/resource serving (PDF rendering uses libpdfium)
 - **API parity**: REST `/api/**`, OPDS v1.2/v2, SSE, Kobo sync, and KOReader progress sync — endpoints, DTOs, pagination, error shapes, and authentication behavior match the Java version
 - **Verified against the Java version**: byte-for-byte Flyway migrations, a differential test harness comparing ~105 endpoints against a live Java instance, and schema contract tests
+- **Efficient by design**: no JVM, bounded memory, and container caches that avoid reopening books for every page
 - **Beyond Komga**: smart lists, reading trackers, CJK cross-search, outbound webhooks, reading statistics, and [more](https://kmworks.date/server/enhancements)
 
 ## Quick start
