@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowSquareOut, SignOut } from '@phosphor-icons/react'
+import { ArrowSquareOut, Plus, SignOut, X } from '@phosphor-icons/react'
 import { trackerLinkKeys, trackersApi } from '@/lib/api/trackers'
 import type { KomfOAuthProvider } from '@/lib/api/types'
 import { librariesApi } from '@/lib/api/libraries'
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
-import { Switch } from '@/components/ui/Switch'
+import { Menu, MenuItem } from '@/components/ui/Menu'
 import { TrackerLogo } from '@/components/trackers/TrackerLogo'
 import { TrackerBindings } from '@/components/trackers/TrackerBindings'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
@@ -108,40 +108,61 @@ function VisibilitySection() {
     onError: (e) => showToast(e instanceof Error ? e.message : t('toast.visibilityFailed')),
   })
   const selected = new Set(prefsQuery.data?.libraries ?? [])
-  const allIds = (librariesQuery.data ?? []).map((l) => l.id)
-  const handleChange = (libraryId: string, nextChecked: boolean) => {
-    // the PUT replaces the whole preferences object, so toggling before the
+  const libraries = librariesQuery.data ?? []
+  const selectedLibraries = libraries.filter((library) => selected.has(library.id))
+  const availableLibraries = libraries.filter((library) => !selected.has(library.id))
+  const saveLibraries = (libraries: string[]) => {
+    // the PUT replaces the whole preferences object, so saving before the
     // current values load would reset defaultTracker to empty
     if (!prefsQuery.data) return
-    // empty list = unrestricted; the first explicit toggle materializes the
-    // restriction list (turning one library off excludes just that one)
-    const next =
-      selected.size === 0
-        ? nextChecked
-          ? allIds
-          : allIds.filter((id) => id !== libraryId)
-        : nextChecked
-          ? [...selected, libraryId]
-          : [...selected].filter((id) => id !== libraryId)
-    saveMutation.mutate(next)
+    saveMutation.mutate(libraries)
   }
   return (
     <section className="mt-8">
       <h2 className="mb-1 font-display text-lg font-semibold text-ink">{t('page.visibilityHeading')}</h2>
       <p className="mb-3 text-xs text-ink-3">{t('page.visibilityHint')}</p>
-      <ul className="flex flex-wrap gap-2">
-        {(librariesQuery.data ?? []).map((library) => (
-          <li key={library.id} className="flex items-center gap-2.5 rounded-lg border border-line bg-surface px-3 py-2">
-            <span className="max-w-40 truncate text-sm text-ink">{library.name}</span>
-            <Switch
-              checked={selected.size === 0 || selected.has(library.id)}
-              onCheckedChange={(on) => handleChange(library.id, on)}
-              disabled={saveMutation.isPending || !prefsQuery.data}
-              label={library.name}
-            />
-          </li>
-        ))}
-      </ul>
+      {prefsQuery.data && (
+        <ul className="flex flex-wrap items-center gap-2">
+          {selectedLibraries.length === 0 ? (
+            <li className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-3">
+              {t('page.allLibraries')}
+            </li>
+          ) : (
+            selectedLibraries.map((library) => (
+              <li key={library.id} className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2">
+                <span className="max-w-40 truncate text-sm text-ink">{library.name}</span>
+                <IconButton
+                  label={t('page.removeLibrary', { library: library.name })}
+                  className="-mr-1 size-6 text-ink-3"
+                  disabled={saveMutation.isPending}
+                  onClick={() => saveLibraries(selectedLibraries.filter((item) => item.id !== library.id).map((item) => item.id))}
+                >
+                  <X className="size-3.5" />
+                </IconButton>
+              </li>
+            ))
+          )}
+          {availableLibraries.length > 0 && (
+            <li>
+              <Menu
+                align="start"
+                trigger={
+                  <Button size="sm" disabled={saveMutation.isPending}>
+                    <Plus className="size-4" />
+                    {t('page.addLibrary')}
+                  </Button>
+                }
+              >
+                {availableLibraries.map((library) => (
+                  <MenuItem key={library.id} onSelect={() => saveLibraries([...selected, library.id])}>
+                    <span className="max-w-60 truncate">{library.name}</span>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </li>
+          )}
+        </ul>
+      )}
     </section>
   )
 }

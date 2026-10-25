@@ -435,12 +435,15 @@ function EditDialogForm({
         />
         <div className="border-t border-line pt-4">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="text-[13px] font-medium text-ink-2">{t('editDialog.remoteHeading')}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="shrink-0 text-[13px] font-medium text-ink-2">{t('editDialog.remoteHeading')}</p>
+              <span className="truncate font-mono text-xs text-ink-3">#{link.trackId}</span>
+            </div>
             <a
               href={trackerEntryUrl(link.provider, link.trackId)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-ink-3 transition-colors hover:bg-raised hover:text-accent-strong"
+              className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-ink-3 transition-colors hover:bg-raised hover:text-accent-strong"
             >
               {t('editDialog.openRemote')}
               <ArrowSquareOut className="size-3.5" />

@@ -100,7 +100,7 @@ impl OAuthApp {
                 client_secret: env_value(option_env!("KMRS_OAUTH_MANGABAKA_CLIENT_SECRET")),
                 authorize_url: "https://mangabaka.org/auth/oauth2/authorize".into(),
                 token_url: "https://mangabaka.org/auth/oauth2/token".into(),
-                userinfo_url: "https://mangabaka.org/auth/oauth2/userinfo".into(),
+                userinfo_url: "https://api.mangabaka.org/v1/my/profile".into(),
                 pkce: PkceMethod::S256,
                 scope: Some("library.read library.write profile offline_access openid"),
                 refresh_with_redirect: true,
@@ -292,7 +292,11 @@ impl OAuthManager {
         user_id: &str,
     ) -> Result<OAuthStatus, TrackerError> {
         let status = self.status(provider, user_id)?;
-        if !status.logged_in || status.username.is_some() {
+        if !status.logged_in {
+            return Ok(status);
+        }
+        // MangaBaka display names are profile data, not stable login handles.
+        if provider != Provider::Mangabaka && status.username.is_some() {
             return Ok(status);
         }
         let Some(access_token) = self.access_token(provider, user_id).await? else {
@@ -465,12 +469,9 @@ impl OAuthManager {
                 .get("username")
                 .and_then(|value| value.as_str())
                 .map(str::to_string),
-            Provider::Mangabaka => value
-                .get("preferred_username")
-                .or_else(|| value.get("nickname"))
-                .or_else(|| value.get("name"))
-                .or_else(|| value.get("username"))
-                .and_then(|value| value.as_str())
+            Provider::Mangabaka => ["/data/nickname", "/data/preferred_username"]
+                .into_iter()
+                .find_map(|pointer| value.pointer(pointer).and_then(|value| value.as_str()))
                 .map(str::to_string),
         }
     }
@@ -907,7 +908,7 @@ mod tests {
                     "bangumi-user",
                 ),
                 Provider::Mangabaka => (
-                    serde_json::json!({"preferred_username": "mangabaka-user"}),
+                    serde_json::json!({"data": {"nickname": "mangabaka-user"}}),
                     "mangabaka-user",
                 ),
             };
@@ -994,8 +995,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mangabaka_userinfo_accepts_username_claim() {
-        let mock = MockOAuth::new(serde_json::json!({"username": "mangabaka-user"}));
+    async fn mangabaka_profile_prefers_nickname() {
+        assert_eq!(
+            OAuthApp::for_provider(Provider::Mangabaka).userinfo_url,
+            "https://api.mangabaka.org/v1/my/profile"
+        );
+        let mock = MockOAuth::new(serde_json::json!({
+            "data": {"nickname": "MangaBaka Display", "preferred_username": "mangabaka-user"}
+        }));
+        let base_url = serve(mock).await;
+        let (manager, _) = test_manager(vec![test_app(Provider::Mangabaka, &base_url)]);
+
+        assert_eq!(
+            manager
+                .fetch_username(Provider::Mangabaka, "access")
+                .await
+                .as_deref(),
+            Some("MangaBaka Display")
+        );
+    }
+
+    #[tokio::test]
+    async fn mangabaka_profile_falls_back_to_username() {
+        let mock = MockOAuth::new(serde_json::json!({
+            "data": {"nickname": null, "preferred_username": "mangabaka-user"}
+        }));
         let base_url = serve(mock).await;
         let (manager, _) = test_manager(vec![test_app(Provider::Mangabaka, &base_url)]);
 
@@ -1006,6 +1030,34 @@ mod tests {
                 .as_deref(),
             Some("mangabaka-user")
         );
+    }
+
+    #[tokio::test]
+    async fn mangabaka_status_refreshes_existing_display_name() {
+        let mock = MockOAuth::new(serde_json::json!({
+            "data": {"nickname": "MangaBaka Display", "preferred_username": "mangabaka-user"}
+        }));
+        let base_url = serve(mock.clone()).await;
+        let (manager, dao) = test_manager(vec![test_app(Provider::Mangabaka, &base_url)]);
+        dao.upsert_token(
+            "mangabaka",
+            "alice",
+            &TrackerOAuthToken {
+                access_token: "access".into(),
+                refresh_token: None,
+                token_type: Some("Bearer".into()),
+                expires_at: None,
+                username: Some("mangabaka-user".into()),
+            },
+        )
+        .unwrap();
+
+        let status = manager
+            .status_with_backfill(Provider::Mangabaka, "alice")
+            .await
+            .unwrap();
+        assert_eq!(status.username.as_deref(), Some("MangaBaka Display"));
+        assert_eq!(mock.requests().len(), 1);
     }
 
     #[tokio::test]

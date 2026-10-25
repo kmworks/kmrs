@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, ArrowRight, ArrowSquareOut, ChartLineUp, Trash } from '@phosphor-icons/react'
-import { trackerEntryUrl } from '@/lib/api/trackers'
+import { ArrowLeft, ArrowRight, ChartLineUp, Trash } from '@phosphor-icons/react'
 import type { KomfOAuthProvider, TrackerLink } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
 import { Button } from '@/components/ui/Button'
@@ -16,6 +15,15 @@ const PROVIDERS: KomfOAuthProvider[] = ['anilist', 'bangumi', 'mal', 'mangabaka'
 const PAGE_SIZE = 20
 
 type ProviderFilter = KomfOAuthProvider | 'all'
+
+function filterLabel(label: string, count: number) {
+  return (
+    <span className="inline-flex items-baseline gap-1">
+      <span>{label}</span>
+      <span className="text-[10px] font-normal text-ink-3">{count}</span>
+    </span>
+  )
+}
 
 export function TrackerBindings({
   links,
@@ -65,13 +73,13 @@ export function TrackerBindings({
               setPage(0)
             }}
             options={[
-              { value: 'all', label: t('page.filterAll', { count: groups.length }) },
+              { value: 'all', label: filterLabel(t('page.filterAll'), groups.length) },
               ...PROVIDERS.map((provider) => ({
                 value: provider,
-                label: t('page.providerCount', {
-                  provider: t(`provider.${provider}`),
-                  count: links.filter((link) => link.provider === provider).length,
-                }),
+                label: filterLabel(
+                  t(`provider.${provider}`),
+                  links.filter((link) => link.provider === provider).length,
+                ),
                 icon: <TrackerLogo provider={provider} className="size-3.5" />,
               })),
             ]}
@@ -84,9 +92,9 @@ export function TrackerBindings({
                 const first = group[0]
                 const title = first.title || `#${first.trackId}`
                 return (
-                  <li key={first.seriesId} className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center">
-                    <div className="flex min-w-0 items-center gap-3 lg:flex-1">
-                      <CoverImage src={urls.seriesThumbnail(first.seriesId)} alt={title} className="w-11 shrink-0" />
+                  <li key={first.seriesId} className="flex flex-col gap-2 px-4 py-2 lg:flex-row lg:items-center lg:gap-4">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                      <CoverImage src={urls.seriesThumbnail(first.seriesId)} alt={title} className="w-9 shrink-0" />
                       <Link
                         to={`/series/${first.seriesId}`}
                         className="truncate text-sm font-medium text-ink transition-colors hover:text-accent-strong"
@@ -94,26 +102,20 @@ export function TrackerBindings({
                         {title}
                       </Link>
                     </div>
-                    <div className="flex flex-wrap gap-2 lg:max-w-2/3 lg:justify-end">
+                    <div className="flex flex-wrap gap-1.5 lg:justify-end">
                       {group.map((link) => (
-                        <div key={link.provider} className="flex items-center gap-1.5 rounded-lg bg-raised px-2 py-1 text-xs">
-                          <TrackerLogo provider={link.provider} className="size-3.5" />
-                          <span className="font-medium text-ink-2">{t(`provider.${link.provider}`)}</span>
-                          <a
-                            href={trackerEntryUrl(link.provider, link.trackId)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-0.5 font-mono text-ink-3 transition-colors hover:text-accent-strong"
-                          >
-                            #{link.trackId}
-                            <ArrowSquareOut className="size-3" />
-                          </a>
-                          <span className="text-ink-3">{t(`mode.${link.trackMode}`)}</span>
+                        <div
+                          key={link.provider}
+                          className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-line bg-raised px-2 text-xs"
+                        >
+                          <TrackerLogo provider={link.provider} className="size-3.5 shrink-0" />
+                          <span className="truncate font-medium text-ink-2">{t(`provider.${link.provider}`)}</span>
+                          <span className="shrink-0 text-ink-3">{t(`mode.${link.trackMode}`)}</span>
                           {link.chapterOffset !== 0 && (
-                            <span className="text-ink-3">{t('page.offset', { offset: link.chapterOffset })}</span>
+                            <span className="shrink-0 text-ink-3">{t('page.offset', { offset: link.chapterOffset })}</span>
                           )}
                           <Tooltip content={t('row.unlink')}>
-                            <IconButton label={t('row.unlink')} className="size-6" onClick={() => onUnlink(link)}>
+                            <IconButton label={t('row.unlink')} className="-mr-1 size-6 shrink-0" onClick={() => onUnlink(link)}>
                               <Trash className="size-3.5" />
                             </IconButton>
                           </Tooltip>
