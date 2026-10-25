@@ -387,7 +387,13 @@ export function SeriesDetailPage() {
         </HorizontalRow>
       )}
 
-      <TrackerSection seriesId={series.id} seriesTitle={title} libraryId={series.libraryId} metadataLinks={md.links} />
+      <TrackerSection
+        seriesId={series.id}
+        seriesTitle={title}
+        alternateTitles={md.alternateTitles.map((t) => t.title)}
+        libraryId={series.libraryId}
+        metadataLinks={md.links}
+      />
 
       <section className="mt-10">
         <h2 className="mb-4 font-display text-xl font-semibold text-ink">{t('booksHeading')}</h2>

@@ -286,6 +286,26 @@ impl OAuthManager {
         })
     }
 
+    pub async fn status_with_backfill(
+        &self,
+        provider: Provider,
+        user_id: &str,
+    ) -> Result<OAuthStatus, TrackerError> {
+        let status = self.status(provider, user_id)?;
+        if !status.logged_in || status.username.is_some() {
+            return Ok(status);
+        }
+        let Some(access_token) = self.access_token(provider, user_id).await? else {
+            return self.status(provider, user_id);
+        };
+        let Some(username) = self.fetch_username(provider, &access_token).await else {
+            return self.status(provider, user_id);
+        };
+        self.dao
+            .update_username(provider.as_str(), user_id, &username)?;
+        self.status(provider, user_id)
+    }
+
     pub fn logout(&self, provider: Provider, user_id: &str) -> Result<(), TrackerError> {
         self.dao.delete_token(provider.as_str(), user_id)?;
         self.dao
@@ -449,6 +469,7 @@ impl OAuthManager {
                 .get("preferred_username")
                 .or_else(|| value.get("nickname"))
                 .or_else(|| value.get("name"))
+                .or_else(|| value.get("username"))
                 .and_then(|value| value.as_str())
                 .map(str::to_string),
         }
@@ -970,6 +991,21 @@ mod tests {
             assert!(!manager.has_pending(provider, second_nonce).unwrap());
             assert_eq!(manager.access_token(provider, "alice").await.unwrap(), None);
         }
+    }
+
+    #[tokio::test]
+    async fn mangabaka_userinfo_accepts_username_claim() {
+        let mock = MockOAuth::new(serde_json::json!({"username": "mangabaka-user"}));
+        let base_url = serve(mock).await;
+        let (manager, _) = test_manager(vec![test_app(Provider::Mangabaka, &base_url)]);
+
+        assert_eq!(
+            manager
+                .fetch_username(Provider::Mangabaka, "access")
+                .await
+                .as_deref(),
+            Some("mangabaka-user")
+        );
     }
 
     #[tokio::test]

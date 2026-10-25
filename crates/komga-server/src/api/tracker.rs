@@ -343,7 +343,8 @@ async fn tracker_oauth_status(
     let status = state
         .tracker
         .oauth()
-        .status(provider, &auth.0.user.id)
+        .status_with_backfill(provider, &auth.0.user.id)
+        .await
         .map_err(tracker_error)?;
     Ok(Json(status))
 }
@@ -661,6 +662,8 @@ mod tests {
         use axum::body::Body;
         use axum::http::Request;
         use komga_core::tracker::{TrackStatus, TrackUpdate};
+        use komga_db::dao::tracker_oauth::{TrackerOAuthDao, TrackerOAuthToken};
+        use komga_db::dao::user::UserDao;
         use komga_db::pool::Database;
         use komga_db::{Migrator, Placeholders};
         use std::collections::{HashMap, HashSet};
@@ -839,6 +842,34 @@ mod tests {
                     routing::post(|| async {
                         Json(serde_json::json!({"data": {"Viewer": {"name": "alice"}}}))
                     }),
+                )
+                .route(
+                    "/userinfo/mangabaka",
+                    routing::get(|headers: HeaderMap| async move {
+                        let authorized = headers
+                            .get(axum::http::header::AUTHORIZATION)
+                            .and_then(|value| value.to_str().ok())
+                            == Some("Bearer mangabaka-access");
+                        if authorized {
+                            (
+                                StatusCode::OK,
+                                Json(serde_json::json!({
+                                    "preferred_username": "mangabaka-user"
+                                })),
+                            )
+                        } else {
+                            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({})))
+                        }
+                    }),
+                )
+                .route(
+                    "/userinfo/mal",
+                    routing::get(|| async {
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(serde_json::json!({})),
+                        )
+                    }),
                 );
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let address = listener.local_addr().unwrap();
@@ -875,6 +906,74 @@ mod tests {
             let user_id = insert_user(&app.state.db, "user@x.c", false, true, &[]);
             insert_api_key(&app.state.db, &user_id, "k-user");
             app
+        }
+
+        fn insert_token_without_username(
+            app: &TestApp,
+            provider: &str,
+            access_token: &str,
+        ) -> (String, TrackerOAuthToken) {
+            let user_id = UserDao::new(app.state.db.clone())
+                .find_by_email_ignore_case("user@x.c")
+                .unwrap()
+                .unwrap()
+                .id;
+            let token = TrackerOAuthToken {
+                access_token: access_token.into(),
+                refresh_token: Some(format!("{provider}-refresh")),
+                token_type: Some("Bearer".into()),
+                expires_at: Some(komga_core::time_codec::now_utc() + time::Duration::hours(1)),
+                username: None,
+            };
+            TrackerOAuthDao::new(app.state.kmrs_db.clone())
+                .upsert_token(provider, &user_id, &token)
+                .unwrap();
+            (user_id, token)
+        }
+
+        #[tokio::test]
+        async fn oauth_status_backfills_missing_mangabaka_username() {
+            let origin = serve_oauth().await;
+            let app = user_app_with_oauth(&origin);
+            let (user_id, token) =
+                insert_token_without_username(&app, "mangabaka", "mangabaka-access");
+            let dao = TrackerOAuthDao::new(app.state.kmrs_db.clone());
+
+            let (status, body) = app
+                .get_json("/api/v1/trackers/oauth/mangabaka/status", "k-user")
+                .await;
+
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(
+                body,
+                serde_json::json!({"logged_in": true, "username": "mangabaka-user"})
+            );
+            assert_eq!(
+                dao.get_token("mangabaka", &user_id).unwrap(),
+                Some(TrackerOAuthToken {
+                    username: Some("mangabaka-user".into()),
+                    ..token
+                })
+            );
+        }
+
+        #[tokio::test]
+        async fn oauth_status_userinfo_failure_keeps_login() {
+            let origin = serve_oauth().await;
+            let app = user_app_with_oauth(&origin);
+            let (user_id, token) = insert_token_without_username(&app, "mal", "mal-access");
+            let dao = TrackerOAuthDao::new(app.state.kmrs_db.clone());
+
+            let (status, body) = app
+                .get_json("/api/v1/trackers/oauth/mal/status", "k-user")
+                .await;
+
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(
+                body,
+                serde_json::json!({"logged_in": true, "username": null})
+            );
+            assert_eq!(dao.get_token("mal", &user_id).unwrap(), Some(token));
         }
 
         #[tokio::test]
