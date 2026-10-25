@@ -3,6 +3,7 @@ import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ActivitySection } from '@/components/account/ActivitySection'
 import { PasswordSection } from '@/components/account/PasswordSection'
+import { SessionsSection } from '@/components/account/SessionsSection'
 
 export function AccountSecurityPage() {
   const { t } = useTranslation('account')
@@ -13,6 +14,7 @@ export function AccountSecurityPage() {
       <PageHeader title={t('security.title')} subtitle={t('security.subtitle')} />
       <div className="space-y-6">
         <PasswordSection />
+        <SessionsSection />
         <ActivitySection />
       </div>
     </div>

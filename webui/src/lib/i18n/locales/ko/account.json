@@ -32,6 +32,19 @@
       "failed": "비밀번호를 변경할 수 없습니다.",
       "submit": "비밀번호 변경"
     },
+    "sessions": {
+      "title": "세션",
+      "failed": "세션을 불러올 수 없습니다.",
+      "empty": "활성 세션이 없습니다.",
+      "session": "세션",
+      "created": "생성됨",
+      "lastActive": "마지막 활동",
+      "actions": "작업",
+      "current": "현재",
+      "signOut": "로그아웃",
+      "signOutFailed": "세션을 로그아웃할 수 없습니다.",
+      "showAll_other": "세션 {{count}}개 모두 보기"
+    },
     "activity": {
       "title": "로그인 활동",
       "failed": "로그인 활동을 불러올 수 없습니다.",

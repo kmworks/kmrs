@@ -83,6 +83,8 @@ pub struct Auth {
     pub source: AuthSource,
     #[allow(dead_code)]
     pub api_key_id: Option<String>,
+    /// The session the request authenticated with; lets endpoints mark the caller's own session.
+    pub session_id: Option<String>,
 }
 
 impl Auth {
@@ -182,6 +184,7 @@ fn resolve(state: &AppState, parts: &Parts) -> Outcome {
                         user: user.clone(),
                         source: AuthSource::ApiKey,
                         api_key_id: Some(api_key.id.clone()),
+                        session_id: None,
                     }),
                     new_session_id: None,
                     activity: Some(activity),
@@ -241,6 +244,7 @@ fn resolve(state: &AppState, parts: &Parts) -> Outcome {
                             user,
                             source: AuthSource::Password,
                             api_key_id: None,
+                            session_id: None,
                         }),
                         activity: Some(activity),
                     }
@@ -288,6 +292,7 @@ async fn resolve_session_and_remember(
                             user,
                             source: AuthSource::Session,
                             api_key_id: None,
+                            session_id: Some(session_id),
                         }),
                         new_session_id: None,
                         activity: None,
@@ -336,6 +341,7 @@ async fn resolve_session_and_remember(
                                     user,
                                     source: AuthSource::RememberMe,
                                     api_key_id: None,
+                                    session_id: None,
                                 }),
                                 activity: Some(activity),
                             };

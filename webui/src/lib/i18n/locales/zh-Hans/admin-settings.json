@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "服务器",
+    "title": "状态",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · 提交 {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "无法加载设置。"
   },
   "ui": {
-    "title": "界面设置",
-    "subtitle": "应用于所有用户网页界面的全局调整",
     "loadFailed": "无法加载界面设置",
     "errorFallback": "出了点问题。",
     "login": "登录",
@@ -106,22 +104,6 @@
     "title": "定时任务",
     "loadFailed": "无法加载定时任务。",
     "empty": "暂无定时任务。"
-  },
-  "sessions": {
-    "title": "会话",
-    "loadFailed": "无法加载会话。",
-    "empty": "暂无活跃会话。",
-    "session": "会话",
-    "created": "创建时间",
-    "lastActive": "最近活跃",
-    "status": "状态",
-    "actions": "操作",
-    "expired": "已过期",
-    "active": "活跃",
-    "kick": "强制下线",
-    "kickHint": "将会话强制下线后，对应设备会退出登录，用户需要重新登录。",
-    "kickFailed": "无法将该会话强制下线。",
-    "showAll_other": "显示全部 {{count}} 个会话"
   },
   "form": {
     "deleteEmptyCollections": "删除空合集",

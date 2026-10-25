@@ -29,7 +29,6 @@ import {
   Monitor,
   Moon,
   PaintBrush,
-  Palette,
   Playlist,
   PlugsConnected,
   PushPin,
@@ -239,6 +238,29 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           {t('nav.smartLists')}
         </NavItem>
 
+        <div className="mt-3">
+          <NavGroup icon={<UserCircle />} label={t('nav.account')} match={['/account']}>
+            <NavItem to="/account/profile" icon={<User />} onClick={onNavigate}>
+              {t('nav.profile')}
+            </NavItem>
+            <NavItem to="/account/security" icon={<ShieldCheck />} onClick={onNavigate}>
+              {t('nav.security')}
+            </NavItem>
+            <NavItem to="/account/api-keys" icon={<Key />} onClick={onNavigate}>
+              {t('nav.apiKeys')}
+            </NavItem>
+            <NavItem to="/account/reader" icon={<BookOpen />} onClick={onNavigate}>
+              {t('nav.reader')}
+            </NavItem>
+            <NavItem to="/account/stats" icon={<ChartBar />} onClick={onNavigate}>
+              {t('nav.statistics')}
+            </NavItem>
+            <NavItem to="/account/trackers" icon={<ChartLineUp />} onClick={onNavigate}>
+              {t('nav.trackers')}
+            </NavItem>
+          </NavGroup>
+        </div>
+
         {isAdmin(user) && (
           <>
             <div className="mt-5 mb-1.5 px-3 text-[11px] font-medium tracking-[0.08em] text-ink-3 uppercase">
@@ -250,33 +272,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               </NavItem>
               <NavItem to="/import/readlist" icon={<Playlist />} onClick={onNavigate}>
                 {t('nav.importReadlist')}
-              </NavItem>
-            </NavGroup>
-            <NavGroup
-              icon={<Database />}
-              label={t('nav.server')}
-              match={['/admin/libraries', '/admin/users', '/admin/settings', '/admin/integrations', '/admin/server', '/admin/updates', '/admin/ui']}
-            >
-              <NavItem to="/admin/libraries" icon={<HardDrives />} onClick={onNavigate}>
-                {t('nav.libraries')}
-              </NavItem>
-              <NavItem to="/admin/users" icon={<Users />} onClick={onNavigate}>
-                {t('nav.users')}
-              </NavItem>
-              <NavItem to="/admin/settings" icon={<GearSix />} onClick={onNavigate}>
-                {t('nav.settings')}
-              </NavItem>
-              <NavItem to="/admin/integrations" icon={<PlugsConnected />} onClick={onNavigate}>
-                {t('nav.integrations')}
-              </NavItem>
-              <NavItem to="/admin/server" icon={<Gauge />} onClick={onNavigate}>
-                {t('nav.server')}
-              </NavItem>
-              <NavItem to="/admin/updates" icon={<Rocket />} onClick={onNavigate}>
-                {t('nav.updates')}
-              </NavItem>
-              <NavItem to="/admin/ui" icon={<Palette />} onClick={onNavigate}>
-                {t('nav.uiSettings')}
               </NavItem>
             </NavGroup>
             <NavGroup
@@ -300,31 +295,32 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 {t('nav.history')}
               </NavItem>
             </NavGroup>
+            <NavGroup
+              icon={<Database />}
+              label={t('nav.server')}
+              match={['/admin/libraries', '/admin/users', '/admin/settings', '/admin/integrations', '/admin/server', '/admin/updates']}
+            >
+              <NavItem to="/admin/libraries" icon={<HardDrives />} onClick={onNavigate}>
+                {t('nav.libraries')}
+              </NavItem>
+              <NavItem to="/admin/users" icon={<Users />} onClick={onNavigate}>
+                {t('nav.users')}
+              </NavItem>
+              <NavItem to="/admin/settings" icon={<GearSix />} onClick={onNavigate}>
+                {t('nav.settings')}
+              </NavItem>
+              <NavItem to="/admin/integrations" icon={<PlugsConnected />} onClick={onNavigate}>
+                {t('nav.integrations')}
+              </NavItem>
+              <NavItem to="/admin/server" icon={<Gauge />} onClick={onNavigate}>
+                {t('nav.status')}
+              </NavItem>
+              <NavItem to="/admin/updates" icon={<Rocket />} onClick={onNavigate}>
+                {t('nav.updates')}
+              </NavItem>
+            </NavGroup>
           </>
         )}
-
-        <div className="mt-3">
-          <NavGroup icon={<UserCircle />} label={t('nav.account')} match={['/account']}>
-            <NavItem to="/account/profile" icon={<User />} onClick={onNavigate}>
-              {t('nav.profile')}
-            </NavItem>
-            <NavItem to="/account/security" icon={<ShieldCheck />} onClick={onNavigate}>
-              {t('nav.security')}
-            </NavItem>
-            <NavItem to="/account/api-keys" icon={<Key />} onClick={onNavigate}>
-              {t('nav.apiKeys')}
-            </NavItem>
-            <NavItem to="/account/reader" icon={<BookOpen />} onClick={onNavigate}>
-              {t('nav.reader')}
-            </NavItem>
-            <NavItem to="/account/stats" icon={<ChartBar />} onClick={onNavigate}>
-              {t('nav.statistics')}
-            </NavItem>
-            <NavItem to="/account/trackers" icon={<ChartLineUp />} onClick={onNavigate}>
-              {t('nav.trackers')}
-            </NavItem>
-          </NavGroup>
-        </div>
       </nav>
 
       <PinLibrariesDialog open={pinDialogOpen} onOpenChange={setPinDialogOpen} />

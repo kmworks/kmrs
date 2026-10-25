@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "伺服器",
+    "title": "狀態",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · commit {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "無法載入設定。"
   },
   "ui": {
-    "title": "介面設定",
-    "subtitle": "套用到每位使用者網頁介面的全域調整",
     "loadFailed": "無法載入介面設定",
     "errorFallback": "發生錯誤。",
     "login": "登入",
@@ -106,22 +104,6 @@
     "title": "排程任務",
     "loadFailed": "無法載入排程任務。",
     "empty": "沒有排程任務。"
-  },
-  "sessions": {
-    "title": "工作階段",
-    "loadFailed": "無法載入工作階段。",
-    "empty": "沒有使用中的工作階段。",
-    "session": "工作階段",
-    "created": "建立時間",
-    "lastActive": "最後活動",
-    "status": "狀態",
-    "actions": "動作",
-    "expired": "已過期",
-    "active": "使用中",
-    "kick": "強制登出",
-    "kickHint": "強制登出工作階段會讓該裝置登出——使用者必須重新登入。",
-    "kickFailed": "無法強制登出工作階段。",
-    "showAll_other": "顯示全部 {{count}} 個工作階段"
   },
   "form": {
     "deleteEmptyCollections": "刪除空的收藏",

@@ -16,6 +16,7 @@ use komga_core::model::user::{
 };
 use komga_core::time_codec::now_utc;
 use komga_db::dao::user::UserDao;
+use serde::Serialize;
 use std::collections::BTreeSet;
 
 pub fn router() -> Router<AppState> {
@@ -45,6 +46,16 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/v2/users/{id}/authentication-activity/latest",
             routing::get(latest_authentication_activity),
+        )
+        .route("/api/v2/users/me/sessions", routing::get(my_sessions))
+        .route(
+            "/api/v2/users/me/sessions/{id}",
+            routing::delete(delete_my_session),
+        )
+        .route("/api/v2/users/sessions", routing::get(sessions))
+        .route(
+            "/api/v2/users/sessions/{id}",
+            routing::delete(delete_session),
         )
         .route(
             "/api/v2/users/me/api-keys",
@@ -382,6 +393,108 @@ async fn latest_authentication_activity(
         .ok_or_else(|| ApiError::not_found(""))?;
     Ok(Json(AuthenticationActivityDto::from(&activity)))
 }
+
+// region sessions
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MySessionDto {
+    id: String,
+    creation_time: String,
+    last_accessed_time: String,
+    current: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UserSessionDto {
+    id: String,
+    user_id: String,
+    /// `None` when the session outlives its user row (e.g. a Java-written user id).
+    email: Option<String>,
+    creation_time: String,
+    last_accessed_time: String,
+}
+
+fn session_instant(millis: u64) -> String {
+    komga_core::time_codec::format_offset_date_time(
+        time::OffsetDateTime::from_unix_timestamp_nanos(millis as i128 * 1_000_000).unwrap(),
+    )
+}
+
+async fn my_sessions(
+    State(state): State<AppState>,
+    auth: RequireAuth,
+) -> Result<Json<Vec<MySessionDto>>, ApiError> {
+    let current = auth.0.session_id.as_deref();
+    let mut sessions: Vec<MySessionDto> = state
+        .sessions
+        .all()?
+        .into_iter()
+        .filter(|(_, data)| data.user_id == auth.0.user.id)
+        .map(|(id, data)| MySessionDto {
+            current: current == Some(id.as_str()),
+            id,
+            creation_time: session_instant(data.created_at),
+            last_accessed_time: session_instant(data.last_accessed_at),
+        })
+        .collect();
+    sessions.sort_by(|a, b| b.last_accessed_time.cmp(&a.last_accessed_time));
+    Ok(Json(sessions))
+}
+
+async fn delete_my_session(
+    State(state): State<AppState>,
+    auth: RequireAuth,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    match state.sessions.get(&id)? {
+        Some(data) if data.user_id == auth.0.user.id => {
+            state.sessions.invalidate(&id)?;
+            Ok(StatusCode::NO_CONTENT)
+        }
+        // reads as missing whether the session is gone or belongs to someone else
+        _ => Err(ApiError::not_found("")),
+    }
+}
+
+async fn sessions(
+    State(state): State<AppState>,
+    auth: RequireAuth,
+) -> Result<Json<Vec<UserSessionDto>>, ApiError> {
+    auth.0.require_admin()?;
+    let emails: std::collections::HashMap<String, String> = user_dao(&state)
+        .find_all()?
+        .into_iter()
+        .map(|u| (u.id, u.email))
+        .collect();
+    let mut sessions: Vec<UserSessionDto> = state
+        .sessions
+        .all()?
+        .into_iter()
+        .map(|(id, data)| UserSessionDto {
+            email: emails.get(&data.user_id).cloned(),
+            id,
+            user_id: data.user_id,
+            creation_time: session_instant(data.created_at),
+            last_accessed_time: session_instant(data.last_accessed_at),
+        })
+        .collect();
+    sessions.sort_by(|a, b| b.last_accessed_time.cmp(&a.last_accessed_time));
+    Ok(Json(sessions))
+}
+
+async fn delete_session(
+    State(state): State<AppState>,
+    auth: RequireAuth,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    auth.0.require_admin()?;
+    state.sessions.invalidate(&id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// endregion
 
 async fn my_api_keys(
     auth: RequireAuth,
@@ -999,5 +1112,189 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::NO_CONTENT);
         assert_eq!(next_user_updated(&mut events).await, (admin, false));
+    }
+
+    async fn json_body(response: axum::response::Response) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    fn session_request(method: &str, uri: &str, session_id: &str) -> Request<Body> {
+        Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("X-Auth-Token", session_id)
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn my_sessions_scopes_to_owner_and_marks_current() {
+        let (state, _rx) = test_state();
+        let admin_id = seed_user(&state, "admin@s.c");
+        let user_id = seed_plain_user(&state, "user@s.c");
+        let current = state.sessions.create(&user_id).unwrap();
+        let other = state.sessions.create(&user_id).unwrap();
+        let admins = state.sessions.create(&admin_id).unwrap();
+
+        // anonymous is rejected
+        let status = test_router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v2/users/me/sessions")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status();
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+        let response = test_router(state.clone())
+            .oneshot(session_request(
+                "GET",
+                "/api/v2/users/me/sessions",
+                &current,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = json_body(response).await;
+        let sessions = body.as_array().unwrap();
+        assert_eq!(sessions.len(), 2);
+        for session in sessions {
+            assert!(session["creationTime"].as_str().unwrap().ends_with('Z'));
+            assert_eq!(
+                session["current"].as_bool().unwrap(),
+                *session["id"].as_str().unwrap() == current
+            );
+        }
+        assert!(!sessions.iter().any(|s| s["id"] == admins));
+
+        // someone else's session reads as missing
+        let status = test_router(state.clone())
+            .oneshot(session_request(
+                "DELETE",
+                &format!("/api/v2/users/me/sessions/{admins}"),
+                &current,
+            ))
+            .await
+            .unwrap()
+            .status();
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        let status = test_router(state.clone())
+            .oneshot(session_request(
+                "DELETE",
+                &format!("/api/v2/users/me/sessions/{other}"),
+                &current,
+            ))
+            .await
+            .unwrap()
+            .status();
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let body = json_body(
+            test_router(state.clone())
+                .oneshot(session_request(
+                    "GET",
+                    "/api/v2/users/me/sessions",
+                    &current,
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(body.as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn sessions_admin_listing_exposes_owner_and_kicks() {
+        let (state, _rx) = test_state();
+        let admin_id = seed_user(&state, "admin@t.c");
+        let user_id = seed_plain_user(&state, "user@t.c");
+        let user_session = state.sessions.create(&user_id).unwrap();
+        state.sessions.create(&admin_id).unwrap();
+
+        // non-admin is rejected on both verbs
+        let status = test_router(state.clone())
+            .oneshot(session_request(
+                "GET",
+                "/api/v2/users/sessions",
+                &user_session,
+            ))
+            .await
+            .unwrap()
+            .status();
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let status = test_router(state.clone())
+            .oneshot(session_request(
+                "DELETE",
+                &format!("/api/v2/users/sessions/{user_session}"),
+                &user_session,
+            ))
+            .await
+            .unwrap()
+            .status();
+        assert_eq!(status, StatusCode::FORBIDDEN);
+
+        let response = test_router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v2/users/sessions")
+                    .header("X-API-Key", "secret")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = json_body(response).await;
+        let sessions = body.as_array().unwrap();
+        assert_eq!(sessions.len(), 2);
+        let row = sessions.iter().find(|s| s["id"] == user_session).unwrap();
+        assert_eq!(row["userId"], user_id);
+        assert_eq!(row["email"], "user@t.c");
+        assert!(row["creationTime"].as_str().unwrap().ends_with('Z'));
+        assert!(row["lastAccessedTime"].as_str().unwrap().ends_with('Z'));
+
+        // API-key auth has no session, so nothing is marked current
+        let body = json_body(
+            test_router(state.clone())
+                .oneshot(
+                    Request::builder()
+                        .method("GET")
+                        .uri("/api/v2/users/me/sessions")
+                        .header("X-API-Key", "secret")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert!(body
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| s["current"] == false));
+
+        let status = test_router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v2/users/sessions/{user_session}"))
+                    .header("X-API-Key", "secret")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status();
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(state.sessions.get(&user_session).unwrap().is_none());
     }
 }

@@ -32,6 +32,19 @@
       "failed": "无法更新密码。",
       "submit": "更新密码"
     },
+    "sessions": {
+      "title": "会话",
+      "failed": "无法加载会话。",
+      "empty": "暂无活跃会话。",
+      "session": "会话",
+      "created": "创建时间",
+      "lastActive": "最近活跃",
+      "actions": "操作",
+      "current": "当前",
+      "signOut": "退出",
+      "signOutFailed": "无法将该会话退出。",
+      "showAll_other": "显示全部 {{count}} 个会话"
+    },
     "activity": {
       "title": "登录活动",
       "failed": "无法加载登录活动。",

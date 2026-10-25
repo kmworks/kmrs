@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { ActivitySection } from '@/components/admin/users/ActivitySection'
 import { ChangePasswordDialog } from '@/components/admin/users/ChangePasswordDialog'
 import { DeleteUserDialog } from '@/components/admin/users/DeleteUserDialog'
+import { SessionsSection } from '@/components/admin/users/SessionsSection'
 import { UserFormDialog } from '@/components/admin/users/UserFormDialog'
 import { UserTable } from '@/components/admin/users/UserTable'
 
@@ -55,6 +56,8 @@ export function AdminUsersPage() {
         onChangePassword={(user) => setDialog({ kind: 'password', user })}
         onDelete={(user) => setDialog({ kind: 'delete', user })}
       />
+
+      <SessionsSection />
 
       <ActivitySection />
 

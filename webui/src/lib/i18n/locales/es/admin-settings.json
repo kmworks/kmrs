@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "Servidor",
+    "title": "Estado",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · commit {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "No se pudieron cargar los ajustes."
   },
   "ui": {
-    "title": "Ajustes de la interfaz",
-    "subtitle": "Retoques globales aplicados a la interfaz web de cada usuario",
     "loadFailed": "No se pudieron cargar los ajustes de la interfaz",
     "errorFallback": "Algo salió mal.",
     "login": "Inicio de sesión",
@@ -124,24 +122,6 @@
     "title": "Tareas programadas",
     "loadFailed": "No se pudieron cargar las tareas programadas.",
     "empty": "No hay tareas programadas."
-  },
-  "sessions": {
-    "title": "Sesiones",
-    "loadFailed": "No se pudieron cargar las sesiones.",
-    "empty": "No hay sesiones activas.",
-    "session": "Sesión",
-    "created": "Creada",
-    "lastActive": "Última actividad",
-    "status": "Estado",
-    "actions": "Acciones",
-    "expired": "Expirada",
-    "active": "Activa",
-    "kick": "Expulsar",
-    "kickHint": "Expulsar una sesión cierra la sesión de ese dispositivo: el usuario tendrá que iniciar sesión de nuevo.",
-    "kickFailed": "No se pudo expulsar la sesión.",
-    "showAll_one": "Mostrar {{count}} sesión",
-    "showAll_many": "Mostrar las {{count}} sesiones",
-    "showAll_other": "Mostrar las {{count}} sesiones"
   },
   "form": {
     "deleteEmptyCollections": "Eliminar colecciones vacías",

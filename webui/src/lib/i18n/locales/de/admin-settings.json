@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "Server",
+    "title": "Status",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · Commit {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "Einstellungen konnten nicht geladen werden."
   },
   "ui": {
-    "title": "UI-Einstellungen",
-    "subtitle": "Globale Anpassungen für die Web-UI aller Benutzer",
     "loadFailed": "UI-Einstellungen konnten nicht geladen werden",
     "errorFallback": "Etwas ist schiefgelaufen.",
     "login": "Anmeldung",
@@ -115,23 +113,6 @@
     "title": "Geplante Aufgaben",
     "loadFailed": "Geplante Aufgaben konnten nicht geladen werden.",
     "empty": "Keine geplanten Aufgaben."
-  },
-  "sessions": {
-    "title": "Sitzungen",
-    "loadFailed": "Sitzungen konnten nicht geladen werden.",
-    "empty": "Keine aktiven Sitzungen.",
-    "session": "Sitzung",
-    "created": "Erstellt",
-    "lastActive": "Zuletzt aktiv",
-    "status": "Status",
-    "actions": "Aktionen",
-    "expired": "Abgelaufen",
-    "active": "Aktiv",
-    "kick": "Beenden",
-    "kickHint": "Das Beenden einer Sitzung meldet das Gerät ab – der Benutzer muss sich erneut anmelden.",
-    "kickFailed": "Die Sitzung konnte nicht beendet werden.",
-    "showAll_one": "{{count}} Sitzung anzeigen",
-    "showAll_other": "Alle {{count}} Sitzungen anzeigen"
   },
   "form": {
     "deleteEmptyCollections": "Leere Sammlungen löschen",

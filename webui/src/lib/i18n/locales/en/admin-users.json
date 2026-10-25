@@ -69,5 +69,11 @@
     "events_other": "{{count, number}} events",
     "loadFailed": "Could not load authentication activity.",
     "empty": "No activity yet."
+  },
+  "sessions": {
+    "title": "Sessions",
+    "kick": "Kick",
+    "kickHint": "Kicking a session signs that device out — the user has to log in again.",
+    "kickFailed": "Could not kick the session."
   }
 }

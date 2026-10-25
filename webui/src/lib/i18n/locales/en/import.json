@@ -7,7 +7,7 @@
     "scan": "Scan",
     "queued_one": "Import queued for {{count}} book",
     "queued_other": "Import queued for {{count}} books",
-    "queuedBody": "Imports run as background tasks. Follow progress on the <link>Server page</link>.",
+    "queuedBody": "Imports run as background tasks. Follow progress on the <link>Status page</link>.",
     "importMore": "Import more files",
     "emptyTitle": "No importable files",
     "emptyBody": "The folder contains no book files.",

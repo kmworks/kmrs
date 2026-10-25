@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "Server",
+    "title": "Status",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · commit {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "Could not load settings."
   },
   "ui": {
-    "title": "UI settings",
-    "subtitle": "Global tweaks applied to every user's web UI",
     "loadFailed": "Couldn't load UI settings",
     "errorFallback": "Something went wrong.",
     "login": "Login",
@@ -115,23 +113,6 @@
     "title": "Scheduled tasks",
     "loadFailed": "Could not load scheduled tasks.",
     "empty": "No scheduled tasks."
-  },
-  "sessions": {
-    "title": "Sessions",
-    "loadFailed": "Could not load sessions.",
-    "empty": "No active sessions.",
-    "session": "Session",
-    "created": "Created",
-    "lastActive": "Last active",
-    "status": "Status",
-    "actions": "Actions",
-    "expired": "Expired",
-    "active": "Active",
-    "kick": "Kick",
-    "kickHint": "Kicking a session signs that device out — the user has to log in again.",
-    "kickFailed": "Could not kick the session.",
-    "showAll_one": "Show all {{count}} session",
-    "showAll_other": "Show all {{count}} sessions"
   },
   "form": {
     "deleteEmptyCollections": "Delete empty collections",

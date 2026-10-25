@@ -8,7 +8,6 @@ import { ContentCounts } from '@/components/admin/server/ContentCounts'
 import { TaskQueuePanel } from '@/components/admin/server/TaskQueuePanel'
 import { TaskExecutionPanel } from '@/components/admin/server/TaskExecutionPanel'
 import { ScheduledTasksPanel } from '@/components/admin/server/ScheduledTasksPanel'
-import { SessionsPanel } from '@/components/admin/server/SessionsPanel'
 import { LogfilePanel } from '@/components/admin/server/LogfilePanel'
 
 export function AdminServerPage() {
@@ -31,10 +30,7 @@ export function AdminServerPage() {
           <TaskQueuePanel />
           <TaskExecutionPanel />
         </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ScheduledTasksPanel />
-          <SessionsPanel />
-        </div>
+        <ScheduledTasksPanel />
         <LogfilePanel />
       </div>
     </div>

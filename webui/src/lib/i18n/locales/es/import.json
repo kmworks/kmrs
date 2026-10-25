@@ -8,7 +8,7 @@
     "queued_one": "Importación en cola para {{count}} libro",
     "queued_many": "Importación en cola para {{count}} libros",
     "queued_other": "Importación en cola para {{count}} libros",
-    "queuedBody": "Las importaciones se ejecutan como tareas en segundo plano. Sigue el progreso en la <link>página del servidor</link>.",
+    "queuedBody": "Las importaciones se ejecutan como tareas en segundo plano. Sigue el progreso en la <link>página de estado</link>.",
     "importMore": "Importar más archivos",
     "emptyTitle": "No hay archivos importables",
     "emptyBody": "La carpeta no contiene archivos de libros.",

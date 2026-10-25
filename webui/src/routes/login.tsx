@@ -13,7 +13,7 @@ import { LogoMark } from '@/components/LogoMark'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/Button'
 import { TextField } from '@/components/ui/TextField'
-import { HIDE_PASSWORD_KEY, OAUTH_AUTO_KEY } from '@/routes/admin/ui'
+import { HIDE_PASSWORD_KEY, OAUTH_AUTO_KEY } from '@/components/admin/settings/UiSettingsSection'
 import type { UserDto } from '@/lib/api/types'
 
 const REMEMBER_KEY = 'kmweb.rememberMe'

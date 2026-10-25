@@ -6,7 +6,7 @@
     "browse": "浏览",
     "scan": "扫描",
     "queued_other": "已排队导入 {{count}} 本书",
-    "queuedBody": "导入将作为后台任务运行，可在<link>服务器页面</link>查看进度。",
+    "queuedBody": "导入将作为后台任务运行，可在<link>状态页面</link>查看进度。",
     "importMore": "继续导入文件",
     "emptyTitle": "没有可导入的文件",
     "emptyBody": "该文件夹中没有书籍文件。",

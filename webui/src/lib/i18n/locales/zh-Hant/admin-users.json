@@ -65,5 +65,11 @@
     "events_other": "{{count, number}} 個事件",
     "loadFailed": "無法載入驗證活動。",
     "empty": "還沒有活動。"
+  },
+  "sessions": {
+    "title": "工作階段",
+    "kick": "強制登出",
+    "kickHint": "強制登出工作階段會讓該裝置登出——使用者必須重新登入。",
+    "kickFailed": "無法強制登出工作階段。"
   }
 }

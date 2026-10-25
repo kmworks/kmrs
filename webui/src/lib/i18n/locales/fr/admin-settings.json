@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "Serveur",
+    "title": "État",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · commit {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "Impossible de charger les réglages."
   },
   "ui": {
-    "title": "Réglages de l'interface",
-    "subtitle": "Ajustements globaux appliqués à l'interface web de chaque utilisateur",
     "loadFailed": "Impossible de charger les réglages de l'interface",
     "errorFallback": "Une erreur est survenue.",
     "login": "Connexion",
@@ -124,24 +122,6 @@
     "title": "Tâches planifiées",
     "loadFailed": "Impossible de charger les tâches planifiées.",
     "empty": "Aucune tâche planifiée."
-  },
-  "sessions": {
-    "title": "Sessions",
-    "loadFailed": "Impossible de charger les sessions.",
-    "empty": "Aucune session active.",
-    "session": "Session",
-    "created": "Créée",
-    "lastActive": "Dernière activité",
-    "status": "Statut",
-    "actions": "Actions",
-    "expired": "Expirée",
-    "active": "Active",
-    "kick": "Expulser",
-    "kickHint": "Expulser une session déconnecte cet appareil — l'utilisateur devra se reconnecter.",
-    "kickFailed": "Impossible d'expulser la session.",
-    "showAll_one": "Afficher toutes les sessions ({{count}})",
-    "showAll_many": "Afficher toutes les sessions ({{count}})",
-    "showAll_other": "Afficher toutes les sessions ({{count}})"
   },
   "form": {
     "deleteEmptyCollections": "Supprimer les collections vides",

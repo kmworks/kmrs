@@ -73,5 +73,11 @@
     "events_other": "{{count, number}} événements",
     "loadFailed": "Impossible de charger l'activité d'authentification.",
     "empty": "Aucune activité pour le moment."
+  },
+  "sessions": {
+    "title": "Sessions",
+    "kick": "Expulser",
+    "kickHint": "Expulser une session déconnecte cet appareil — l'utilisateur devra se reconnecter.",
+    "kickFailed": "Impossible d'expulser la session."
   }
 }

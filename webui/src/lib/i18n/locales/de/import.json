@@ -7,7 +7,7 @@
     "scan": "Scannen",
     "queued_one": "Import für {{count}} Buch eingereiht",
     "queued_other": "Import für {{count}} Bücher eingereiht",
-    "queuedBody": "Importe laufen als Hintergrundaufgaben. Verfolge den Fortschritt auf der <link>Server-Seite</link>.",
+    "queuedBody": "Importe laufen als Hintergrundaufgaben. Verfolge den Fortschritt auf der <link>Status-Seite</link>.",
     "importMore": "Weitere Dateien importieren",
     "emptyTitle": "Keine importierbaren Dateien",
     "emptyBody": "Der Ordner enthält keine Buchdateien.",

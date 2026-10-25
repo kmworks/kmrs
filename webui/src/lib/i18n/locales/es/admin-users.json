@@ -73,5 +73,11 @@
     "events_other": "{{count, number}} eventos",
     "loadFailed": "No se pudo cargar la actividad de autenticación.",
     "empty": "Aún no hay actividad."
+  },
+  "sessions": {
+    "title": "Sesiones",
+    "kick": "Expulsar",
+    "kickHint": "Expulsar una sesión cierra la sesión de ese dispositivo: el usuario tendrá que iniciar sesión de nuevo.",
+    "kickFailed": "No se pudo expulsar la sesión."
   }
 }

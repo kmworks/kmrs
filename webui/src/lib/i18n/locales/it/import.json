@@ -8,7 +8,7 @@
     "queued_one": "Importazione in coda per {{count}} libro",
     "queued_many": "Importazione in coda per {{count}} libri",
     "queued_other": "Importazione in coda per {{count}} libri",
-    "queuedBody": "Le importazioni vengono eseguite come attività in background. Segui i progressi nella <link>pagina Server</link>.",
+    "queuedBody": "Le importazioni vengono eseguite come attività in background. Segui i progressi nella <link>pagina Stato</link>.",
     "importMore": "Importa altri file",
     "emptyTitle": "Nessun file importabile",
     "emptyBody": "La cartella non contiene file di libri.",
