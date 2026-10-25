@@ -65,5 +65,11 @@
     "events_other": "이벤트 {{count, number}}개",
     "loadFailed": "인증 활동을 불러올 수 없습니다.",
     "empty": "아직 활동이 없습니다."
+  },
+  "sessions": {
+    "title": "세션",
+    "kick": "강제 종료",
+    "kickHint": "세션을 강제 종료하면 해당 기기가 로그아웃되며 사용자는 다시 로그인해야 합니다.",
+    "kickFailed": "세션을 강제 종료할 수 없습니다."
   }
 }

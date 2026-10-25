@@ -33,6 +33,20 @@
       "failed": "Das Passwort konnte nicht aktualisiert werden.",
       "submit": "Passwort aktualisieren"
     },
+    "sessions": {
+      "title": "Sitzungen",
+      "failed": "Sitzungen konnten nicht geladen werden.",
+      "empty": "Keine aktiven Sitzungen.",
+      "session": "Sitzung",
+      "created": "Erstellt",
+      "lastActive": "Zuletzt aktiv",
+      "actions": "Aktionen",
+      "current": "Aktuell",
+      "signOut": "Abmelden",
+      "signOutFailed": "Die Sitzung konnte nicht abgemeldet werden.",
+      "showAll_one": "{{count}} Sitzung anzeigen",
+      "showAll_other": "Alle {{count}} Sitzungen anzeigen"
+    },
     "activity": {
       "title": "Anmeldeaktivität",
       "failed": "Die Anmeldeaktivität konnte nicht geladen werden.",

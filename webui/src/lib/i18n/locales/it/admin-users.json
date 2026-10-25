@@ -73,5 +73,11 @@
     "events_other": "{{count, number}} eventi",
     "loadFailed": "Impossibile caricare l'attività di autenticazione.",
     "empty": "Ancora nessuna attività."
+  },
+  "sessions": {
+    "title": "Sessioni",
+    "kick": "Disconnetti",
+    "kickHint": "Disconnettere una sessione fa uscire quel dispositivo: l'utente dovrà accedere di nuovo.",
+    "kickFailed": "Impossibile disconnettere la sessione."
   }
 }

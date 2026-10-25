@@ -1098,6 +1098,7 @@ async fn get_book_file(
                 user: auth.user,
                 source: crate::auth::AuthSource::ApiKey,
                 api_key_id: auth.api_key_id,
+                session_id: None,
             }),
             book_id,
         )

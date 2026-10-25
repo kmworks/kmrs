@@ -34,6 +34,21 @@
       "failed": "No se pudo actualizar la contraseña.",
       "submit": "Actualizar contraseña"
     },
+    "sessions": {
+      "title": "Sesiones",
+      "failed": "No se pudieron cargar las sesiones.",
+      "empty": "No hay sesiones activas.",
+      "session": "Sesión",
+      "created": "Creada",
+      "lastActive": "Última actividad",
+      "actions": "Acciones",
+      "current": "Actual",
+      "signOut": "Cerrar sesión",
+      "signOutFailed": "No se pudo cerrar la sesión.",
+      "showAll_one": "Mostrar {{count}} sesión",
+      "showAll_many": "Mostrar las {{count}} sesiones",
+      "showAll_other": "Mostrar las {{count}} sesiones"
+    },
     "activity": {
       "title": "Actividad de inicio de sesión",
       "failed": "No se pudo cargar la actividad de inicio de sesión.",

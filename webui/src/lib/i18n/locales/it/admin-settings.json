@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "Server",
+    "title": "Stato",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · commit {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "Impossibile caricare le impostazioni."
   },
   "ui": {
-    "title": "Impostazioni interfaccia",
-    "subtitle": "Modifiche globali applicate all'interfaccia web di ogni utente",
     "loadFailed": "Impossibile caricare le impostazioni interfaccia",
     "errorFallback": "Qualcosa è andato storto.",
     "login": "Accesso",
@@ -124,24 +122,6 @@
     "title": "Attività pianificate",
     "loadFailed": "Impossibile caricare le attività pianificate.",
     "empty": "Nessuna attività pianificata."
-  },
-  "sessions": {
-    "title": "Sessioni",
-    "loadFailed": "Impossibile caricare le sessioni.",
-    "empty": "Nessuna sessione attiva.",
-    "session": "Sessione",
-    "created": "Creata",
-    "lastActive": "Ultima attività",
-    "status": "Stato",
-    "actions": "Azioni",
-    "expired": "Scaduta",
-    "active": "Attiva",
-    "kick": "Disconnetti",
-    "kickHint": "Disconnettere una sessione fa uscire quel dispositivo: l'utente dovrà accedere di nuovo.",
-    "kickFailed": "Impossibile disconnettere la sessione.",
-    "showAll_one": "Mostra {{count}} sessione",
-    "showAll_many": "Mostra tutte le {{count}} sessioni",
-    "showAll_other": "Mostra tutte le {{count}} sessioni"
   },
   "form": {
     "deleteEmptyCollections": "Elimina raccolte vuote",

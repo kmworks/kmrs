@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "서버",
+    "title": "상태",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · 커밋 {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "설정을 불러올 수 없습니다."
   },
   "ui": {
-    "title": "UI 설정",
-    "subtitle": "모든 사용자의 웹 UI에 적용되는 전역 조정",
     "loadFailed": "UI 설정을 불러올 수 없습니다",
     "errorFallback": "문제가 발생했습니다.",
     "login": "로그인",
@@ -106,22 +104,6 @@
     "title": "예약된 작업",
     "loadFailed": "예약된 작업을 불러올 수 없습니다.",
     "empty": "예약된 작업이 없습니다."
-  },
-  "sessions": {
-    "title": "세션",
-    "loadFailed": "세션을 불러올 수 없습니다.",
-    "empty": "활성 세션이 없습니다.",
-    "session": "세션",
-    "created": "생성됨",
-    "lastActive": "마지막 활동",
-    "status": "상태",
-    "actions": "작업",
-    "expired": "만료됨",
-    "active": "활성",
-    "kick": "강제 종료",
-    "kickHint": "세션을 강제 종료하면 해당 기기가 로그아웃되며 사용자는 다시 로그인해야 합니다.",
-    "kickFailed": "세션을 강제 종료할 수 없습니다.",
-    "showAll_other": "세션 {{count}}개 모두 보기"
   },
   "form": {
     "deleteEmptyCollections": "빈 컬렉션 삭제",

@@ -34,6 +34,21 @@
       "failed": "Impossibile aggiornare la password.",
       "submit": "Aggiorna password"
     },
+    "sessions": {
+      "title": "Sessioni",
+      "failed": "Impossibile caricare le sessioni.",
+      "empty": "Nessuna sessione attiva.",
+      "session": "Sessione",
+      "created": "Creata",
+      "lastActive": "Ultima attività",
+      "actions": "Azioni",
+      "current": "Attuale",
+      "signOut": "Esci",
+      "signOutFailed": "Impossibile disconnettere la sessione.",
+      "showAll_one": "Mostra {{count}} sessione",
+      "showAll_many": "Mostra tutte le {{count}} sessioni",
+      "showAll_other": "Mostra tutte le {{count}} sessioni"
+    },
     "activity": {
       "title": "Attività di accesso",
       "failed": "Impossibile caricare l'attività di accesso.",

@@ -1,6 +1,6 @@
 {
   "server": {
-    "title": "サーバー",
+    "title": "ステータス",
     "subtitle": "kmrs {{version}}",
     "subtitleWithCommit": "kmrs {{version}} · コミット {{commit}}"
   },
@@ -10,8 +10,6 @@
     "loadFailed": "設定を読み込めませんでした。"
   },
   "ui": {
-    "title": "UI 設定",
-    "subtitle": "すべてのユーザーの Web UI に適用されるグローバルな調整",
     "loadFailed": "UI 設定を読み込めませんでした",
     "errorFallback": "問題が発生しました。",
     "login": "ログイン",
@@ -106,22 +104,6 @@
     "title": "スケジュールタスク",
     "loadFailed": "スケジュールタスクを読み込めませんでした。",
     "empty": "スケジュールタスクはありません。"
-  },
-  "sessions": {
-    "title": "セッション",
-    "loadFailed": "セッションを読み込めませんでした。",
-    "empty": "アクティブなセッションはありません。",
-    "session": "セッション",
-    "created": "作成日時",
-    "lastActive": "最終アクティブ",
-    "status": "ステータス",
-    "actions": "操作",
-    "expired": "期限切れ",
-    "active": "アクティブ",
-    "kick": "強制ログアウト",
-    "kickHint": "セッションを強制ログアウトするとそのデバイスはログアウトされ、ユーザーは再度ログインが必要になります。",
-    "kickFailed": "セッションを強制ログアウトできませんでした。",
-    "showAll_other": "{{count}} 件のセッションをすべて表示"
   },
   "form": {
     "deleteEmptyCollections": "空のコレクションを削除",

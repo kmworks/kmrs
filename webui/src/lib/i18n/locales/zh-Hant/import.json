@@ -6,7 +6,7 @@
     "browse": "瀏覽",
     "scan": "掃描",
     "queued_other": "已為 {{count}} 本書排入匯入",
-    "queuedBody": "匯入會以背景任務執行。請在<link>伺服器頁面</link>追蹤進度。",
+    "queuedBody": "匯入會以背景任務執行。請在<link>狀態頁面</link>追蹤進度。",
     "importMore": "匯入更多檔案",
     "emptyTitle": "沒有可匯入的檔案",
     "emptyBody": "此資料夾沒有書籍檔案。",

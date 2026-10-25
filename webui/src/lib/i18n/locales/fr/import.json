@@ -8,7 +8,7 @@
     "queued_one": "Import mis en file pour {{count}} livre",
     "queued_many": "Import mis en file pour {{count}} livres",
     "queued_other": "Import mis en file pour {{count}} livres",
-    "queuedBody": "Les imports s'exécutent en tâches d'arrière-plan. Suivez la progression sur la <link>page Serveur</link>.",
+    "queuedBody": "Les imports s'exécutent en tâches d'arrière-plan. Suivez la progression sur la <link>page État</link>.",
     "importMore": "Importer plus de fichiers",
     "emptyTitle": "Aucun fichier importable",
     "emptyBody": "Le dossier ne contient aucun fichier de livre.",

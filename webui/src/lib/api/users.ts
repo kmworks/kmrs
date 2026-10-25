@@ -4,10 +4,12 @@ import type {
   ApiKeyDto,
   AuthenticationActivityDto,
   ClaimStatus,
+  MySessionDto,
   OAuth2ClientDto,
   Page,
   UserCreationDto,
   UserDto,
+  UserSessionDto,
   UserUpdateDto,
 } from './types'
 
@@ -47,6 +49,9 @@ export const usersApi = {
   authenticationActivity: (params?: { page?: number; size?: number }) =>
     api.get<Page<AuthenticationActivityDto>>('/api/v2/users/me/authentication-activity', params),
 
+  mySessions: () => api.get<MySessionDto[]>('/api/v2/users/me/sessions'),
+  deleteMySession: (sessionId: string) => api.delete<void>(`/api/v2/users/me/sessions/${sessionId}`),
+
   // Admin operations
   list: () => api.get<UserDto[]>('/api/v2/users'),
   create: (body: UserCreationDto) => api.post<UserDto>('/api/v2/users', body),
@@ -56,4 +61,6 @@ export const usersApi = {
     api.patch<void>(`/api/v2/users/${userId}/password`, { password }),
   allAuthenticationActivity: (params?: { page?: number; size?: number }) =>
     api.get<Page<AuthenticationActivityDto>>('/api/v2/users/authentication-activity', params),
+  sessions: () => api.get<UserSessionDto[]>('/api/v2/users/sessions'),
+  deleteSession: (sessionId: string) => api.delete<void>(`/api/v2/users/sessions/${sessionId}`),
 }

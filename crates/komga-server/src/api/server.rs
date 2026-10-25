@@ -1,5 +1,5 @@
 //! kmrs-native server endpoints (`/api/v1/server/**`): what the webui needs from the
-//! server itself — version info, scheduled scans, sessions and the log file.
+//! server itself — version info, scheduled scans and the log file.
 //! kmrs-private like `api::stats` (kept out of the OpenAPI spec). Unlike the actuator
 //! parity surface, everything but `/info` is ADMIN-gated.
 
@@ -7,9 +7,8 @@ use crate::auth::RequireAuth;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::http::header::{CONTENT_LENGTH, CONTENT_TYPE};
-use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::{routing, Json, Router};
 use serde::Serialize;
@@ -21,11 +20,6 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/v1/server/scheduled-tasks",
             routing::get(get_scheduled_tasks),
-        )
-        .route("/api/v1/server/sessions", routing::get(list_sessions))
-        .route(
-            "/api/v1/server/sessions/{id}",
-            routing::delete(delete_session),
         )
         .route("/api/v1/server/logfile", routing::get(get_logfile))
 }
@@ -82,66 +76,6 @@ async fn get_scheduled_tasks(auth: RequireAuth) -> Result<Json<ScheduledTasksDto
 
 // endregion
 
-// region sessions
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SessionsDto {
-    sessions: Vec<SessionDto>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SessionDto {
-    id: String,
-    creation_time: String,
-    last_accessed_time: String,
-    max_inactive_interval: u64,
-    expired: bool,
-}
-
-async fn list_sessions(
-    State(state): State<AppState>,
-    auth: RequireAuth,
-) -> Result<Json<SessionsDto>, ApiError> {
-    auth.0.require_admin()?;
-    let sessions = state
-        .sessions
-        .all()?
-        .into_iter()
-        .map(|(id, data)| session_dto(&id, &data, &state))
-        .collect();
-    Ok(Json(SessionsDto { sessions }))
-}
-
-async fn delete_session(
-    State(state): State<AppState>,
-    auth: RequireAuth,
-    Path(id): Path<String>,
-) -> Result<StatusCode, ApiError> {
-    auth.0.require_admin()?;
-    state.sessions.invalidate(&id)?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
-/// `expired` is always false: the store only ever returns live sessions.
-fn session_dto(id: &str, data: &crate::auth::session::SessionData, state: &AppState) -> SessionDto {
-    let instant = |millis: u64| {
-        komga_core::time_codec::format_offset_date_time(
-            time::OffsetDateTime::from_unix_timestamp_nanos(millis as i128 * 1_000_000).unwrap(),
-        )
-    };
-    SessionDto {
-        id: id.to_string(),
-        creation_time: instant(data.created_at),
-        last_accessed_time: instant(data.last_accessed_at),
-        max_inactive_interval: state.config.session_timeout.as_secs(),
-        expired: false,
-    }
-}
-
-// endregion
-
 // region logfile
 
 async fn get_logfile(
@@ -173,7 +107,7 @@ async fn get_logfile(
 mod tests {
     use super::*;
     use crate::api::collections::tests::{call, get, insert_user, test_state};
-    use axum::http::Request;
+    use axum::http::{Request, StatusCode};
     use komga_core::model::user::UserRole;
 
     fn seed_admin(state: &AppState) -> String {
@@ -263,76 +197,6 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(json(&body), serde_json::json!({"tasks": []}));
-    }
-
-    #[tokio::test]
-    async fn sessions_list_shape_and_delete_round_trip() {
-        let state = test_state();
-        let admin_key = seed_admin(&state);
-        let user_key = seed_user(&state);
-
-        let (status, _, _) =
-            call(&state, router(), get("/api/v1/server/sessions", &user_key)).await;
-        assert_eq!(status, StatusCode::FORBIDDEN);
-        let (status, _, _) = call(
-            &state,
-            router(),
-            request("GET", "/api/v1/server/sessions", None),
-        )
-        .await;
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
-
-        let user_id = insert_user(
-            &state.db,
-            "someone@x.c",
-            &[],
-            &[],
-            Default::default(),
-            "k-s",
-        );
-        let session_id = state.sessions.create(&user_id).unwrap();
-
-        let (status, _, body) =
-            call(&state, router(), get("/api/v1/server/sessions", &admin_key)).await;
-        assert_eq!(status, StatusCode::OK);
-        let sessions = json(&body);
-        let sessions = sessions["sessions"].as_array().unwrap();
-        assert_eq!(sessions.len(), 1);
-        let session = &sessions[0];
-        assert_eq!(session["id"], session_id);
-        assert!(session["creationTime"].as_str().unwrap().ends_with('Z'));
-        assert!(session["lastAccessedTime"].as_str().unwrap().ends_with('Z'));
-        assert_eq!(session["maxInactiveInterval"], 604_800);
-        assert_eq!(session["expired"], false);
-        assert!(session.get("attributeNames").is_none());
-
-        let (status, _, _) = call(
-            &state,
-            router(),
-            request(
-                "DELETE",
-                &format!("/api/v1/server/sessions/{session_id}"),
-                Some(&admin_key),
-            ),
-        )
-        .await;
-        assert_eq!(status, StatusCode::NO_CONTENT);
-        let (status, _, body) =
-            call(&state, router(), get("/api/v1/server/sessions", &admin_key)).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json(&body)["sessions"], serde_json::json!([]));
-
-        let (status, _, _) = call(
-            &state,
-            router(),
-            request(
-                "DELETE",
-                "/api/v1/server/sessions/whatever",
-                Some(&user_key),
-            ),
-        )
-        .await;
-        assert_eq!(status, StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]

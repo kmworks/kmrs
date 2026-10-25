@@ -40,7 +40,6 @@ import { AdminMediaAnalysisPage } from '@/routes/admin/media-analysis'
 import { AdminMissingPostersPage } from '@/routes/admin/missing-posters'
 import { AdminHistoryPage } from '@/routes/admin/history'
 import { AdminUpdatesPage } from '@/routes/admin/updates'
-import { AdminUiPage } from '@/routes/admin/ui'
 import { ImportBooksPage } from '@/routes/import/books'
 import { ImportReadListPage } from '@/routes/import/readlist'
 import { NotFoundPage } from '@/routes/not-found'
@@ -106,7 +105,7 @@ export const router = createBrowserRouter([
               { path: '/admin/missing-posters', element: <AdminMissingPostersPage /> },
               { path: '/admin/history', element: <AdminHistoryPage /> },
               { path: '/admin/updates', element: <AdminUpdatesPage /> },
-              { path: '/admin/ui', element: <AdminUiPage /> },
+              { path: '/admin/ui', element: <Navigate to="/admin/settings" replace /> },
               { path: '/import/books', element: <ImportBooksPage /> },
               { path: '/import/readlist', element: <ImportReadListPage /> },
             ],

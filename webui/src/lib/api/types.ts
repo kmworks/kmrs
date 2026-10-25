@@ -431,12 +431,19 @@ export interface ServerScheduledTaskDto {
   intervalSeconds: number
 }
 
-export interface ServerSessionDto {
+export interface MySessionDto {
   id: string
   creationTime: string
   lastAccessedTime: string
-  maxInactiveInterval: number
-  expired: boolean
+  current: boolean
+}
+
+export interface UserSessionDto {
+  id: string
+  userId: string
+  email: string | null
+  creationTime: string
+  lastAccessedTime: string
 }
 
 export interface TaskQueueStatus {

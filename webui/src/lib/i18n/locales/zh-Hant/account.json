@@ -32,6 +32,19 @@
       "failed": "無法更新密碼。",
       "submit": "更新密碼"
     },
+    "sessions": {
+      "title": "工作階段",
+      "failed": "無法載入工作階段。",
+      "empty": "沒有使用中的工作階段。",
+      "session": "工作階段",
+      "created": "建立時間",
+      "lastActive": "最後活動",
+      "actions": "動作",
+      "current": "目前",
+      "signOut": "登出",
+      "signOutFailed": "無法將該工作階段登出。",
+      "showAll_other": "顯示全部 {{count}} 個工作階段"
+    },
     "activity": {
       "title": "登入活動",
       "failed": "無法載入登入活動。",

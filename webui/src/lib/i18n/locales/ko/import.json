@@ -6,7 +6,7 @@
     "browse": "찾아보기",
     "scan": "스캔",
     "queued_other": "책 {{count}}권의 가져오기를 큐에 추가함",
-    "queuedBody": "가져오기는 백그라운드 작업으로 실행됩니다. <link>서버 페이지</link>에서 진행 상황을 확인하세요.",
+    "queuedBody": "가져오기는 백그라운드 작업으로 실행됩니다. <link>상태 페이지</link>에서 진행 상황을 확인하세요.",
     "importMore": "더 많은 파일 가져오기",
     "emptyTitle": "가져올 수 있는 파일 없음",
     "emptyBody": "폴더에 책 파일이 없습니다.",

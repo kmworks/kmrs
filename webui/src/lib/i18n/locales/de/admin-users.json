@@ -69,5 +69,11 @@
     "events_other": "{{count, number}} Ereignisse",
     "loadFailed": "Die Authentifizierungsaktivität konnte nicht geladen werden.",
     "empty": "Noch keine Aktivität."
+  },
+  "sessions": {
+    "title": "Sitzungen",
+    "kick": "Beenden",
+    "kickHint": "Das Beenden einer Sitzung meldet das Gerät ab – der Benutzer muss sich erneut anmelden.",
+    "kickFailed": "Die Sitzung konnte nicht beendet werden."
   }
 }

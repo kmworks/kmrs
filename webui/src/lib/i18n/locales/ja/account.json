@@ -32,6 +32,19 @@
       "failed": "パスワードを更新できませんでした。",
       "submit": "パスワードを更新"
     },
+    "sessions": {
+      "title": "セッション",
+      "failed": "セッションを読み込めませんでした。",
+      "empty": "アクティブなセッションはありません。",
+      "session": "セッション",
+      "created": "作成日時",
+      "lastActive": "最終アクティブ",
+      "actions": "操作",
+      "current": "現在の",
+      "signOut": "サインアウト",
+      "signOutFailed": "セッションをサインアウトできませんでした。",
+      "showAll_other": "{{count}} 件のセッションをすべて表示"
+    },
     "activity": {
       "title": "ログイン履歴",
       "failed": "ログイン履歴を読み込めませんでした。",
