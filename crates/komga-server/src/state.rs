@@ -25,6 +25,7 @@ pub struct AppState {
     pub events: crate::events::EventBus,
     pub task_emitter: Arc<crate::service::TaskEmitter>,
     pub search_index: Arc<komga_search::SearchIndex>,
+    pub tracker: Arc<crate::service::tracker::TrackerServices>,
     pub kepub: Arc<crate::service::kepub::KepubConverter>,
     pub kobo_proxy: Arc<crate::service::kobo_proxy::KoboProxy>,
     /// Broadcasts the shutdown request (the Windows tray's exit action)
@@ -65,6 +66,43 @@ pub(crate) fn test_kmrs_db() -> Database {
     .migrate(&kmrs_db.rw().unwrap())
     .unwrap();
     kmrs_db
+}
+
+#[cfg(test)]
+pub(crate) fn test_app_state(
+    config: ServerConfig,
+    db: Database,
+    tasks_db: Database,
+    kmrs_db: Database,
+) -> (AppState, tokio::sync::watch::Receiver<bool>) {
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let state = AppState {
+        config: Arc::new(config.clone()),
+        db: db.clone(),
+        // In-memory task pools share the main database so background writes are visible to assertions.
+        task_db: db.clone(),
+        tasks_db: tasks_db.clone(),
+        kmrs_db: kmrs_db.clone(),
+        sessions: SessionStore::new(config.session_timeout),
+        settings: Arc::new(SettingsProvider::load(db.clone())),
+        tsid: Arc::new(TsidFactory::new_random_node()),
+        events: crate::events::event_bus(),
+        task_emitter: Arc::new(crate::service::TaskEmitter::new(
+            db,
+            tasks_db,
+            Arc::new(tokio::sync::Notify::new()),
+        )),
+        search_index: test_search_index(),
+        tracker: Arc::new(crate::service::tracker::TrackerServices::empty(
+            kmrs_db.clone(),
+        )),
+        kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
+        kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
+        shutdown_tx,
+        api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
+        latest_update: Default::default(),
+    };
+    (state, shutdown_rx)
 }
 
 /// Re-points a test state at a fresh temp config dir with the given thumbnail storage.

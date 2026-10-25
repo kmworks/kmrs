@@ -77,8 +77,6 @@
   },
   "page": {
     "title": "追蹤",
-    "notConnected": "komf 未連接",
-    "notConnectedBody": "需要管理員先連接 komf 執行個體才能使用追蹤功能。",
     "bindingsHeading": "已關聯的系列",
     "visibilityHeading": "追蹤模組顯示範圍",
     "visibilityHint": "系列詳情頁的追蹤模組僅在選取的書庫中顯示；不選取任何書庫時全部顯示。",

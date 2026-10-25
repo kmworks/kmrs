@@ -1,0 +1,792 @@
+use super::super::oauth::OAuthManager;
+use super::super::{Provider, TrackerError, TrackerService};
+use super::parse_tracker_url;
+use komga_core::tracker::{RemoteState, TrackMediaType, TrackSearchItem, TrackStatus, TrackUpdate};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+
+const GRAPHQL_URL: &str = "https://graphql.anilist.co";
+
+const SEARCH_SFW: &str = r#"
+query ($search: String) {
+  Page(perPage: 20) {
+    media(search: $search, type: MANGA, isAdult: false) {
+      id
+      title { userPreferred }
+      description
+      format
+      coverImage { medium }
+      mediaListEntry { id }
+    }
+  }
+}
+"#;
+
+const SEARCH_ALL: &str = r#"
+query ($search: String) {
+  Page(perPage: 20) {
+    media(search: $search, type: MANGA) {
+      id
+      title { userPreferred }
+      description
+      format
+      coverImage { medium }
+      mediaListEntry { id }
+    }
+  }
+}
+"#;
+
+const MEDIA_BY_ID: &str = r#"
+query ($id: Int) {
+  Media(id: $id) {
+    id
+    title { userPreferred }
+    description
+    format
+    coverImage { medium }
+    mediaListEntry { id }
+  }
+}
+"#;
+
+const MEDIA_STATE: &str = r#"
+query ($id: Int) {
+  Media(id: $id) {
+    chapters
+    volumes
+    mediaListEntry {
+      status
+      score(format: POINT_100)
+      progress
+      progressVolumes
+      startedAt { year month day }
+      completedAt { year month day }
+    }
+  }
+}
+"#;
+
+const VIEWER_SCORE_FORMAT: &str = r#"
+query {
+  Viewer { mediaListOptions { scoreFormat } }
+}
+"#;
+
+const SAVE_MEDIA_LIST_ENTRY: &str = r#"
+mutation (
+  $id: Int, $status: MediaListStatus, $progress: Int, $volumes: Int,
+  $score: Int, $startedAt: FuzzyDateInput, $completedAt: FuzzyDateInput
+) {
+  SaveMediaListEntry(
+    mediaId: $id, status: $status, progress: $progress, progressVolumes: $volumes,
+    scoreRaw: $score, startedAt: $startedAt, completedAt: $completedAt
+  ) { id }
+}
+"#;
+
+pub struct AniListTracker {
+    http: reqwest::Client,
+    oauth: Arc<OAuthManager>,
+    graphql_url: String,
+    score_formats: RwLock<HashMap<String, String>>,
+}
+
+impl AniListTracker {
+    pub fn new(http: reqwest::Client, oauth: Arc<OAuthManager>) -> Self {
+        Self {
+            http,
+            oauth,
+            graphql_url: GRAPHQL_URL.into(),
+            score_formats: RwLock::new(HashMap::new()),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_graphql_url(
+        http: reqwest::Client,
+        oauth: Arc<OAuthManager>,
+        graphql_url: impl Into<String>,
+    ) -> Self {
+        let mut tracker = Self::new(http, oauth);
+        tracker.graphql_url = graphql_url.into();
+        tracker
+    }
+
+    fn error(message: impl Into<String>) -> TrackerError {
+        TrackerError::Provider {
+            provider: Provider::Anilist,
+            message: message.into(),
+        }
+    }
+
+    async fn access_token(&self, user_id: &str) -> Result<String, TrackerError> {
+        self.oauth
+            .access_token(Provider::Anilist, user_id)
+            .await?
+            .ok_or(TrackerError::NotLoggedIn {
+                provider: Provider::Anilist,
+            })
+    }
+
+    async fn read_response(
+        response: reqwest::Response,
+    ) -> Result<(reqwest::StatusCode, String), TrackerError> {
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .map_err(|error| Self::error(format!("response could not be read: {error}")))?;
+        Ok((status, body))
+    }
+
+    fn is_unauthorized(status: reqwest::StatusCode, body: Option<&Value>) -> bool {
+        status == reqwest::StatusCode::UNAUTHORIZED
+            || body
+                .and_then(|body| body.get("errors"))
+                .and_then(Value::as_array)
+                .is_some_and(|errors| {
+                    errors
+                        .iter()
+                        .filter_map(|error| error.get("message"))
+                        .any(|message| {
+                            message.as_str().is_some_and(|message| {
+                                message.contains("Invalid token")
+                                    || message.contains("Invalid Authentication")
+                            })
+                        })
+                })
+    }
+
+    async fn graphql(
+        &self,
+        user_id: &str,
+        query: &str,
+        variables: Value,
+    ) -> Result<Value, TrackerError> {
+        let mut token = self.access_token(user_id).await?;
+        let send = |token: &str| {
+            self.http
+                .post(&self.graphql_url)
+                .bearer_auth(token)
+                .json(&json!({
+                    "query": query,
+                    "variables": variables.clone(),
+                }))
+        };
+
+        let response = send(&token)
+            .send()
+            .await
+            .map_err(|error| Self::error(format!("request failed: {error}")))?;
+        let (mut status, mut raw) = Self::read_response(response).await?;
+        let mut body = serde_json::from_str::<Value>(&raw).ok();
+
+        if Self::is_unauthorized(status, body.as_ref()) {
+            if let Some(fresh) = self.oauth.refresh_now(Provider::Anilist, user_id).await? {
+                token = fresh;
+                let response = send(&token)
+                    .send()
+                    .await
+                    .map_err(|error| Self::error(format!("request failed: {error}")))?;
+                (status, raw) = Self::read_response(response).await?;
+                body = serde_json::from_str::<Value>(&raw).ok();
+            }
+            if Self::is_unauthorized(status, body.as_ref()) {
+                self.oauth
+                    .logout_if_current(Provider::Anilist, user_id, &token)?;
+                return Err(TrackerError::NotLoggedIn {
+                    provider: Provider::Anilist,
+                });
+            }
+        }
+
+        if !status.is_success() {
+            return Err(Self::error(format!("request returned {status}: {raw}")));
+        }
+        let body = body.ok_or_else(|| Self::error("response was not valid JSON"))?;
+        if let Some(errors) = body.get("errors").and_then(Value::as_array) {
+            let message = errors
+                .iter()
+                .filter_map(|error| error.get("message"))
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(Self::error(if message.is_empty() {
+                "GraphQL request failed".into()
+            } else {
+                message
+            }));
+        }
+        body.get("data")
+            .cloned()
+            .ok_or_else(|| Self::error("GraphQL response has no data"))
+    }
+
+    async fn score_format(&self, user_id: &str) -> String {
+        if let Some(format) = self
+            .score_formats
+            .read()
+            .unwrap_or_else(|error| error.into_inner())
+            .get(user_id)
+            .cloned()
+        {
+            return format;
+        }
+        let format = self
+            .graphql(user_id, VIEWER_SCORE_FORMAT, json!({}))
+            .await
+            .ok()
+            .and_then(|data| {
+                data.pointer("/Viewer/mediaListOptions/scoreFormat")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "POINT_100".into());
+        self.score_formats
+            .write()
+            .unwrap_or_else(|error| error.into_inner())
+            .insert(user_id.to_string(), format.clone());
+        format
+    }
+
+    fn manga_id(track_id: &str) -> Result<i64, TrackerError> {
+        track_id
+            .parse()
+            .map_err(|_| Self::error(format!("invalid media id: {track_id}")))
+    }
+
+    fn manga_url_id(query: &str) -> Option<i64> {
+        let url = parse_tracker_url(query)?;
+        let host = url.host_str()?.to_ascii_lowercase();
+        if host != "anilist.co" && !host.ends_with(".anilist.co") {
+            return None;
+        }
+        let mut segments = url.path_segments()?;
+        if segments.next()? != "manga" {
+            return None;
+        }
+        segments.next()?.parse().ok()
+    }
+
+    fn status_to_wire(status: TrackStatus) -> &'static str {
+        match status {
+            TrackStatus::Reading => "CURRENT",
+            TrackStatus::Planning => "PLANNING",
+            TrackStatus::Completed => "COMPLETED",
+            TrackStatus::Paused => "PAUSED",
+            TrackStatus::Dropped => "DROPPED",
+            TrackStatus::Rereading => "REPEATING",
+        }
+    }
+
+    fn status_from_wire(status: &str) -> Option<TrackStatus> {
+        match status {
+            "CURRENT" => Some(TrackStatus::Reading),
+            "PLANNING" => Some(TrackStatus::Planning),
+            "COMPLETED" => Some(TrackStatus::Completed),
+            "PAUSED" => Some(TrackStatus::Paused),
+            "DROPPED" => Some(TrackStatus::Dropped),
+            "REPEATING" => Some(TrackStatus::Rereading),
+            _ => None,
+        }
+    }
+
+    fn date_input(date: Option<&str>) -> Option<Value> {
+        let mut parts = date?.split('-');
+        let year = parts.next()?.parse::<i64>().ok()?;
+        let month = parts.next()?.parse::<i64>().ok()?;
+        let day = parts.next()?.parse::<i64>().ok()?;
+        Some(json!({ "year": year, "month": month, "day": day }))
+    }
+
+    fn date_output(date: Option<&Value>) -> Option<String> {
+        let date = date?;
+        let year = date.get("year")?.as_i64()?;
+        if year == 0 {
+            return None;
+        }
+        let month = date.get("month")?.as_i64()?;
+        let day = date.get("day")?.as_i64()?;
+        Some(format!("{year:04}-{month:02}-{day:02}"))
+    }
+
+    fn search_item(media: &Value) -> Option<TrackSearchItem> {
+        let id = media.get("id")?.as_i64()?;
+        let media_type = match media.get("format").and_then(Value::as_str) {
+            Some("NOVEL") => Some(TrackMediaType::Novel),
+            Some(_) => Some(TrackMediaType::Manga),
+            None => None,
+        };
+        Some(TrackSearchItem {
+            id: id.to_string(),
+            title: media
+                .pointer("/title/userPreferred")
+                .and_then(Value::as_str)
+                .unwrap_or("Unknown Title")
+                .to_string(),
+            cover_url: media
+                .pointer("/coverImage/medium")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            description: media
+                .get("description")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            tracked: media
+                .get("mediaListEntry")
+                .is_some_and(|entry| !entry.is_null()),
+            media_type,
+            url: Some(format!("https://anilist.co/manga/{id}")),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl TrackerService for AniListTracker {
+    fn provider(&self) -> Provider {
+        Provider::Anilist
+    }
+
+    fn is_logged_in(&self, user_id: &str) -> Result<bool, TrackerError> {
+        Ok(self.oauth.status(Provider::Anilist, user_id)?.logged_in)
+    }
+
+    async fn search(
+        &self,
+        user_id: &str,
+        query: &str,
+        nsfw: bool,
+    ) -> Result<Vec<TrackSearchItem>, TrackerError> {
+        if let Some(id) = Self::manga_url_id(query) {
+            let data = self
+                .graphql(user_id, MEDIA_BY_ID, json!({ "id": id }))
+                .await?;
+            return Ok(data
+                .get("Media")
+                .and_then(Self::search_item)
+                .into_iter()
+                .collect());
+        }
+
+        let data = self
+            .graphql(
+                user_id,
+                if nsfw { SEARCH_ALL } else { SEARCH_SFW },
+                json!({ "search": query }),
+            )
+            .await?;
+        Ok(data
+            .pointer("/Page/media")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Self::search_item)
+            .collect())
+    }
+
+    async fn get_state(&self, user_id: &str, track_id: &str) -> Result<RemoteState, TrackerError> {
+        let id = Self::manga_id(track_id)?;
+        let data = self
+            .graphql(user_id, MEDIA_STATE, json!({ "id": id }))
+            .await?;
+        let media = data
+            .get("Media")
+            .ok_or_else(|| Self::error("media not found"))?;
+        let Some(entry) = media.get("mediaListEntry").filter(|entry| !entry.is_null()) else {
+            return Ok(RemoteState {
+                total_chapters: media
+                    .get("chapters")
+                    .and_then(Value::as_i64)
+                    .map(|total| total as i32),
+                total_volumes: media
+                    .get("volumes")
+                    .and_then(Value::as_i64)
+                    .map(|total| total as i32),
+                ..RemoteState::default()
+            });
+        };
+
+        let raw_score = entry.get("score").and_then(Value::as_i64);
+        let score = if self.score_format(user_id).await == "POINT_10" {
+            raw_score.map(|score| score / 10)
+        } else {
+            raw_score
+        };
+        Ok(RemoteState {
+            score: score.map(|score| score as i32),
+            status: entry
+                .get("status")
+                .and_then(Value::as_str)
+                .and_then(Self::status_from_wire),
+            last_read_chapter: entry
+                .get("progress")
+                .and_then(Value::as_i64)
+                .map(|progress| progress as f32),
+            last_read_volume: entry
+                .get("progressVolumes")
+                .and_then(Value::as_i64)
+                .map(|progress| progress as i32),
+            total_chapters: media
+                .get("chapters")
+                .and_then(Value::as_i64)
+                .map(|total| total as i32),
+            total_volumes: media
+                .get("volumes")
+                .and_then(Value::as_i64)
+                .map(|total| total as i32),
+            start_read_date: Self::date_output(entry.get("startedAt")),
+            finish_read_date: Self::date_output(entry.get("completedAt")),
+        })
+    }
+
+    async fn update(
+        &self,
+        user_id: &str,
+        track_id: &str,
+        update: &TrackUpdate,
+    ) -> Result<(), TrackerError> {
+        let id = Self::manga_id(track_id)?;
+        let score = match update.score {
+            Some(score) if self.score_format(user_id).await == "POINT_10" => Some(score * 10),
+            score => score,
+        };
+        self.graphql(
+            user_id,
+            SAVE_MEDIA_LIST_ENTRY,
+            json!({
+                "id": id,
+                "status": update.status.map(Self::status_to_wire),
+                "progress": update.last_read_chapter.map(|chapter| chapter.floor() as i64),
+                "volumes": update.last_read_volume,
+                "score": score,
+                "startedAt": Self::date_input(update.start_read_date.as_deref()),
+                "completedAt": Self::date_input(update.finish_read_date.as_deref()),
+            }),
+        )
+        .await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_support::{capture, seed_token, serve, test_oauth, CapturedRequest};
+    use super::*;
+    use axum::extract::{Request, State};
+    use axum::http::{Method, StatusCode};
+    use axum::response::{IntoResponse, Response};
+    use axum::{Json, Router};
+    use komga_core::tracker::{BookTrackInput, TrackMode};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Mutex;
+
+    #[derive(Clone)]
+    struct MockAniList {
+        requests: Arc<Mutex<Vec<CapturedRequest>>>,
+        media: Value,
+        score_format: String,
+        unauthorized_once: Arc<AtomicBool>,
+    }
+
+    impl MockAniList {
+        fn new(media: Value, score_format: &str) -> Self {
+            Self {
+                requests: Arc::new(Mutex::new(Vec::new())),
+                media,
+                score_format: score_format.into(),
+                unauthorized_once: Arc::new(AtomicBool::new(false)),
+            }
+        }
+
+        fn requests(&self) -> Vec<CapturedRequest> {
+            self.requests.lock().unwrap().clone()
+        }
+    }
+
+    async fn endpoint(State(mock): State<MockAniList>, request: Request) -> Response {
+        let captured = capture(request).await;
+        let path = captured.path.clone();
+        let request_json = (path == "/graphql").then(|| captured.json());
+        mock.requests.lock().unwrap().push(captured);
+
+        if path == "/token" {
+            return Json(json!({
+                "access_token": "new-token",
+                "expires_in": 3600
+            }))
+            .into_response();
+        }
+        if mock.unauthorized_once.swap(false, Ordering::SeqCst) {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"errors": [{"message": "Invalid token"}]})),
+            )
+                .into_response();
+        }
+
+        let query = request_json.unwrap()["query"].as_str().unwrap().to_string();
+        let data = if query.contains("SaveMediaListEntry") {
+            json!({"SaveMediaListEntry": {"id": 1}})
+        } else if query.contains("Viewer") {
+            json!({"Viewer": {"mediaListOptions": {"scoreFormat": mock.score_format}}})
+        } else if query.contains("Page") {
+            json!({"Page": {"media": [mock.media]}})
+        } else {
+            json!({"Media": mock.media})
+        };
+        Json(json!({"data": data})).into_response()
+    }
+
+    async fn serve_mock(mock: MockAniList) -> String {
+        serve(Router::new().fallback(endpoint).with_state(mock)).await
+    }
+
+    fn media() -> Value {
+        json!({
+            "id": 42,
+            "title": {"userPreferred": "Test Manga"},
+            "description": "Description",
+            "format": "NOVEL",
+            "coverImage": {"medium": "https://img.example/cover.jpg"},
+            "chapters": 120,
+            "volumes": 12,
+            "mediaListEntry": {
+                "id": 7,
+                "status": "REPEATING",
+                "score": 85,
+                "progress": 12,
+                "progressVolumes": 2,
+                "startedAt": {"year": 2024, "month": 3, "day": 2},
+                "completedAt": {"year": 0, "month": 0, "day": 0}
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn search_uses_graphql_filters_and_direct_media_lookup() {
+        let mock = MockAniList::new(media(), "POINT_100");
+        let base_url = serve_mock(mock.clone()).await;
+        let (oauth, dao) = test_oauth(Provider::Anilist, &base_url);
+        seed_token(&dao, Provider::Anilist, "alice");
+        let tracker = AniListTracker::with_graphql_url(
+            reqwest::Client::new(),
+            oauth,
+            format!("{base_url}/graphql"),
+        );
+        assert_eq!(tracker.provider(), Provider::Anilist);
+        assert!(tracker.is_logged_in("alice").unwrap());
+
+        let items = tracker.search("alice", "Test", false).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, "42");
+        assert_eq!(items[0].title, "Test Manga");
+        assert_eq!(items[0].media_type, Some(TrackMediaType::Novel));
+        assert!(items[0].tracked);
+        assert_eq!(items[0].url.as_deref(), Some("https://anilist.co/manga/42"));
+
+        tracker.search("alice", "Test", true).await.unwrap();
+        tracker
+            .search("alice", "anilist.co/manga/42/Test_Manga", true)
+            .await
+            .unwrap();
+        assert!(matches!(
+            tracker.search("bob", "Test", true).await,
+            Err(TrackerError::NotLoggedIn {
+                provider: Provider::Anilist
+            })
+        ));
+
+        let requests = mock.requests();
+        assert_eq!(requests.len(), 3);
+        let first = &requests[0];
+        assert_eq!(first.method, Method::POST);
+        assert_eq!(first.path, "/graphql");
+        assert_eq!(first.authorization.as_deref(), Some("Bearer old-token"));
+        assert!(first.json()["query"]
+            .as_str()
+            .unwrap()
+            .contains("isAdult: false"));
+        assert_eq!(first.json()["variables"], json!({"search": "Test"}));
+        assert!(!requests[1].json()["query"]
+            .as_str()
+            .unwrap()
+            .contains("isAdult: false"));
+        let direct = &requests[2];
+        assert!(direct.json()["query"]
+            .as_str()
+            .unwrap()
+            .contains("Media(id: $id)"));
+        assert_eq!(direct.json()["variables"], json!({"id": 42}));
+    }
+
+    #[tokio::test]
+    async fn state_maps_score_status_progress_totals_and_fuzzy_dates() {
+        let mock = MockAniList::new(media(), "POINT_10");
+        let base_url = serve_mock(mock.clone()).await;
+        let (oauth, dao) = test_oauth(Provider::Anilist, &base_url);
+        seed_token(&dao, Provider::Anilist, "alice");
+        let tracker = AniListTracker::with_graphql_url(
+            reqwest::Client::new(),
+            oauth,
+            format!("{base_url}/graphql"),
+        );
+
+        let state = tracker.get_state("alice", "42").await.unwrap();
+        assert_eq!(
+            state,
+            RemoteState {
+                score: Some(8),
+                status: Some(TrackStatus::Rereading),
+                last_read_chapter: Some(12.0),
+                last_read_volume: Some(2),
+                total_chapters: Some(120),
+                total_volumes: Some(12),
+                start_read_date: Some("2024-03-02".into()),
+                finish_read_date: None,
+            }
+        );
+        let requests = mock.requests();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].json()["query"]
+            .as_str()
+            .unwrap()
+            .contains("score(format: POINT_100)"));
+        assert!(requests[1].json()["query"]
+            .as_str()
+            .unwrap()
+            .contains("scoreFormat"));
+    }
+
+    #[tokio::test]
+    async fn state_preserves_totals_when_media_is_not_in_user_list() {
+        let mut media = media();
+        media["mediaListEntry"] = Value::Null;
+        let mock = MockAniList::new(media, "POINT_10");
+        let base_url = serve_mock(mock.clone()).await;
+        let (oauth, dao) = test_oauth(Provider::Anilist, &base_url);
+        seed_token(&dao, Provider::Anilist, "alice");
+        let tracker = AniListTracker::with_graphql_url(
+            reqwest::Client::new(),
+            oauth,
+            format!("{base_url}/graphql"),
+        );
+
+        let state = tracker.get_state("alice", "42").await.unwrap();
+        assert_eq!(state.total_chapters, Some(120));
+        assert_eq!(state.total_volumes, Some(12));
+        assert_eq!(state.status, None);
+        assert_eq!(state.last_read_chapter, None);
+        let books = [BookTrackInput {
+            name: "ch.120",
+            number_sort: 120.0,
+            read: true,
+        }];
+        let update = komga_core::tracker::decide(
+            TrackMode::Chapter,
+            0,
+            &state,
+            &books,
+            time::Date::from_calendar_date(2026, time::Month::October, 25).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(update.status, Some(TrackStatus::Completed));
+    }
+
+    #[tokio::test]
+    async fn update_uses_score_raw_and_floors_chapter_progress() {
+        let mock = MockAniList::new(media(), "POINT_10");
+        let base_url = serve_mock(mock.clone()).await;
+        let (oauth, dao) = test_oauth(Provider::Anilist, &base_url);
+        seed_token(&dao, Provider::Anilist, "alice");
+        let tracker = AniListTracker::with_graphql_url(
+            reqwest::Client::new(),
+            oauth,
+            format!("{base_url}/graphql"),
+        );
+        let update = TrackUpdate {
+            score: Some(9),
+            status: Some(TrackStatus::Paused),
+            last_read_chapter: Some(12.9),
+            last_read_volume: Some(3),
+            start_read_date: Some("2024-03-02".into()),
+            finish_read_date: Some("2026-10-25".into()),
+            title: Some("Local title".into()),
+            cover_url: Some("https://local.example/cover.jpg".into()),
+        };
+        tracker.update("alice", "42", &update).await.unwrap();
+
+        let requests = mock.requests();
+        assert_eq!(requests.len(), 2);
+        let mutation = &requests[1];
+        assert!(mutation.json()["query"]
+            .as_str()
+            .unwrap()
+            .contains("scoreRaw: $score"));
+        assert_eq!(
+            mutation.json()["variables"],
+            json!({
+                "id": 42,
+                "status": "PAUSED",
+                "progress": 12,
+                "volumes": 3,
+                "score": 90,
+                "startedAt": {"year": 2024, "month": 3, "day": 2},
+                "completedAt": {"year": 2026, "month": 10, "day": 25}
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn unauthorized_response_refreshes_and_retries_same_request() {
+        let mut mock = MockAniList::new(media(), "POINT_100");
+        mock.unauthorized_once = Arc::new(AtomicBool::new(true));
+        let base_url = serve_mock(mock.clone()).await;
+        let (oauth, dao) = test_oauth(Provider::Anilist, &base_url);
+        seed_token(&dao, Provider::Anilist, "alice");
+        let tracker = AniListTracker::with_graphql_url(
+            reqwest::Client::new(),
+            oauth,
+            format!("{base_url}/graphql"),
+        );
+        tracker.search("alice", "Test", false).await.unwrap();
+
+        let requests = mock.requests();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].path, "/graphql");
+        assert_eq!(requests[1].path, "/token");
+        assert_eq!(requests[2].path, "/graphql");
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer old-token")
+        );
+        assert_eq!(
+            requests[2].authorization.as_deref(),
+            Some("Bearer new-token")
+        );
+        assert_eq!(requests[0].body, requests[2].body);
+        let refresh = requests[1].form();
+        assert_eq!(refresh["grant_type"], "refresh_token");
+        assert_eq!(refresh["refresh_token"], "refresh-old");
+        assert_eq!(refresh["client_id"], "anilist-test-id");
+        assert_eq!(refresh["client_secret"], "anilist-test-secret");
+    }
+
+    #[test]
+    fn every_tracker_status_has_an_anilist_mapping() {
+        let cases = [
+            (TrackStatus::Reading, "CURRENT"),
+            (TrackStatus::Planning, "PLANNING"),
+            (TrackStatus::Completed, "COMPLETED"),
+            (TrackStatus::Paused, "PAUSED"),
+            (TrackStatus::Dropped, "DROPPED"),
+            (TrackStatus::Rereading, "REPEATING"),
+        ];
+        for (status, wire) in cases {
+            assert_eq!(AniListTracker::status_to_wire(status), wire);
+            assert_eq!(AniListTracker::status_from_wire(wire), Some(status));
+        }
+        assert_eq!(AniListTracker::status_from_wire("UNKNOWN"), None);
+    }
+}

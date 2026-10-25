@@ -2,16 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowSquareOut, ChartLineUp, PlugsConnected, SignOut, Trash } from '@phosphor-icons/react'
+import { ArrowSquareOut, ChartLineUp, SignOut, Trash } from '@phosphor-icons/react'
 import { trackerEntryUrl, trackerLinkKeys, trackersApi } from '@/lib/api/trackers'
-import { ApiError } from '@/lib/api/client'
 import type { KomfOAuthProvider } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
 import { librariesApi } from '@/lib/api/libraries'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Tooltip } from '@/components/ui/Tooltip'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
 import { CoverImage } from '@/components/media/CoverImage'
@@ -67,20 +65,6 @@ export function TrackersPage() {
     },
     onError: (e) => showToast(e instanceof Error ? e.message : t('toast.unlinkFailed')),
   })
-
-  if (linksQuery.error instanceof ApiError && linksQuery.error.status === 409) {
-    // komf not connected: point at the admin setup instead of an empty page
-    return (
-      <div>
-        <PageHeader title={t('page.title')} />
-        <EmptyState
-          icon={<PlugsConnected className="size-8" />}
-          title={t('page.notConnected')}
-          body={t('page.notConnectedBody')}
-        />
-      </div>
-    )
-  }
 
   const links = linksQuery.data ?? []
 

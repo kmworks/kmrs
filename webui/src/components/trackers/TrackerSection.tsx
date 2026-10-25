@@ -17,13 +17,8 @@ const PROVIDERS: KomfOAuthProvider[] = ['anilist', 'bangumi', 'mal', 'mangabaka'
 const STATUS_KEYS = ['reading', 'planning', 'completed', 'paused', 'dropped', 'rereading'] as const
 type TrackerStatusKey = (typeof STATUS_KEYS)[number]
 
-function isNotConnected(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 409
-}
-
 /** Compact tracking pills on the series detail page: one pill per binding plus
- * an add button; everything else lives in the dialogs the pills open. Hidden
- * entirely when the komf integration is not connected (409). */
+ * an add button; everything else lives in the dialogs the pills open. */
 export function TrackerSection({
   seriesId,
   seriesTitle,
@@ -62,7 +57,6 @@ export function TrackerSection({
     onError: (e) => showToast(e instanceof Error ? e.message : t('toast.unlinkFailed')),
   })
 
-  if (isNotConnected(linksQuery.error)) return null
   // a configured library list restricts where the module shows; empty = everywhere
   const restrictedTo = preferencesQuery.data?.libraries
   if (restrictedTo && restrictedTo.length > 0 && !restrictedTo.includes(libraryId)) return null

@@ -77,8 +77,6 @@
   },
   "page": {
     "title": "追踪",
-    "notConnected": "komf 未连接",
-    "notConnectedBody": "需要管理员先连接 komf 实例才能使用追踪功能。",
     "bindingsHeading": "已关联的系列",
     "visibilityHeading": "追踪模块显示范围",
     "visibilityHint": "系列详情页的追踪模块仅在选中的库中显示；不选择任何库时全部显示。",

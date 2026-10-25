@@ -1314,9 +1314,7 @@ mod tests {
     use super::*;
     use crate::auth;
     use crate::config::ServerConfig;
-    use crate::settings::SettingsProvider;
     use crate::state::test_kmrs_db;
-    use crate::state::test_search_index;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use axum::middleware;
@@ -1327,7 +1325,6 @@ mod tests {
     use komga_db::{Migrator, Placeholders};
     use rusqlite::params;
     use std::collections::BTreeSet;
-    use std::sync::Arc;
     use tower::ServiceExt;
 
     fn test_state() -> AppState {
@@ -1337,36 +1334,12 @@ mod tests {
             .migrate(&db.rw().unwrap())
             .unwrap();
         let tasks_db = Database::open_in_memory(false).unwrap();
-        // dedicated task pools reuse the same in-memory database: task execution and assertions stay in sync
-        let task_db = db.clone();
         let tasks_migrations = komga_db::tasks_migrations();
         Migrator::new(&tasks_migrations, Placeholders::default())
             .migrate(&tasks_db.rw().unwrap())
             .unwrap();
         let config = ServerConfig::from_env();
-        AppState {
-            config: Arc::new(config.clone()),
-            settings: Arc::new(SettingsProvider::load(db.clone())),
-            task_emitter: Arc::new(crate::service::TaskEmitter::new(
-                db.clone(),
-                tasks_db.clone(),
-                std::sync::Arc::new(tokio::sync::Notify::new()),
-            )),
-            db,
-            task_db,
-            tasks_db,
-            sessions: auth::SessionStore::new(config.session_timeout),
-            tsid: Arc::new(komga_core::tsid::TsidFactory::new_random_node()),
-            events: crate::events::event_bus(),
-            search_index: test_search_index(),
-            kmrs_db: test_kmrs_db(),
-            kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
-            kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-
-            shutdown_tx: tokio::sync::watch::channel(false).0,
-            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-            latest_update: Default::default(),
-        }
+        crate::state::test_app_state(config, db, tasks_db, test_kmrs_db()).0
     }
 
     fn test_router(state: AppState) -> Router {

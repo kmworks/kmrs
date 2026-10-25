@@ -42,7 +42,7 @@
 # file = "<config-dir>/tasks.sqlite" # env: KOMGA_TASKSDB_FILE; same keys as [database] but the read pool defaults to 2, env prefix KOMGA_TASKSDB
 
 [kmrs-db]
-# file = "<config-dir>/kmrs.sqlite" # kmrs-private state (per-book series metadata contributions, komf integration); env: KOMGA_KMRSDB_FILE; same keys as [database] but the read pool defaults to 2, env prefix KOMGA_KMRSDB
+# file = "<config-dir>/kmrs.sqlite" # kmrs-private state (including metadata contributions, komf integration, and tracker data); env: KOMGA_KMRSDB_FILE; same keys as [database] but the read pool defaults to 2, env prefix KOMGA_KMRSDB
 
 [sessions-db]
 # file = "<config-dir>/sessions.sqlite" # only opened when jdbc-session-enabled = true; env: KOMGA_SESSIONSDB_FILE; same keys as [database] but the read pool defaults to 2, env prefix KOMGA_SESSIONSDB

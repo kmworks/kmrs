@@ -1,15 +1,11 @@
-//! Tracker progress primitives for the komf-backed reading-status sync (kmrs
-//! enhancement, no Java equivalent). Two concerns live here, both pure and
-//! side-effect free:
+//! Tracker progress primitives for reading-status sync (kmrs enhancement, no
+//! Java equivalent). Two concerns live here, both pure and side-effect free:
 //!
 //! - book-name classification: which progress number (volume or chapter) a book
-//!   filename carries. The regex sets are ported from komf-rs's `BookNameParser`
-//!   (which serves metadata matching), but the composition differs on purpose:
-//!   komf tries volume patterns first because volume numbers drive provider
-//!   matching, while reading progress treats the chapter as the primary unit —
-//!   a name carrying both (`Vol.03 ch.12`) resolves to the chapter.
-//!   Unrecognized names fall back to the scanner's `number_sort`, and a
-//!   series with no volume/chapter signal at all behaves as chapter-mode.
+//!   filename carries. Reading progress treats the chapter as the primary unit —
+//!   a name carrying both (`Vol.03 ch.12`) resolves to the chapter. Unrecognized
+//!   names fall back to the scanner's `number_sort`, and a series with no
+//!   volume/chapter signal at all behaves as chapter-mode.
 //! - push decisions: given the platform-side state (totals, current progress,
 //!   status) and the read set, decide what to push. The completed check
 //!   compares against the new (about-to-be-pushed) value, so finishing the
@@ -20,7 +16,7 @@ use std::sync::OnceLock;
 /// How a series' read progress maps onto tracker fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TrackMode {
-    /// Decide from the series' book names (komf recognition chain, chapter-first).
+    /// Decide from the series' book names, chapter-first.
     #[default]
     Auto,
     /// Push `last_read_chapter`.
@@ -76,8 +72,7 @@ impl BookRange {
 }
 
 /// Fullwidth ASCII (U+FF01..=U+FF5E) and the ideographic space fold to their
-/// ASCII equivalents, so `第５巻` and `第5巻` classify identically. Same rule as
-/// komf-rs's `replace_fullwidth_chars`.
+/// ASCII equivalents, so `第５巻` and `第5巻` classify identically.
 fn replace_fullwidth_chars(input: &str) -> String {
     input
         .chars()
@@ -89,9 +84,7 @@ fn replace_fullwidth_chars(input: &str) -> String {
         .collect()
 }
 
-/// Volume/chapter/book-number recognition ported from komf-rs
-/// (`crates/komf-core/src/util/book_name_parser.rs`); the regex sets are kept
-/// in sync with that file.
+/// Volume/chapter/book-number recognition.
 pub struct BookNameParser;
 
 static VOLUME_REGEXES: OnceLock<Vec<regex::Regex>> = OnceLock::new();
@@ -164,8 +157,7 @@ fn first_match(regexes: &'static [regex::Regex], name: &str) -> Option<BookRange
         .find_map(|regex| regex.captures(&name).as_ref().and_then(captures_to_range))
 }
 
-/// First regex with any match wins, then its last capture — matching komf's
-/// `get_book_number_from` (`findAll(name).lastOrNull()` per regex in order).
+/// First regex with any match wins, then its last capture.
 fn last_match(regexes: &'static [regex::Regex], name: &str) -> Option<BookRange> {
     let name = replace_fullwidth_chars(name);
     regexes.iter().find_map(|regex| {
@@ -182,7 +174,7 @@ impl BookNameParser {
         first_match(volume_regexes(), name)
     }
 
-    /// Last match wins, matching komf's `findAll(name).lastOrNull()`.
+    /// Last match wins within the first matching regex.
     pub fn get_chapters(name: &str) -> Option<BookRange> {
         let name = replace_fullwidth_chars(name);
         for regex in chapter_regexes() {
@@ -317,9 +309,9 @@ pub fn aggregate(inputs: &[BookTrackInput<'_>]) -> ProgressValue {
     value
 }
 
-/// Unified reading status (7 states); wire format matches komf's lowercase
-/// strings.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Unified reading status; lowercase on the wire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TrackStatus {
     Reading,
     Planning,
@@ -354,10 +346,11 @@ impl TrackStatus {
     }
 }
 
-/// komf `/api/tracker/{provider}/state` response (komf's `TrackState` schema,
-/// camelCase).
-#[derive(Debug, Clone, Default, PartialEq)]
+/// Platform-side current tracking state (camelCase).
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct RemoteState {
+    pub score: Option<i32>,
     pub status: Option<TrackStatus>,
     pub last_read_chapter: Option<f32>,
     pub last_read_volume: Option<i32>,
@@ -367,14 +360,57 @@ pub struct RemoteState {
     pub finish_read_date: Option<String>,
 }
 
-/// The push payload: komf's `TrackUpdate` (camelCase on the wire).
-#[derive(Debug, Clone, Default, PartialEq)]
+/// The push payload (camelCase on the wire).
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct TrackUpdate {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<TrackStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_read_chapter: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_read_volume: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_read_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_read_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover_url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackSearchItem {
+    pub id: String,
+    pub title: String,
+    pub cover_url: Option<String>,
+    pub description: Option<String>,
+    pub tracked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media_type: Option<TrackMediaType>,
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TrackMediaType {
+    Manga,
+    Novel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackLedgerItem {
+    pub provider: String,
+    pub track_id: String,
+    pub title: Option<String>,
+    pub url: Option<String>,
+    pub cover_url: Option<String>,
+    pub updated_at: i64,
 }
 
 /// Decide what to push for one binding, or `None` when there is nothing worth
@@ -473,10 +509,99 @@ mod tests {
         time::Date::from_calendar_date(2026, time::Month::October, 8).unwrap()
     }
 
-    // komf-rs BookNameParser parity: the ported regex sets must keep matching
-    // komf's own test vectors (crates/komf-core/src/util/book_name_parser.rs).
     #[test]
-    fn parser_matches_komf_test_vectors() {
+    fn wire_models_match_tracker_contracts() {
+        let update = TrackUpdate {
+            score: Some(80),
+            status: Some(TrackStatus::Rereading),
+            title: Some("Title".into()),
+            cover_url: Some("https://img.example/cover.jpg".into()),
+            ..TrackUpdate::default()
+        };
+        assert_eq!(
+            serde_json::to_value(update).unwrap(),
+            serde_json::json!({
+                "score": 80,
+                "status": "rereading",
+                "title": "Title",
+                "coverUrl": "https://img.example/cover.jpg"
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(TrackUpdate::default()).unwrap(),
+            serde_json::json!({})
+        );
+
+        let state = RemoteState {
+            score: Some(8),
+            status: Some(TrackStatus::Reading),
+            last_read_chapter: Some(12.5),
+            ..RemoteState::default()
+        };
+        let wire = serde_json::to_value(&state).unwrap();
+        assert_eq!(wire["score"], 8);
+        assert_eq!(wire["status"], "reading");
+        assert_eq!(wire["lastReadChapter"], 12.5);
+        assert!(wire.get("totalChapters").is_some_and(|v| v.is_null()));
+        assert_eq!(
+            serde_json::from_str::<RemoteState>("{}").unwrap(),
+            RemoteState::default()
+        );
+
+        let item = TrackSearchItem {
+            id: "42".into(),
+            title: "Title".into(),
+            cover_url: None,
+            description: None,
+            tracked: true,
+            media_type: Some(TrackMediaType::Novel),
+            url: Some("https://tracker.example/42".into()),
+        };
+        let wire = serde_json::to_value(&item).unwrap();
+        assert_eq!(wire["mediaType"], "novel");
+        assert!(wire.get("coverUrl").is_some_and(|v| v.is_null()));
+        assert_eq!(wire["id"], "42");
+        let mut without_type = serde_json::to_value(TrackSearchItem {
+            media_type: None,
+            ..item
+        })
+        .unwrap();
+        assert!(without_type
+            .as_object_mut()
+            .unwrap()
+            .remove("mediaType")
+            .is_none());
+
+        let ledger = TrackLedgerItem {
+            provider: "mal".into(),
+            track_id: "42".into(),
+            title: None,
+            url: None,
+            cover_url: None,
+            updated_at: 1_700_000_000,
+        };
+        let wire = serde_json::to_value(ledger).unwrap();
+        assert_eq!(wire["trackId"], "42");
+        assert_eq!(wire["updatedAt"], 1_700_000_000);
+    }
+
+    #[test]
+    fn automatic_update_omits_unset_wire_fields() {
+        let remote = RemoteState {
+            status: Some(TrackStatus::Reading),
+            last_read_chapter: Some(10.0),
+            ..RemoteState::default()
+        };
+        let books = vec![book("Series ch.11", 11.0, true)];
+        let update = decide(TrackMode::Chapter, 0, &remote, &books, day()).unwrap();
+        assert_eq!(
+            serde_json::to_value(update).unwrap(),
+            serde_json::json!({"lastReadChapter": 11.0})
+        );
+    }
+
+    #[test]
+    fn parser_matches_reference_vectors() {
         assert_eq!(
             BookNameParser::get_volumes("My Series v1"),
             Some(BookRange {
@@ -544,7 +669,7 @@ mod tests {
         );
     }
 
-    // generic book numbers also take the last match (komf's findAll().lastOrNull())
+    // generic book numbers also take the last match
     #[test]
     fn book_number_takes_the_last_match() {
         assert_eq!(

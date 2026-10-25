@@ -77,8 +77,6 @@
   },
   "page": {
     "title": "Trackers",
-    "notConnected": "komf is not connected",
-    "notConnectedBody": "An administrator has to connect a komf instance before trackers can be used.",
     "bindingsHeading": "Linked series",
     "visibilityHeading": "Tracker module visibility",
     "visibilityHint": "The series-detail tracker module only shows in the selected libraries. With none selected, it shows everywhere.",

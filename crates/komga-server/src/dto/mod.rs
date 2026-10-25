@@ -14,4 +14,5 @@ pub mod series;
 pub mod settings;
 pub mod smart_list;
 pub mod stats;
+pub mod tracker;
 pub mod user;

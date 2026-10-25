@@ -1,6 +1,16 @@
 [build.env]
 # keep liblzma vendored inside cross's containers too
-passthrough = ["LZMA_API_STATIC"]
+passthrough = [
+  "LZMA_API_STATIC",
+  "KMRS_OAUTH_ANILIST_CLIENT_ID",
+  "KMRS_OAUTH_ANILIST_CLIENT_SECRET",
+  "KMRS_OAUTH_MAL_CLIENT_ID",
+  "KMRS_OAUTH_MAL_CLIENT_SECRET",
+  "KMRS_OAUTH_BANGUMI_CLIENT_ID",
+  "KMRS_OAUTH_BANGUMI_CLIENT_SECRET",
+  "KMRS_OAUTH_MANGABAKA_CLIENT_ID",
+  "KMRS_OAUTH_MANGABAKA_CLIENT_SECRET",
+]
 
 # cross 0.2.5's default images date from 2023 (Ubuntu 16.04, GCC 5) and cannot
 # compile unrar's C++14; the main tags track cross's current Ubuntu 24.04 base

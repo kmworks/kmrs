@@ -180,7 +180,7 @@ fn kmrs_db_migrations() {
     let applied = Migrator::new(&migrations, Placeholders::default())
         .migrate(&conn)
         .unwrap();
-    assert_eq!(applied, 8);
+    assert_eq!(applied, 9);
     for name in [
         "SERIES_METADATA_CONTRIBUTION",
         "KOMF_INTEGRATION",
@@ -192,6 +192,9 @@ fn kmrs_db_migrations() {
         "SMART_LIST_THUMBNAIL",
         "TRACKER_LINK",
         "TRACKER_PREFERENCES",
+        "TRACKER_OAUTH_TOKEN",
+        "TRACKER_OAUTH_PENDING",
+        "TRACKER_LEDGER",
     ] {
         let exists: bool = conn
             .query_row(

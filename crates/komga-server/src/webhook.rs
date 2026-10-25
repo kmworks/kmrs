@@ -738,10 +738,8 @@ fn insert_value(data: &mut serde_json::Value, key: &str, value: serde_json::Valu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth;
     use crate::config::WebhookEndpoint;
-    use crate::settings::SettingsProvider;
-    use crate::state::{test_kmrs_db, test_search_index};
+    use crate::state::test_kmrs_db;
     use axum::routing::post;
     use komga_core::model::book::Book;
     use komga_core::model::library::Library;
@@ -758,33 +756,11 @@ mod tests {
             .migrate(&db.rw().unwrap())
             .unwrap();
         let tasks_db = Database::open_in_memory(false).unwrap();
-        let task_db = db.clone();
         Migrator::new(&komga_db::tasks_migrations(), Placeholders::default())
             .migrate(&tasks_db.rw().unwrap())
             .unwrap();
         let config = crate::config::ServerConfig::from_env();
-        AppState {
-            config: Arc::new(config.clone()),
-            db: db.clone(),
-            task_db: task_db.clone(),
-            tasks_db: tasks_db.clone(),
-            kmrs_db: test_kmrs_db(),
-            sessions: auth::SessionStore::new(Duration::from_secs(3600)),
-            settings: Arc::new(SettingsProvider::load(db.clone())),
-            tsid: Arc::new(komga_core::tsid::TsidFactory::new_random_node()),
-            events: crate::events::event_bus(),
-            task_emitter: Arc::new(crate::service::TaskEmitter::new(
-                db,
-                tasks_db,
-                Arc::new(tokio::sync::Notify::new()),
-            )),
-            search_index: test_search_index(),
-            kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
-            kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-            shutdown_tx: tokio::sync::watch::channel(false).0,
-            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-            latest_update: Default::default(),
-        }
+        crate::state::test_app_state(config, db, tasks_db, test_kmrs_db()).0
     }
 
     fn with_webhooks(state: &AppState, endpoints: Vec<WebhookEndpoint>) -> AppState {

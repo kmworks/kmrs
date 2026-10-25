@@ -892,7 +892,7 @@ export interface KomfOAuthStatus {
   username: string | null
 }
 
-// ---- Per-user tracker sync (komf-backed) ----
+// ---- Per-user tracker sync ----
 
 export type TrackerTrackMode = 'auto' | 'chapter' | 'volume'
 
@@ -929,7 +929,7 @@ export interface TrackerLinkUpsert {
   chapterOffset?: number
 }
 
-// komf's TrackSearchItem schema, passed through verbatim
+// Tracker search result shared by all providers
 export interface TrackerSearchItem {
   id: string
   title: string
@@ -941,8 +941,7 @@ export interface TrackerSearchItem {
   url?: string
 }
 
-// komf's TrackState schema, passed through verbatim; totals are null while the
-// platform entry carries no total (e.g. publishing)
+// totals are null while the platform entry carries no total (e.g. publishing)
 export interface TrackerState {
   score?: number | null
   status?: string | null
