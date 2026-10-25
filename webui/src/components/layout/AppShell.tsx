@@ -8,8 +8,8 @@ import {
   BookmarkSimple,
   BookOpen,
   Books,
-  CaretDown,
   CaretRight,
+  CaretUp,
   ChartBar,
   ClockCounterClockwise,
   Copy,
@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   SignOut,
   Sun,
+  Tag,
   TrayArrowDown,
   User,
   UserCircle,
@@ -334,13 +335,14 @@ function SidebarFooter() {
   const user = useAuthStore((s) => s.user)
   const clear = useAuthStore((s) => s.clear)
   const navigate = useNavigate()
+  const admin = isAdmin(user)
   const { data: info } = useQuery({ queryKey: ['server-info'], queryFn: serverApi.info, staleTime: Infinity })
   // admin-only endpoint: other roles would just collect 403s
   const { data: update } = useQuery({
     queryKey: ['update-check'],
     queryFn: releasesApi.updateCheck,
     staleTime: 3_600_000,
-    enabled: isAdmin(user),
+    enabled: admin,
     select: (check) => check.update,
   })
 
@@ -363,9 +365,7 @@ function SidebarFooter() {
         matchTriggerWidth
         trigger={
           <button className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-raised">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent-strong">
-              {user?.email?.[0]?.toUpperCase() ?? '?'}
-            </span>
+            <UserCircle className="size-7 shrink-0 text-ink-2" />
             <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{user?.email}</span>
             {update && (
               <ArrowCircleUp
@@ -373,18 +373,29 @@ function SidebarFooter() {
                 aria-label={t('nav.updateAvailable', { version: update.version })}
               />
             )}
-            <CaretDown className="size-3.5 text-ink-3" />
+            <CaretUp className="size-3.5 text-ink-3" />
           </button>
         }
       >
-        <MenuLabel>{user?.email}</MenuLabel>
-        <MenuItem onSelect={logout}>
-          <SignOut className="size-4" /> {t('nav.signOut')}
+        <div className="px-2.5 pt-1.5 pb-1">
+          <div className="truncate text-[13px] font-medium text-ink">{user?.email}</div>
+          {admin && <div className="text-[11px] text-ink-3">{t('account:profile.role.admin')}</div>}
+        </div>
+        <MenuSeparator />
+        <MenuItem onSelect={() => navigate('/account/profile')}>
+          <GearSix className="size-4" /> {t('nav.accountSettings')}
         </MenuItem>
         {(info?.version || update) && (
           <>
             <MenuSeparator />
-            {info?.version && <MenuLabel>kmrs {info.version}</MenuLabel>}
+            {info?.version &&
+              (admin ? (
+                <MenuItem onSelect={() => navigate('/admin/updates')}>
+                  <Tag className="size-4" /> kmrs {info.version}
+                </MenuItem>
+              ) : (
+                <div className="px-2.5 py-1 text-[11px] text-ink-3">kmrs {info.version}</div>
+              ))}
             {update && (
               <MenuItem onSelect={() => navigate('/admin/updates')}>
                 <Rocket className="size-4" /> {t('nav.updateAvailable', { version: update.version })}
@@ -392,6 +403,10 @@ function SidebarFooter() {
             )}
           </>
         )}
+        <MenuSeparator />
+        <MenuItem onSelect={logout} danger>
+          <SignOut className="size-4" /> {t('nav.signOut')}
+        </MenuItem>
       </Menu>
     </div>
   )
