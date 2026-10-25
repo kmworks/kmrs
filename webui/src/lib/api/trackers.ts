@@ -31,21 +31,54 @@ export function trackerEntryUrl(provider: KomfOAuthProvider, trackId: string): s
   }
 }
 
-const METADATA_LINK_PATTERNS: Array<[KomfOAuthProvider, RegExp]> = [
-  ['anilist', /anilist\.co\/manga\/(\d+)/],
-  ['mal', /myanimelist\.net\/manga\/(\d+)/],
-  ['bangumi', /(?:bgm\.tv|bangumi\.tv)\/subject\/(\d+)/],
-  ['mangabaka', /mangabaka\.org\/(?:series\/)?(\d+)/],
-]
+const TRACKER_PROVIDERS: KomfOAuthProvider[] = ['anilist', 'mal', 'bangumi', 'mangabaka']
+
+function hostMatches(hostname: string, domain: string): boolean {
+  return hostname === domain || hostname.endsWith(`.${domain}`)
+}
+
+function trackerEntryId(provider: KomfOAuthProvider, input: string): string | undefined {
+  let url: URL
+  try {
+    url = new URL(input)
+  } catch {
+    return undefined
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
+
+  switch (provider) {
+    case 'anilist':
+      if (hostMatches(url.hostname, 'anilist.co')) {
+        return url.pathname.match(/^\/manga\/(\d+)(?:\/|$)/)?.[1]
+      }
+      return undefined
+    case 'mal':
+      if (hostMatches(url.hostname, 'myanimelist.net')) {
+        return url.pathname.match(/^\/manga\/(\d+)(?:\/|$)/)?.[1]
+      }
+      return undefined
+    case 'bangumi':
+      if (hostMatches(url.hostname, 'bgm.tv') || hostMatches(url.hostname, 'bangumi.tv')) {
+        return url.pathname.match(/^\/subject\/(\d+)(?:\/|$)/)?.[1]
+      }
+      return undefined
+    case 'mangabaka':
+      if (hostMatches(url.hostname, 'mangabaka.org')) {
+        return url.pathname.match(/^\/(?:series\/)?(\d+)(?:\/|$)/)?.[1]
+      }
+      return undefined
+  }
+}
 
 /** Finds platform entry links in series metadata links;
  * the returned URL is fed to the tracker search box, which resolves links directly. */
 export function trackerUrlsFromMetadata(links: Array<{ url: string }>): Partial<Record<KomfOAuthProvider, string>> {
   const out: Partial<Record<KomfOAuthProvider, string>> = {}
   for (const { url } of links) {
-    for (const [provider, pattern] of METADATA_LINK_PATTERNS) {
+    for (const provider of TRACKER_PROVIDERS) {
       if (out[provider]) continue
-      if (pattern.test(url)) out[provider] = url
+      const id = trackerEntryId(provider, url)
+      if (id) out[provider] = trackerEntryUrl(provider, id)
     }
   }
   return out

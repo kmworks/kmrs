@@ -113,7 +113,7 @@ fn chapter_regexes() -> &'static [regex::Regex] {
     CHAPTER_REGEXES.get_or_init(|| {
         vec![
             // c/ch./chap./chapter/ep., space optional ("Chap.001", "ch.12")
-            regex::Regex::new(r"(?i)(?:^|\s?)(c|ch\.\s?|chap\.\s?|chapter\s?|ep\.\s?)(?<start>[0-9]+([.x#][0-9]+)?)(?<end>-[0-9]+([.x#][0-9]+)?)?").unwrap(),
+            regex::Regex::new(r"(?i)(?:^|[^\p{L}\p{N}])(c|ch\.\s?|chap\.\s?|chapter\s?|ep\.\s?)(?<start>[0-9]+([.x#][0-9]+)?)(?<end>-[0-9]+([.x#][0-9]+)?)?").unwrap(),
             regex::Regex::new(r".*第\s*(?<start>\d+(?:\.\d+)?)\s*-?\s*(?<end>\d+(?:\.\d+)?)?\s*[話话章节回]").unwrap(),
             regex::Regex::new(r"(?:^|.*[^\d第-])(?<start>\d+(?:\.\d+)?)\s*-?\s*(?<end>\d+(?:\.\d+)?)?\s*[話话章节回]\s*$").unwrap(),
         ]
@@ -376,10 +376,6 @@ pub struct TrackUpdate {
     pub start_read_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_read_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cover_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -511,21 +507,16 @@ mod tests {
 
     #[test]
     fn wire_models_match_tracker_contracts() {
-        let update = TrackUpdate {
-            score: Some(80),
-            status: Some(TrackStatus::Rereading),
-            title: Some("Title".into()),
-            cover_url: Some("https://img.example/cover.jpg".into()),
-            ..TrackUpdate::default()
-        };
+        let update: TrackUpdate = serde_json::from_value(serde_json::json!({
+            "score": 80,
+            "status": "rereading",
+            "title": "Title",
+            "coverUrl": "https://img.example/cover.jpg"
+        }))
+        .unwrap();
         assert_eq!(
             serde_json::to_value(update).unwrap(),
-            serde_json::json!({
-                "score": 80,
-                "status": "rereading",
-                "title": "Title",
-                "coverUrl": "https://img.example/cover.jpg"
-            })
+            serde_json::json!({"score": 80, "status": "rereading"})
         );
         assert_eq!(
             serde_json::to_value(TrackUpdate::default()).unwrap(),
@@ -597,6 +588,24 @@ mod tests {
         assert_eq!(
             serde_json::to_value(update).unwrap(),
             serde_json::json!({"lastReadChapter": 11.0})
+        );
+    }
+
+    #[test]
+    fn chapter_prefix_requires_token_boundary() {
+        assert_eq!(BookNameParser::get_chapters("Music2000"), None);
+        assert_eq!(BookNameParser::get_chapters("mychapter12"), None);
+        assert_eq!(
+            BookNameParser::get_chapters("Series c2000"),
+            Some(BookRange::single(2000.0))
+        );
+        assert_eq!(
+            BookNameParser::get_chapters("Series-ch.12"),
+            Some(BookRange::single(12.0))
+        );
+        assert_eq!(
+            BookNameParser::get_chapters("Chapter 10"),
+            Some(BookRange::single(10.0))
         );
     }
 

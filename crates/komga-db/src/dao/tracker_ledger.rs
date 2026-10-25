@@ -43,9 +43,9 @@ impl TrackerLedgerDao {
                 (PROVIDER, USER_ID, TRACK_ID, TITLE, URL, COVER_URL, UPDATED_DATE)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (PROVIDER, USER_ID, TRACK_ID) DO UPDATE SET
-                TITLE = excluded.TITLE,
+                TITLE = COALESCE(excluded.TITLE, TRACKER_LEDGER.TITLE),
                 URL = excluded.URL,
-                COVER_URL = excluded.COVER_URL,
+                COVER_URL = COALESCE(excluded.COVER_URL, TRACKER_LEDGER.COVER_URL),
                 UPDATED_DATE = excluded.UPDATED_DATE
             "#,
             rusqlite::params![
@@ -129,6 +129,36 @@ mod tests {
             Some("https://img.example/cover.jpg")
         );
         assert!(item.updated_at > 0);
+    }
+
+    #[test]
+    fn upsert_without_display_metadata_preserves_existing_values() {
+        let dao = TrackerLedgerDao::new(test_db());
+        dao.upsert(
+            "anilist",
+            "alice",
+            "42",
+            Some("Title"),
+            Some("https://anilist.co/manga/42"),
+            Some("https://img.example/cover.jpg"),
+        )
+        .unwrap();
+        dao.upsert(
+            "anilist",
+            "alice",
+            "42",
+            None,
+            Some("https://anilist.co/manga/42"),
+            None,
+        )
+        .unwrap();
+
+        let items = dao.list_by_user("alice").unwrap();
+        assert_eq!(items[0].title.as_deref(), Some("Title"));
+        assert_eq!(
+            items[0].cover_url.as_deref(),
+            Some("https://img.example/cover.jpg")
+        );
     }
 
     #[test]

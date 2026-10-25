@@ -224,7 +224,7 @@ impl AniListTracker {
             .ok_or_else(|| Self::error("GraphQL response has no data"))
     }
 
-    async fn score_format(&self, user_id: &str) -> String {
+    async fn score_format(&self, user_id: &str) -> Result<String, TrackerError> {
         if let Some(format) = self
             .score_formats
             .read()
@@ -232,23 +232,21 @@ impl AniListTracker {
             .get(user_id)
             .cloned()
         {
-            return format;
+            return Ok(format);
         }
-        let format = self
+        let data = self
             .graphql(user_id, VIEWER_SCORE_FORMAT, json!({}))
-            .await
-            .ok()
-            .and_then(|data| {
-                data.pointer("/Viewer/mediaListOptions/scoreFormat")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-            })
-            .unwrap_or_else(|| "POINT_100".into());
+            .await?;
+        let format = data
+            .pointer("/Viewer/mediaListOptions/scoreFormat")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| Self::error("Viewer response has no score format"))?;
         self.score_formats
             .write()
             .unwrap_or_else(|error| error.into_inner())
             .insert(user_id.to_string(), format.clone());
-        format
+        Ok(format)
     }
 
     fn manga_id(track_id: &str) -> Result<i64, TrackerError> {
@@ -409,7 +407,7 @@ impl TrackerService for AniListTracker {
         };
 
         let raw_score = entry.get("score").and_then(Value::as_i64);
-        let score = if self.score_format(user_id).await == "POINT_10" {
+        let score = if self.score_format(user_id).await? == "POINT_10" {
             raw_score.map(|score| score / 10)
         } else {
             raw_score
@@ -449,7 +447,7 @@ impl TrackerService for AniListTracker {
     ) -> Result<(), TrackerError> {
         let id = Self::manga_id(track_id)?;
         let score = match update.score {
-            Some(score) if self.score_format(user_id).await == "POINT_10" => Some(score * 10),
+            Some(score) if self.score_format(user_id).await? == "POINT_10" => Some(score * 10),
             score => score,
         };
         self.graphql(
@@ -486,7 +484,8 @@ mod tests {
     struct MockAniList {
         requests: Arc<Mutex<Vec<CapturedRequest>>>,
         media: Value,
-        score_format: String,
+        score_format: Value,
+        fail_score_format: Arc<AtomicBool>,
         unauthorized_once: Arc<AtomicBool>,
     }
 
@@ -496,6 +495,7 @@ mod tests {
                 requests: Arc::new(Mutex::new(Vec::new())),
                 media,
                 score_format: score_format.into(),
+                fail_score_format: Arc::new(AtomicBool::new(false)),
                 unauthorized_once: Arc::new(AtomicBool::new(false)),
             }
         }
@@ -527,6 +527,13 @@ mod tests {
         }
 
         let query = request_json.unwrap()["query"].as_str().unwrap().to_string();
+        if query.contains("Viewer") && mock.fail_score_format.load(Ordering::SeqCst) {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message": "score format unavailable"})),
+            )
+                .into_response();
+        }
         let data = if query.contains("SaveMediaListEntry") {
             json!({"SaveMediaListEntry": {"id": 1}})
         } else if query.contains("Viewer") {
@@ -659,6 +666,127 @@ mod tests {
             .contains("scoreFormat"));
     }
 
+    async fn score_format_tracker(mock: MockAniList) -> AniListTracker {
+        let base_url = serve_mock(mock).await;
+        let (oauth, dao) = test_oauth(Provider::Anilist, &base_url);
+        seed_token(&dao, Provider::Anilist, "alice");
+        AniListTracker::with_graphql_url(
+            reqwest::Client::new(),
+            oauth,
+            format!("{base_url}/graphql"),
+        )
+    }
+
+    fn request_has_query(request: &CapturedRequest, query: &str) -> bool {
+        request.json()["query"]
+            .as_str()
+            .is_some_and(|candidate| candidate.contains(query))
+    }
+
+    #[tokio::test]
+    async fn state_propagates_score_format_request_failure_without_caching_default() {
+        let mock = MockAniList::new(media(), "POINT_10");
+        mock.fail_score_format.store(true, Ordering::SeqCst);
+        let tracker = score_format_tracker(mock.clone()).await;
+
+        assert!(matches!(
+            tracker.get_state("alice", "42").await,
+            Err(TrackerError::Provider {
+                provider: Provider::Anilist,
+                ..
+            })
+        ));
+        mock.fail_score_format.store(false, Ordering::SeqCst);
+        let state = tracker.get_state("alice", "42").await.unwrap();
+        assert_eq!(state.score, Some(8));
+        let requests = mock.requests();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request_has_query(request, "scoreFormat"))
+                .count(),
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn state_rejects_missing_score_format() {
+        let mut mock = MockAniList::new(media(), "POINT_100");
+        mock.score_format = Value::Null;
+        let tracker = score_format_tracker(mock).await;
+
+        assert!(matches!(
+            tracker.get_state("alice", "42").await,
+            Err(TrackerError::Provider {
+                provider: Provider::Anilist,
+                ..
+            })
+        ));
+    }
+
+    #[tokio::test]
+    async fn update_propagates_score_format_request_failure_without_saving_or_caching_default() {
+        let mock = MockAniList::new(media(), "POINT_10");
+        mock.fail_score_format.store(true, Ordering::SeqCst);
+        let tracker = score_format_tracker(mock.clone()).await;
+        let update = TrackUpdate {
+            score: Some(9),
+            ..TrackUpdate::default()
+        };
+
+        assert!(matches!(
+            tracker.update("alice", "42", &update).await,
+            Err(TrackerError::Provider {
+                provider: Provider::Anilist,
+                ..
+            })
+        ));
+        assert!(!mock
+            .requests()
+            .iter()
+            .any(|request| request_has_query(request, "SaveMediaListEntry")));
+
+        mock.fail_score_format.store(false, Ordering::SeqCst);
+        tracker.update("alice", "42", &update).await.unwrap();
+        let requests = mock.requests();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request_has_query(request, "scoreFormat"))
+                .count(),
+            2
+        );
+        let mutations = requests
+            .iter()
+            .filter(|request| request_has_query(request, "SaveMediaListEntry"))
+            .collect::<Vec<_>>();
+        assert_eq!(mutations.len(), 1);
+        assert_eq!(mutations[0].json()["variables"]["score"], json!(90));
+    }
+
+    #[tokio::test]
+    async fn update_rejects_missing_score_format_without_saving() {
+        let mut mock = MockAniList::new(media(), "POINT_100");
+        mock.score_format = Value::Null;
+        let tracker = score_format_tracker(mock.clone()).await;
+        let update = TrackUpdate {
+            score: Some(9),
+            ..TrackUpdate::default()
+        };
+
+        assert!(matches!(
+            tracker.update("alice", "42", &update).await,
+            Err(TrackerError::Provider {
+                provider: Provider::Anilist,
+                ..
+            })
+        ));
+        assert!(!mock
+            .requests()
+            .iter()
+            .any(|request| request_has_query(request, "SaveMediaListEntry")));
+    }
+
     #[tokio::test]
     async fn state_preserves_totals_when_media_is_not_in_user_list() {
         let mut media = media();
@@ -712,8 +840,6 @@ mod tests {
             last_read_volume: Some(3),
             start_read_date: Some("2024-03-02".into()),
             finish_read_date: Some("2026-10-25".into()),
-            title: Some("Local title".into()),
-            cover_url: Some("https://local.example/cover.jpg".into()),
         };
         tracker.update("alice", "42", &update).await.unwrap();
 

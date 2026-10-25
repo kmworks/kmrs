@@ -15,6 +15,7 @@ import { ConfirmDeleteDialog } from '@/components/detail/ConfirmDeleteDialog'
 import { CoverImage } from '@/components/media/CoverImage'
 import { Switch } from '@/components/ui/Switch'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { TrackerLogo } from '@/components/trackers/TrackerLogo'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { showToast } from '@/lib/store/toast'
 
@@ -100,7 +101,8 @@ export function TrackersPage() {
                   {link.title || `#${link.trackId}`}
                 </Link>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-ink-3">
-                  <span className="rounded bg-raised px-1.5 py-0.5 text-[11px] font-semibold text-ink-2">
+                  <span className="inline-flex items-center gap-1 rounded bg-raised px-1.5 py-0.5 text-[11px] font-semibold text-ink-2">
+                    <TrackerLogo provider={link.provider} className="size-3.5" />
                     {t(`provider.${link.provider}`)}
                   </span>
                   <a
@@ -220,6 +222,7 @@ function DefaultTrackerSection() {
       <h2 className="mb-1 font-display text-lg font-semibold text-ink">{t('page.defaultHeading')}</h2>
       <p className="mb-3 text-xs text-ink-3">{t('page.defaultHint')}</p>
       <SegmentedControl
+        className="max-w-full flex-wrap"
         value={prefsQuery.data?.defaultTracker ?? 'none'}
         onChange={(v) => {
           // the PUT replaces the whole preferences object, so switching before
@@ -229,7 +232,11 @@ function DefaultTrackerSection() {
         }}
         options={[
           { value: 'none', label: t('page.defaultNone') },
-          ...PROVIDERS.map((p) => ({ value: p, label: t(`provider.${p}`) })),
+          ...PROVIDERS.map((p) => ({
+            value: p,
+            label: t(`provider.${p}`),
+            icon: <TrackerLogo provider={p} className="size-4" />,
+          })),
         ]}
       />
     </section>
@@ -256,8 +263,11 @@ function ProviderCard({ provider }: { provider: KomfOAuthProvider }) {
   const loggedIn = statusQuery.data?.logged_in ?? false
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-ink">{t(`provider.${provider}`)}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <TrackerLogo provider={provider} className="size-7" />
+          <p className="text-sm font-semibold text-ink">{t(`provider.${provider}`)}</p>
+        </div>
         {statusQuery.isPending ? (
           <p className="text-xs text-ink-3">{t('state.loading')}</p>
         ) : loggedIn ? (

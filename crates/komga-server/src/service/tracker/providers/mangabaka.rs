@@ -472,7 +472,7 @@ impl TrackerService for MangaBakaTracker {
             envelope.data
         };
         let ids = series.iter().map(|series| series.id).collect::<Vec<_>>();
-        let tracked = self.tracked_ids(user_id, &ids).await.unwrap_or_default();
+        let tracked = self.tracked_ids(user_id, &ids).await?;
         Ok(series
             .iter()
             .map(|series| self.search_item(series, tracked.contains(&series.id)))
@@ -481,12 +481,7 @@ impl TrackerService for MangaBakaTracker {
 
     async fn get_state(&self, user_id: &str, id: &str) -> Result<RemoteState, TrackerError> {
         let id = track_id(id)?;
-        let (total_chapters, total_volumes) = self
-            .detail(id)
-            .await
-            .ok()
-            .map(|series| series.totals())
-            .unwrap_or_default();
+        let (total_chapters, total_volumes) = self.detail(id).await?.totals();
         let Some(entry) = self.library_entry(user_id, id).await? else {
             return Ok(RemoteState {
                 total_chapters,
@@ -853,6 +848,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn search_propagates_library_batch_failure() {
+        let (origin, _) = serve(|request| match request.path.as_str() {
+            "/v1/series/search" => (StatusCode::OK, json!({"data": [series(7)]})),
+            "/v1/my/library/batch" => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({"message": "library unavailable"}),
+            ),
+            _ => (StatusCode::NOT_FOUND, json!({"message": "unexpected"})),
+        })
+        .await;
+        let service = test_service(&origin);
+
+        assert!(matches!(
+            service.search("alice", "Book", false).await,
+            Err(TrackerError::Provider {
+                provider: Provider::Mangabaka,
+                ..
+            })
+        ));
+    }
+
+    #[tokio::test]
+    async fn state_propagates_series_detail_failure() {
+        let (origin, mock) = serve(|request| match request.path.as_str() {
+            "/v1/series/42" => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({"message": "series unavailable"}),
+            ),
+            "/v1/my/library/42" => (
+                StatusCode::OK,
+                json!({"data": {"state": "reading", "progress_chapter": 1}}),
+            ),
+            _ => (StatusCode::NOT_FOUND, json!({"message": "unexpected"})),
+        })
+        .await;
+        let service = test_service(&origin);
+
+        assert!(matches!(
+            service.get_state("alice", "42").await,
+            Err(TrackerError::Provider {
+                provider: Provider::Mangabaka,
+                ..
+            })
+        ));
+        assert!(!mock
+            .requests()
+            .iter()
+            .any(|request| request.path == "/v1/my/library/42"));
+    }
+
+    #[tokio::test]
     async fn update_creates_missing_entry_and_maps_all_fields() {
         let (origin, mock) = serve(|request| match request.path.as_str() {
             "/v1/my/library/42" if request.method == Method::GET => (
@@ -871,7 +917,6 @@ mod tests {
             last_read_volume: Some(3),
             start_read_date: Some("2026-10-01".into()),
             finish_read_date: Some("2026-10-20".into()),
-            ..TrackUpdate::default()
         };
 
         service.update("alice", "42", &update).await.unwrap();
