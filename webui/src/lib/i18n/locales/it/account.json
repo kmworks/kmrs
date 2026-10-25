@@ -45,9 +45,9 @@
       "current": "Attuale",
       "signOut": "Esci",
       "signOutFailed": "Impossibile disconnettere la sessione.",
-      "showAll_one": "Mostra {{count}} sessione",
-      "showAll_many": "Mostra tutte le {{count}} sessioni",
-      "showAll_other": "Mostra tutte le {{count}} sessioni"
+      "page": "Pagina {{current}} di {{total}}",
+      "previous": "Precedente",
+      "next": "Successivo"
     },
     "activity": {
       "title": "Attività di accesso",

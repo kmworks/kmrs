@@ -46,10 +46,9 @@
       "current": "Текущий",
       "signOut": "Выйти",
       "signOutFailed": "Не удалось завершить сеанс.",
-      "showAll_one": "Показать {{count}} сеанс",
-      "showAll_few": "Показать все {{count}} сеанса",
-      "showAll_many": "Показать все {{count}} сеансов",
-      "showAll_other": "Показать все {{count}} сеанса"
+      "page": "Страница {{current}} из {{total}}",
+      "previous": "Назад",
+      "next": "Вперёд"
     },
     "activity": {
       "title": "Активность входов",

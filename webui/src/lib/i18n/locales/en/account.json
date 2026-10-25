@@ -44,8 +44,9 @@
       "current": "Current",
       "signOut": "Sign out",
       "signOutFailed": "Could not sign out the session.",
-      "showAll_one": "Show all {{count}} session",
-      "showAll_other": "Show all {{count}} sessions"
+      "page": "Page {{current}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next"
     },
     "activity": {
       "title": "Login activity",

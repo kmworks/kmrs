@@ -1,26 +1,28 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { usersApi } from '@/lib/api/users'
 import { relativeTime } from '@/lib/utils/format'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 
-const SESSION_LIMIT = 10
+const PAGE_SIZE = 20
 
 export function SessionsSection() {
   const { t } = useTranslation('admin-users')
   const queryClient = useQueryClient()
-  const query = useQuery({ queryKey: ['admin', 'sessions'], queryFn: usersApi.sessions })
+  const [page, setPage] = useState(0)
+  const query = useQuery({
+    queryKey: ['admin', 'sessions', page],
+    queryFn: () => usersApi.sessions({ page, size: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
+  })
 
   const kick = useMutation({
     mutationFn: (id: string) => usersApi.deleteSession(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'sessions'] }),
   })
-
-  const sessions = query.data ?? []
-  const [showAll, setShowAll] = useState(false)
-  const visible = showAll ? sessions : sessions.slice(0, SESSION_LIMIT)
 
   return (
     <section className="mt-10">
@@ -49,7 +51,7 @@ export function SessionsSection() {
 
       {query.data && (
         <div className="overflow-hidden rounded-xl border border-line bg-surface">
-          {sessions.length === 0 ? (
+          {query.data.content.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-ink-3">{t('account:security.sessions.empty')}</p>
           ) : (
             <div className="overflow-x-auto">
@@ -66,7 +68,7 @@ export function SessionsSection() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((s) => (
+                  {query.data.content.map((s) => (
                     <tr key={s.id} className="border-t border-line first:border-t-0">
                       <td className="px-4 py-2.5 font-mono text-xs whitespace-nowrap text-ink-2" title={s.id}>
                         {s.id.length > 12 ? `${s.id.slice(0, 12)}…` : s.id}
@@ -85,20 +87,31 @@ export function SessionsSection() {
               </table>
             </div>
           )}
-          {sessions.length > SESSION_LIMIT && (
-            <div className="border-t border-line px-4 py-3">
-              <button
-                type="button"
-                onClick={() => setShowAll((v) => !v)}
-                className="cursor-pointer text-sm text-accent-strong hover:underline"
+          <div className="flex items-center justify-between border-t border-line px-4 py-3">
+            <span className="font-mono text-xs text-ink-3">
+              {t('account:security.sessions.page', {
+                current: query.data.number + 1,
+                total: Math.max(query.data.totalPages, 1),
+              })}
+            </span>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 0 || query.isFetching}>
+                <CaretLeft className="size-4" />
+                {t('account:security.sessions.previous')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={query.data.last || query.isFetching}
               >
-                {showAll ? t('common:action.showLess') : t('account:security.sessions.showAll', { count: sessions.length })}
-              </button>
+                {t('account:security.sessions.next')}
+                <CaretRight className="size-4" />
+              </Button>
             </div>
-          )}
+          </div>
         </div>
       )}
-      {query.data && sessions.length > 0 && <p className="mt-3 text-xs text-ink-3">{t('sessions.kickHint')}</p>}
+      {query.data && query.data.content.length > 0 && <p className="mt-3 text-xs text-ink-3">{t('sessions.kickHint')}</p>}
       {kick.isError && (
         <p className="mt-2 text-sm text-danger">
           {kick.error instanceof Error ? kick.error.message : t('sessions.kickFailed')}
