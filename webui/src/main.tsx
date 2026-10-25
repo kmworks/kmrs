@@ -14,7 +14,6 @@ import { queryClient } from './lib/queryClient'
 import { Toaster } from './components/Toaster'
 import { TooltipProvider } from './components/ui/Tooltip'
 import { KomfJobsPanel } from './components/KomfJobsPanel'
-import { PwaUpdatePrompt } from './components/PwaUpdatePrompt'
 import { applyTheme, useUiStore } from './lib/store/ui'
 
 applyTheme(useUiStore.getState().theme)
@@ -35,7 +34,6 @@ createRoot(document.getElementById('root')!).render(
           <RouterProvider router={router} />
           <Toaster />
           <KomfJobsPanel />
-          <PwaUpdatePrompt />
         </MotionConfig>
       </TooltipProvider>
     </QueryClientProvider>
