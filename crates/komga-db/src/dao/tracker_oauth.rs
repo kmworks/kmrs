@@ -106,6 +106,20 @@ impl TrackerOAuthDao {
         Ok(())
     }
 
+    pub fn update_username(&self, provider: &str, user_id: &str, username: &str) -> Result<()> {
+        self.db.rw()?.execute(
+            "UPDATE TRACKER_OAUTH_TOKEN SET USERNAME = ?, LAST_MODIFIED_DATE = ? \
+             WHERE PROVIDER = ? AND USER_ID = ?",
+            rusqlite::params![
+                username,
+                time_codec::format_datetime(time_codec::now_utc()),
+                provider,
+                user_id,
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn update_token_if_current(
         &self,
         provider: &str,

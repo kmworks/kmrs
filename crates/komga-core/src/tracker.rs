@@ -480,12 +480,13 @@ pub fn decide(
     Some(update)
 }
 
-/// `chapter + offset` clamped to [0, total].
+/// Observed chapters may exceed a stale platform total; only overshoot
+/// introduced by the offset is clamped.
 fn apply_chapter_offset(chapter: f64, offset: i32, total: Option<i32>) -> f64 {
     let adjusted = (chapter + f64::from(offset)).max(0.0);
     match total {
-        Some(total) => adjusted.min(f64::from(total)),
-        None => adjusted,
+        Some(total) if chapter <= f64::from(total) => adjusted.min(f64::from(total)),
+        _ => adjusted,
     }
 }
 
@@ -854,6 +855,20 @@ mod tests {
         let update = decide(TrackMode::Chapter, 0, &remote, &books, day()).unwrap();
         assert_eq!(update.status, None);
         assert_eq!(update.finish_read_date, None);
+    }
+
+    #[test]
+    fn chapter_progress_can_advance_past_stale_remote_total() {
+        let remote = RemoteState {
+            status: Some(TrackStatus::Reading),
+            last_read_chapter: Some(76.0),
+            total_chapters: Some(76),
+            ..empty_remote()
+        };
+        let books = vec![book("Series ch.77", 77.0, true)];
+        let update = decide(TrackMode::Chapter, 0, &remote, &books, day()).unwrap();
+        assert_eq!(update.last_read_chapter, Some(77.0));
+        assert_eq!(update.status, None);
     }
 
     #[test]

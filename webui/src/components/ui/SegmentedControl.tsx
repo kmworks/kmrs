@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils/cn'
 
 interface SegmentedControlProps<T extends string> {
   options: Array<{ value: T; label: string; icon?: ReactNode }>
-  value: T
+  value: T | undefined
   onChange: (v: T) => void
   className?: string
   size?: 'sm' | 'md'
@@ -23,7 +23,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, c
             value === opt.value ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2',
           )}
         >
-          <span className="inline-flex items-center justify-center gap-1.5">
+          <span className="inline-flex items-center justify-center gap-1.5 leading-4">
             {opt.icon}
             {opt.label}
           </span>

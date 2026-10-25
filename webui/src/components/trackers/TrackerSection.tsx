@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { BookOpen, Plus } from '@phosphor-icons/react'
-import { trackerLinkKeys, trackersApi, trackerUrlsFromMetadata } from '@/lib/api/trackers'
+import { ArrowSquareOut, BookOpen, Plus } from '@phosphor-icons/react'
+import { trackerEntryUrl, trackerLinkKeys, trackersApi, trackerUrlsFromMetadata } from '@/lib/api/trackers'
 import { ApiError } from '@/lib/api/client'
 import type { KomfOAuthProvider, TrackerLink, TrackerLinkRef, TrackerState } from '@/lib/api/types'
 import { Button } from '@/components/ui/Button'
@@ -12,6 +12,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { TrackerLogo } from '@/components/trackers/TrackerLogo'
 import { CoverImage } from '@/components/media/CoverImage'
 import { showToast } from '@/lib/store/toast'
+import { cn } from '@/lib/utils/cn'
 
 const PROVIDERS: KomfOAuthProvider[] = ['anilist', 'bangumi', 'mal', 'mangabaka']
 
@@ -23,11 +24,13 @@ type TrackerStatusKey = (typeof STATUS_KEYS)[number]
 export function TrackerSection({
   seriesId,
   seriesTitle,
+  alternateTitles,
   libraryId,
   metadataLinks,
 }: {
   seriesId: string
   seriesTitle: string
+  alternateTitles: string[]
   libraryId: string
   metadataLinks: Array<{ url: string }>
 }) {
@@ -73,12 +76,13 @@ export function TrackerSection({
       </Button>
 
       <BindDialog
-        // remounting on open resets provider/query to the first free provider
+        // remounting on open restores the configured default and initial title
         key={String(bindOpen)}
         open={bindOpen}
         onOpenChange={setBindOpen}
         seriesId={seriesId}
         seriesTitle={seriesTitle}
+        alternateTitles={alternateTitles}
         existingProviders={links.map((l) => l.provider)}
         suggestedUrls={trackerUrlsFromMetadata(metadataLinks)}
         defaultProvider={preferencesQuery.data?.defaultTracker}
@@ -133,6 +137,7 @@ function BindDialog({
   onOpenChange,
   seriesId,
   seriesTitle,
+  alternateTitles,
   existingProviders,
   suggestedUrls,
   defaultProvider,
@@ -142,10 +147,11 @@ function BindDialog({
   onOpenChange: (open: boolean) => void
   seriesId: string
   seriesTitle: string
+  alternateTitles: string[]
   existingProviders: KomfOAuthProvider[]
   /** platform entry URLs recognized in the series metadata links */
   suggestedUrls: Partial<Record<KomfOAuthProvider, string>>
-  /** preselected provider from the management page; falls back to the first free one */
+  /** preselected provider from the management page; otherwise selection is explicit */
   defaultProvider?: KomfOAuthProvider
   /** receives the freshly created binding so the caller can open its options */
   onBound: (link: TrackerLinkRef) => void
@@ -154,31 +160,34 @@ function BindDialog({
   const queryClient = useQueryClient()
   const available = PROVIDERS.filter((p) => !existingProviders.includes(p))
   // remount-on-open (key at the call site) makes these initial values per-open
-  const [provider, setProvider] = useState<KomfOAuthProvider>(
-    (defaultProvider && available.includes(defaultProvider) ? defaultProvider : available[0]) ?? 'anilist',
+  const [provider, setProvider] = useState<KomfOAuthProvider | undefined>(
+    defaultProvider && available.includes(defaultProvider) ? defaultProvider : undefined,
   )
   const [query, setQuery] = useState(seriesTitle)
+  const searchTitles = Array.from(
+    new Set([seriesTitle, ...alternateTitles].map((title) => title.trim()).filter(Boolean)),
+  )
 
   const searchQuery = useQuery({
     queryKey: ['trackers', 'search', provider, query],
-    queryFn: () => trackersApi.search(provider, { name: query }),
-    enabled: open && query.trim().length > 0,
+    queryFn: () => trackersApi.search(provider!, { name: query }),
+    enabled: open && !!provider && query.trim().length > 0,
     retry: false,
   })
 
   // a series-metadata link for the selected provider resolves through the tracker
   // search box exactly like a pasted link: one direct, clickable candidate
-  const suggestedUrl = suggestedUrls[provider]
+  const suggestedUrl = provider ? suggestedUrls[provider] : undefined
   const suggestQuery = useQuery({
     queryKey: ['trackers', 'search', provider, suggestedUrl],
-    queryFn: () => trackersApi.search(provider, { name: suggestedUrl! }),
-    enabled: open && !!suggestedUrl,
+    queryFn: () => trackersApi.search(provider!, { name: suggestedUrl! }),
+    enabled: open && !!provider && !!suggestedUrl,
     retry: false,
   })
 
   const bindMutation = useMutation({
     mutationFn: (item: { id: string; title: string }) =>
-      trackersApi.upsertLink(seriesId, { provider, trackId: item.id, title: item.title }),
+      trackersApi.upsertLink(seriesId, { provider: provider!, trackId: item.id, title: item.title }),
     onSuccess: (bound) => {
       queryClient.invalidateQueries({ queryKey: trackerLinkKeys.all })
       queryClient.invalidateQueries({ queryKey: trackerLinkKeys.series(seriesId) })
@@ -202,41 +211,71 @@ function BindDialog({
           value={provider}
           onChange={setProvider}
         />
-        <TextField
-          label={t('bindDialog.searchLabel')}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('bindDialog.searchPlaceholder')}
-        />
-        <div className="min-h-40 flex-1 overflow-y-auto">
-          {suggestedUrl && suggestQuery.data?.[0] && (
-            <div className="mb-2">
-              <p className="mb-1 text-[11px] font-medium tracking-wide text-ink-3 uppercase">
-                {t('bindDialog.fromLinks')}
-              </p>
-              <ul className="divide-y divide-line rounded-lg border border-accent/30 bg-accent/5 px-3">
-                <ResultRow
-                  item={suggestQuery.data[0]}
-                  binding={bindMutation.isPending}
-                  onBind={() => bindMutation.mutate(suggestQuery.data![0])}
-                />
-              </ul>
+        {!provider ? (
+          <p className="py-6 text-center text-sm text-ink-3">{t('bindDialog.selectProvider')}</p>
+        ) : (
+          <>
+            <TextField
+              label={t('bindDialog.searchLabel')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('bindDialog.searchPlaceholder')}
+            />
+            {searchTitles.length > 1 && (
+              <div
+                role="group"
+                aria-label={t('bindDialog.searchTitles')}
+                className="flex flex-wrap gap-1.5"
+              >
+                {searchTitles.map((title) => (
+                  <button
+                    key={title}
+                    type="button"
+                    aria-pressed={query === title}
+                    onClick={() => setQuery(title)}
+                    className={cn(
+                      'max-w-full truncate cursor-pointer rounded-full border px-2.5 py-1 text-left text-xs transition-colors',
+                      query === title
+                        ? 'border-accent/40 bg-accent/10 text-accent-strong'
+                        : 'border-line bg-raised text-ink-2 hover:border-line-strong hover:text-ink',
+                    )}
+                  >
+                    {title}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="min-h-40 flex-1 overflow-y-auto">
+              {suggestedUrl && suggestQuery.data?.[0] && (
+                <div className="mb-2">
+                  <p className="mb-1 text-[11px] font-medium tracking-wide text-ink-3 uppercase">
+                    {t('bindDialog.fromLinks')}
+                  </p>
+                  <ul className="divide-y divide-line rounded-lg border border-accent/30 bg-accent/5 px-3">
+                    <ResultRow
+                      item={suggestQuery.data[0]}
+                      binding={bindMutation.isPending}
+                      onBind={() => bindMutation.mutate(suggestQuery.data![0])}
+                    />
+                  </ul>
+                </div>
+              )}
+              {searchQuery.isPending ? (
+                <p className="py-6 text-center text-sm text-ink-3">{t('state.loading')}</p>
+              ) : searchQuery.isError ? (
+                <p className="py-6 text-center text-sm text-danger">{searchQuery.error.message}</p>
+              ) : (searchQuery.data?.length ?? 0) === 0 ? (
+                <p className="py-6 text-center text-sm text-ink-3">{t('bindDialog.noResults')}</p>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {searchQuery.data!.map((item) => (
+                    <ResultRow key={item.id} item={item} binding={bindMutation.isPending} onBind={() => bindMutation.mutate(item)} />
+                  ))}
+                </ul>
+              )}
             </div>
-          )}
-          {searchQuery.isPending ? (
-            <p className="py-6 text-center text-sm text-ink-3">{t('state.loading')}</p>
-          ) : searchQuery.isError ? (
-            <p className="py-6 text-center text-sm text-danger">{searchQuery.error.message}</p>
-          ) : (searchQuery.data?.length ?? 0) === 0 ? (
-            <p className="py-6 text-center text-sm text-ink-3">{t('bindDialog.noResults')}</p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {searchQuery.data!.map((item) => (
-                <ResultRow key={item.id} item={item} binding={bindMutation.isPending} onBind={() => bindMutation.mutate(item)} />
-              ))}
-            </ul>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </Dialog>
   )
@@ -395,7 +434,18 @@ function EditDialogForm({
           helper={t('editDialog.chapterOffsetHelper')}
         />
         <div className="border-t border-line pt-4">
-          <p className="mb-3 text-[13px] font-medium text-ink-2">{t('editDialog.remoteHeading')}</p>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-[13px] font-medium text-ink-2">{t('editDialog.remoteHeading')}</p>
+            <a
+              href={trackerEntryUrl(link.provider, link.trackId)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-ink-3 transition-colors hover:bg-raised hover:text-accent-strong"
+            >
+              {t('editDialog.openRemote')}
+              <ArrowSquareOut className="size-3.5" />
+            </a>
+          </div>
           <div className="flex flex-col gap-3">
             <SegmentedControl
               size="sm"
