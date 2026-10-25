@@ -18,7 +18,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, c
           type="button"
           onClick={() => onChange(opt.value)}
           className={cn(
-            'shrink-0 cursor-pointer rounded-md font-medium whitespace-nowrap transition-all duration-150',
+            'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md font-medium whitespace-nowrap transition-all duration-150',
             size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-[13px]',
             value === opt.value ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2',
           )}
