@@ -13,6 +13,7 @@ A comic & manga server in a single static Rust binary, drop-in compatible with [
 
 - **Drop-in replacement** for `gotson/komga`: same port (25600), same `/config` and `/data` mounts, same `KOMGA_*` environment variables
 - **Data-level compatibility**: opens and upgrades existing komga data directories (`database.sqlite`, `tasks.sqlite`) in place — and the Java version can still open libraries written by kmrs
+- **Library formats**: CBZ/ZIP, CBR/RAR, PDF, and EPUB — scanning, metadata extraction, thumbnails, and Komga-compatible page/resource serving (PDF rendering uses libpdfium)
 - **API parity**: REST `/api/**`, OPDS v1.2/v2, SSE, Kobo sync, and KOReader progress sync — endpoints, DTOs, pagination, error shapes, and authentication behavior match the Java version
 - **Verified against the Java version**: byte-for-byte Flyway migrations, a differential test harness comparing ~105 endpoints against a live Java instance, and schema contract tests
 
@@ -36,6 +37,7 @@ The kmweb React web UI (built from [`webui/`](webui/) in this repo) is embedded 
 Full documentation lives at **[kmworks.date/server](https://kmworks.date/server/)**:
 
 - [Installation](https://kmworks.date/server/installation) — Docker, prebuilt binaries, build from source
+- [Supported formats](https://kmworks.date/server/intro#supported-formats) — CBZ/ZIP, CBR/RAR, PDF, EPUB, and Webtoon reading
 - [Configuration](https://kmworks.date/server/configuration) — `config.toml` key reference, env vars, precedence
 - [Serving a web UI](https://kmworks.date/server/webui) — bundled web UI, reverse-proxy setups
 - [Search](https://kmworks.date/server/search) — analyzer chain, CJK cross-search extensions
