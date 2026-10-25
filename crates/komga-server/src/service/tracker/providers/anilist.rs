@@ -450,20 +450,28 @@ impl TrackerService for AniListTracker {
             Some(score) if self.score_format(user_id).await? == "POINT_10" => Some(score * 10),
             score => score,
         };
-        self.graphql(
-            user_id,
-            SAVE_MEDIA_LIST_ENTRY,
-            json!({
-                "id": id,
-                "status": update.status.map(Self::status_to_wire),
-                "progress": update.last_read_chapter.map(|chapter| chapter.floor() as i64),
-                "volumes": update.last_read_volume,
-                "score": score,
-                "startedAt": Self::date_input(update.start_read_date.as_deref()),
-                "completedAt": Self::date_input(update.finish_read_date.as_deref()),
-            }),
-        )
-        .await?;
+        let mut variables = serde_json::Map::new();
+        variables.insert("id".into(), json!(id));
+        if let Some(status) = update.status {
+            variables.insert("status".into(), json!(Self::status_to_wire(status)));
+        }
+        if let Some(chapter) = update.last_read_chapter {
+            variables.insert("progress".into(), json!(chapter.floor() as i64));
+        }
+        if let Some(volume) = update.last_read_volume {
+            variables.insert("volumes".into(), json!(volume));
+        }
+        if let Some(score) = score {
+            variables.insert("score".into(), json!(score));
+        }
+        if let Some(date) = Self::date_input(update.start_read_date.as_deref()) {
+            variables.insert("startedAt".into(), date);
+        }
+        if let Some(date) = Self::date_input(update.finish_read_date.as_deref()) {
+            variables.insert("completedAt".into(), date);
+        }
+        self.graphql(user_id, SAVE_MEDIA_LIST_ENTRY, Value::Object(variables))
+            .await?;
         Ok(())
     }
 }
@@ -861,6 +869,31 @@ mod tests {
                 "startedAt": {"year": 2024, "month": 3, "day": 2},
                 "completedAt": {"year": 2026, "month": 10, "day": 25}
             })
+        );
+    }
+
+    #[tokio::test]
+    async fn update_omits_unset_fields() {
+        let mock = MockAniList::new(media(), "POINT_100");
+        let base_url = serve_mock(mock.clone()).await;
+        let (oauth, dao) = test_oauth(Provider::Anilist, &base_url);
+        seed_token(&dao, Provider::Anilist, "alice");
+        let tracker = AniListTracker::with_graphql_url(
+            reqwest::Client::new(),
+            oauth,
+            format!("{base_url}/graphql"),
+        );
+        let update = TrackUpdate {
+            last_read_chapter: Some(12.9),
+            ..TrackUpdate::default()
+        };
+        tracker.update("alice", "42", &update).await.unwrap();
+
+        let requests = mock.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            requests[0].json()["variables"],
+            json!({"id": 42, "progress": 12})
         );
     }
 
