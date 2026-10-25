@@ -130,7 +130,7 @@ impl OAuthApp {
 }
 
 pub fn relay_callback_url(provider: Provider) -> String {
-    format!("{OAUTH_RELAY_ROOT}/{}/callback/", provider.as_str())
+    format!("{OAUTH_RELAY_ROOT}/{}/callback", provider.as_str())
 }
 
 pub fn native_callback_url(instance_origin: &str, provider: Provider) -> String {
@@ -720,6 +720,16 @@ mod tests {
             token_type: Some("Bearer".into()),
             expires_at: Some(time_codec::now_utc() - Duration::seconds(1)),
             username: Some("existing-user".into()),
+        }
+    }
+
+    #[test]
+    fn relay_callbacks_match_registered_urls() {
+        for provider in Provider::ALL {
+            assert_eq!(
+                relay_callback_url(provider),
+                format!("https://kmworks.date/oauth/{provider}/callback")
+            );
         }
     }
 

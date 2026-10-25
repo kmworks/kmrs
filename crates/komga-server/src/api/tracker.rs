@@ -956,7 +956,7 @@ mod tests {
             assert_eq!(query["client_id"], "id-anilist");
             assert_eq!(
                 query["redirect_uri"],
-                "https://kmworks.date/oauth/anilist/callback/"
+                "https://kmworks.date/oauth/anilist/callback"
             );
             let state: serde_json::Value = serde_json::from_str(&query["state"]).unwrap();
             assert_eq!(
