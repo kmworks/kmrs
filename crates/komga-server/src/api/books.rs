@@ -11,8 +11,6 @@ use crate::http::pagination::{QueryExt, QueryPageable};
 use crate::service::book::{
     add_thumbnail_for_book, delete_thumbnail_for_book, MarkSelectedPreference,
 };
-#[cfg(test)]
-use crate::state::test_search_index;
 use crate::state::AppState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State};
@@ -2182,8 +2180,6 @@ async fn books_regenerate_thumbnails(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::SessionStore;
-    use crate::settings::SettingsProvider;
     use crate::state::test_kmrs_db;
     use axum::middleware;
     use komga_core::model::book::BookMetadata;
@@ -2192,7 +2188,6 @@ mod tests {
     use komga_core::model::series::{Series, SeriesMetadata, SeriesStatus};
     use komga_core::model::thumbnail::{Dimension, ThumbnailType};
     use komga_core::model::user::{ContentRestrictions, KomgaUser};
-    use komga_core::tsid::TsidFactory;
     use komga_db::dao::book::BookMetadataDao;
     use komga_db::dao::library::LibraryDao;
     use komga_db::dao::series::{SeriesDao, SeriesMetadataDao};
@@ -2237,35 +2232,12 @@ mod tests {
             .migrate(&db.rw().unwrap())
             .unwrap();
         let tasks_db = Database::open_in_memory(false).unwrap();
-        // dedicated task pools reuse the same in-memory database: task execution and assertions stay in sync
-        let task_db = db.clone();
         let tasks_migrations = komga_db::tasks_migrations();
         Migrator::new(&tasks_migrations, Placeholders::default())
             .migrate(&tasks_db.rw().unwrap())
             .unwrap();
         let config = crate::config::ServerConfig::from_env();
-        AppState {
-            config: Arc::new(config.clone()),
-            settings: Arc::new(SettingsProvider::load(db.clone())),
-            task_emitter: Arc::new(crate::service::TaskEmitter::new(
-                db.clone(),
-                tasks_db.clone(),
-                std::sync::Arc::new(tokio::sync::Notify::new()),
-            )),
-            db,
-            task_db,
-            tasks_db,
-            kmrs_db: test_kmrs_db(),
-            sessions: SessionStore::new(config.session_timeout),
-            tsid: Arc::new(TsidFactory::new_random_node()),
-            events: crate::events::event_bus(),
-            search_index: test_search_index(),
-            kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
-            kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-            shutdown_tx: tokio::sync::watch::channel(false).0,
-            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-            latest_update: Default::default(),
-        }
+        crate::state::test_app_state(config, db, tasks_db, test_kmrs_db()).0
     }
 
     fn seed_library(db: &Database, id: &str) {

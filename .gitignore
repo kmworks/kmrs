@@ -4,4 +4,5 @@
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+/.env.local
 .DS_Store

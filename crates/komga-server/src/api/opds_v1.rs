@@ -1728,7 +1728,6 @@ mod tests {
     use crate::auth;
     use crate::config::ServerConfig;
     use crate::http;
-    use crate::settings::SettingsProvider;
     use crate::state::test_kmrs_db;
     use axum::body::Body;
     use axum::http::Request;
@@ -1742,7 +1741,6 @@ mod tests {
     use komga_db::dao::user::UserDao;
     use komga_db::pool::{Database, DatabaseConfig, JournalMode};
     use komga_db::{Migrator, Placeholders};
-    use std::sync::Arc;
     use tower::ServiceExt;
 
     fn test_state() -> AppState {
@@ -1752,8 +1750,6 @@ mod tests {
             .migrate(&db.rw().unwrap())
             .unwrap();
         let tasks_db = Database::open_in_memory(false).unwrap();
-        // dedicated task pools reuse the same in-memory database: task execution and assertions stay in sync
-        let task_db = db.clone();
         let tasks_migrations = komga_db::tasks_migrations();
         Migrator::new(&tasks_migrations, Placeholders::default())
             .migrate(&tasks_db.rw().unwrap())
@@ -1794,29 +1790,7 @@ mod tests {
             thumbnail_storage: Default::default(),
             thumbnail_deep_etag: true,
         };
-        AppState {
-            sessions: auth::SessionStore::new(config.session_timeout),
-            settings: Arc::new(SettingsProvider::load(db.clone())),
-            tsid: Arc::new(komga_core::tsid::TsidFactory::new_random_node()),
-            events: crate::events::event_bus(),
-            task_emitter: Arc::new(crate::service::TaskEmitter::new(
-                db.clone(),
-                tasks_db.clone(),
-                Arc::new(tokio::sync::Notify::new()),
-            )),
-            db,
-            task_db,
-            tasks_db,
-            kmrs_db: test_kmrs_db(),
-            config: Arc::new(config),
-            search_index: crate::state::test_search_index(),
-            kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
-            kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-
-            shutdown_tx: tokio::sync::watch::channel(false).0,
-            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-            latest_update: Default::default(),
-        }
+        crate::state::test_app_state(config, db, tasks_db, test_kmrs_db()).0
     }
 
     fn test_app(state: &AppState) -> axum::Router {

@@ -1,79 +1,20 @@
 //! Tracker sync, a kmrs-private enhancement with no Java equivalent: pushes
-//! reading progress to komf's per-user tracker accounts (AniList / MAL /
+//! reading progress to the current user's tracker accounts (AniList / MAL /
 //! Bangumi / MangaBaka) whenever a book is read. Every decision rule lives in
 //! `komga_core::tracker` (pure, unit-tested); this module only wires events,
-//! database reads, and komf calls together.
+//! database reads, and provider calls together.
 //!
 //! Progress only ever moves forward: unread/delete events never regress the
 //! platform entry. Bindings belong to one user and only that user's reading
 //! advances them.
 
 use crate::events::DomainEvent;
-use crate::service::komf::{self, KomfClient};
+use crate::service::tracker::{Provider, TrackerServices};
 use crate::state::AppState;
-use komga_core::tracker::{self, BookTrackInput, RemoteState, TrackStatus, TrackUpdate};
+use komga_core::tracker::{self, BookTrackInput};
 use komga_db::dao::book::{BookDao, BookMetadataDao};
-use komga_db::dao::komf_integration::{KomfIntegrationDao, KomfIntegrationState};
 use komga_db::dao::read_progress::ReadProgressDao;
 use komga_db::dao::tracker_link::{TrackerLink, TrackerLinkDao};
-
-/// komf's `TrackState` response shape (camelCase); komf owns the schema.
-#[derive(Debug, Default, serde::Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct KomfTrackStateDto {
-    status: Option<String>,
-    last_read_chapter: Option<f32>,
-    last_read_volume: Option<i32>,
-    total_chapters: Option<i32>,
-    total_volumes: Option<i32>,
-    start_read_date: Option<String>,
-    finish_read_date: Option<String>,
-}
-
-impl From<KomfTrackStateDto> for RemoteState {
-    fn from(dto: KomfTrackStateDto) -> Self {
-        RemoteState {
-            status: dto.status.as_deref().and_then(TrackStatus::parse),
-            last_read_chapter: dto.last_read_chapter,
-            last_read_volume: dto.last_read_volume,
-            total_chapters: dto.total_chapters,
-            total_volumes: dto.total_volumes,
-            start_read_date: dto.start_read_date,
-            finish_read_date: dto.finish_read_date,
-        }
-    }
-}
-
-/// Wire shape of `POST /api/tracker/{provider}/update`; all-None fields are
-/// omitted so komf keeps the platform value ("keep" semantics).
-#[derive(Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct KomfTrackUpdateBody<'a> {
-    track_id: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    status: Option<&'static str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    last_read_chapter: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    last_read_volume: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    start_read_date: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    finish_read_date: Option<&'a str>,
-}
-
-impl<'a> From<&'a TrackUpdate> for KomfTrackUpdateBody<'a> {
-    fn from(update: &'a TrackUpdate) -> Self {
-        KomfTrackUpdateBody {
-            track_id: "", // filled by the caller, which knows the binding
-            status: update.status.map(|s| s.as_str()),
-            last_read_chapter: update.last_read_chapter,
-            last_read_volume: update.last_read_volume,
-            start_read_date: update.start_read_date.as_deref(),
-            finish_read_date: update.finish_read_date.as_deref(),
-        }
-    }
-}
 
 /// Serializes concurrent syncs of the same (series, user) pair. Pushing is a
 /// GET → decide → POST sequence against komf, and overlapping sequences
@@ -257,19 +198,7 @@ async fn sync_series(state: &AppState, series_id: String, user_id: String) {
         }
     };
 
-    let integration = match KomfIntegrationDao::new(state.kmrs_db.clone()).get() {
-        Ok(Some(row)) => row,
-        Ok(None) => return,
-        Err(e) => {
-            tracing::warn!("tracker sync: failed to read komf integration: {e}");
-            return;
-        }
-    };
-    if integration.state != KomfIntegrationState::Connected {
-        return; // nothing useful to report until an admin connects komf
-    }
-    let client = komf::client(state, &integration);
-
+    let services = state.tracker.clone();
     let today = komga_core::time_codec::now_utc().date();
     let books = snapshot
         .books
@@ -281,7 +210,7 @@ async fn sync_series(state: &AppState, series_id: String, user_id: String) {
         })
         .collect::<Vec<_>>();
     for link in &snapshot.links {
-        if let Err(e) = push_link(&client, link, &books, today).await {
+        if let Err(e) = push_link(&services, link, &books, today).await {
             tracing::warn!(
                 "tracker sync: {}:{} for user {} failed: {e:#}",
                 link.provider,
@@ -293,83 +222,42 @@ async fn sync_series(state: &AppState, series_id: String, user_id: String) {
 }
 
 /// Fetches the platform state, decides, and pushes when there is something to
-/// push. `Err` covers transport and komf failure statuses; "nothing to push"
-/// is `Ok(())`.
+/// push. "Nothing to push" is `Ok(())`.
 async fn push_link(
-    client: &KomfClient,
+    services: &TrackerServices,
     link: &TrackerLink,
     books: &[BookTrackInput<'_>],
     today: time::Date,
 ) -> anyhow::Result<()> {
-    let state_response = client
-        .proxy_tracker(
-            reqwest::Method::GET,
-            &format!("/api/tracker/{}/state", link.provider),
-            Some(&format!("trackId={}", urlencoding_encode(&link.track_id))),
-            None,
-            &link.user_id,
-        )
-        .await?;
-    if state_response.status() == reqwest::StatusCode::UNAUTHORIZED {
-        anyhow::bail!("komf reports the tracker login is lost; re-login required");
-    }
-    if !state_response.status().is_success() {
-        anyhow::bail!("komf state query failed: HTTP {}", state_response.status());
-    }
-    let remote: RemoteState = state_response
-        .json::<KomfTrackStateDto>()
-        .await
-        .map(RemoteState::from)?;
+    let provider = Provider::parse(&link.provider)
+        .ok_or_else(|| anyhow::anyhow!("unsupported tracker provider {}", link.provider))?;
+    let service = services
+        .get(provider)
+        .ok_or_else(|| anyhow::anyhow!("tracker provider {} is unavailable", link.provider))?;
+    let remote = service.get_state(&link.user_id, &link.track_id).await?;
     let mode = tracker::effective_mode(link.track_mode, books);
     let Some(update) = tracker::decide(mode, link.chapter_offset, &remote, books, today) else {
         return Ok(());
     };
-    let mut body = KomfTrackUpdateBody::from(&update);
-    body.track_id = &link.track_id;
-    let response = client
-        .proxy_tracker(
-            reqwest::Method::POST,
-            &format!("/api/tracker/{}/update", link.provider),
-            None,
-            Some(&serde_json::to_value(&body)?),
-            &link.user_id,
-        )
+    service
+        .update(&link.user_id, &link.track_id, &update)
         .await?;
-    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-        anyhow::bail!("komf reports the tracker login is lost; re-login required");
-    }
-    if !response.status().is_success() {
-        anyhow::bail!("komf update failed: HTTP {}", response.status());
-    }
     Ok(())
-}
-
-/// Query-encodes one parameter value without pulling in a crate for a single
-/// use; track ids are platform entry ids (digits, or provider-safe slugs).
-fn urlencoding_encode(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for byte in value.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(byte as char)
-            }
-            other => out.push_str(&format!("%{other:02X}")),
-        }
-    }
-    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::api::collections::tests as shared;
+    use crate::service::tracker::{TrackerError, TrackerService};
     use komga_core::model::read_progress::ReadProgress;
+    use komga_core::tracker::{RemoteState, TrackMode, TrackSearchItem, TrackStatus, TrackUpdate};
     use std::sync::{Arc, Mutex as StdMutex};
 
     /// Two pushes racing on the same (series, user) must stay ordered: each
     /// task's GET happens strictly before its POST, otherwise the earlier
     /// chapter could POST last and regress the remote value. The sleep stands
-    /// in for the komf round trip and forces the interleaving.
+    /// in for the provider round trip and forces the interleaving.
     #[tokio::test]
     async fn same_key_sequences_never_interleave() {
         let events: Arc<StdMutex<Vec<(&'static str, &'static str)>>> =
@@ -427,89 +315,108 @@ mod tests {
         assert!(!locks.contains_key(&key));
     }
 
-    #[test]
-    fn state_dto_maps_komf_shape() {
-        let dto: KomfTrackStateDto = serde_json::from_str(
-            r#"{
-                "score": 8,
-                "status": "reading",
-                "lastReadChapter": 12.0,
-                "lastReadVolume": 1,
-                "totalChapters": 20,
-                "totalVolumes": null,
-                "startReadDate": "2026-10-01",
-                "finishReadDate": null
-            }"#,
+    struct StubTracker {
+        remote: RemoteState,
+        updates: Arc<StdMutex<Vec<(String, String, TrackUpdate)>>>,
+    }
+
+    #[async_trait::async_trait]
+    impl TrackerService for StubTracker {
+        fn provider(&self) -> Provider {
+            Provider::Anilist
+        }
+
+        fn is_logged_in(&self, _user_id: &str) -> Result<bool, TrackerError> {
+            Ok(true)
+        }
+
+        async fn search(
+            &self,
+            _user_id: &str,
+            _query: &str,
+            _nsfw: bool,
+        ) -> Result<Vec<TrackSearchItem>, TrackerError> {
+            Ok(vec![])
+        }
+
+        async fn get_state(
+            &self,
+            _user_id: &str,
+            _track_id: &str,
+        ) -> Result<RemoteState, TrackerError> {
+            Ok(self.remote.clone())
+        }
+
+        async fn update(
+            &self,
+            user_id: &str,
+            track_id: &str,
+            update: &TrackUpdate,
+        ) -> Result<(), TrackerError> {
+            self.updates.lock().unwrap().push((
+                user_id.to_string(),
+                track_id.to_string(),
+                update.clone(),
+            ));
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn push_link_uses_native_provider() {
+        let updates = Arc::new(StdMutex::new(Vec::new()));
+        let oauth = crate::service::tracker::oauth::OAuthManager::new(
+            crate::state::test_kmrs_db(),
+            reqwest::Client::new(),
+        );
+        let services = TrackerServices::new(
+            oauth,
+            vec![Arc::new(StubTracker {
+                remote: RemoteState {
+                    status: Some(TrackStatus::Reading),
+                    last_read_chapter: Some(10.0),
+                    total_chapters: Some(12),
+                    ..RemoteState::default()
+                },
+                updates: updates.clone(),
+            })],
+        );
+        let now = komga_core::time_codec::now_utc();
+        let link = TrackerLink {
+            series_id: "s1".into(),
+            user_id: "u1".into(),
+            provider: "anilist".into(),
+            track_id: "42".into(),
+            title: None,
+            track_mode: TrackMode::Chapter,
+            chapter_offset: 0,
+            created_date: now,
+            last_modified_date: now,
+        };
+        let books = [BookTrackInput {
+            name: "ch.11",
+            number_sort: 11.0,
+            read: true,
+        }];
+        push_link(
+            &services,
+            &link,
+            &books,
+            time::Date::from_calendar_date(2026, time::Month::October, 25).unwrap(),
         )
+        .await
         .unwrap();
-        let remote = RemoteState::from(dto);
-        assert_eq!(remote.status, Some(TrackStatus::Reading));
-        assert_eq!(remote.last_read_chapter, Some(12.0));
-        assert_eq!(remote.last_read_volume, Some(1));
-        assert_eq!(remote.total_chapters, Some(20));
-        assert_eq!(remote.total_volumes, None);
-        assert_eq!(remote.start_read_date.as_deref(), Some("2026-10-01"));
-        assert_eq!(remote.finish_read_date, None);
+
+        let updates = updates.lock().unwrap();
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].0, "u1");
+        assert_eq!(updates[0].1, "42");
+        assert_eq!(updates[0].2.last_read_chapter, Some(11.0));
+        assert_eq!(updates[0].2.status, None);
     }
 
-    #[test]
-    fn state_dto_defaults_for_empty_platform_entry() {
-        let remote = RemoteState::from(serde_json::from_str::<KomfTrackStateDto>("{}").unwrap());
-        assert_eq!(remote, RemoteState::default());
-    }
-
-    #[test]
-    fn update_body_omits_none_fields_and_serializes_camel_case() {
-        let update = TrackUpdate {
-            status: Some(TrackStatus::Reading),
-            last_read_chapter: Some(12.0),
-            ..TrackUpdate::default()
-        };
-        let mut body = KomfTrackUpdateBody::from(&update);
-        body.track_id = "42";
-        let json = serde_json::to_value(&body).unwrap();
-        assert_eq!(
-            json,
-            serde_json::json!({
-                "trackId": "42",
-                "status": "reading",
-                "lastReadChapter": 12.0
-            })
-        );
-    }
-
-    #[test]
-    fn update_body_full_shape() {
-        let update = TrackUpdate {
-            status: Some(TrackStatus::Completed),
-            last_read_chapter: None,
-            last_read_volume: Some(3),
-            start_read_date: Some("2026-10-01".into()),
-            finish_read_date: Some("2026-10-08".into()),
-        };
-        let mut body = KomfTrackUpdateBody::from(&update);
-        body.track_id = "7";
-        let json = serde_json::to_value(&body).unwrap();
-        assert_eq!(
-            json,
-            serde_json::json!({
-                "trackId": "7",
-                "status": "completed",
-                "lastReadVolume": 3,
-                "startReadDate": "2026-10-01",
-                "finishReadDate": "2026-10-08"
-            })
-        );
-    }
-
-    #[test]
-    fn url_encoding_encodes_only_the_value() {
-        assert_eq!(urlencoding_encode("12345"), "12345");
-        assert_eq!(urlencoding_encode("a b/c"), "a%20b%2Fc");
-    }
-
-    fn progress_event(book_id: &str, user_id: &str, completed: bool) -> DomainEvent {
-        DomainEvent::ReadProgressChanged(ReadProgress {
+    fn read_progress(book_id: &str, user_id: &str, completed: bool) -> ReadProgress {
+        ReadProgress {
             book_id: book_id.into(),
             user_id: user_id.into(),
             page: 1,
@@ -520,7 +427,64 @@ mod tests {
             locator: None,
             created_date: komga_core::time_codec::now_utc(),
             last_modified_date: komga_core::time_codec::now_utc(),
-        })
+        }
+    }
+
+    fn progress_event(book_id: &str, user_id: &str, completed: bool) -> DomainEvent {
+        DomainEvent::ReadProgressChanged(read_progress(book_id, user_id, completed))
+    }
+
+    #[tokio::test]
+    async fn sync_series_works_without_metadata_integration() {
+        let mut state = shared::test_state();
+        shared::seed_base(&state.db);
+        let user_id = shared::insert_user(
+            &state.db,
+            "reader@x.c",
+            &[],
+            &[],
+            Default::default(),
+            "reader-key",
+        );
+        let updates = Arc::new(StdMutex::new(Vec::new()));
+        let oauth = state.tracker.oauth().clone();
+        state.tracker = Arc::new(TrackerServices::new(
+            oauth,
+            vec![Arc::new(StubTracker {
+                remote: RemoteState {
+                    status: Some(TrackStatus::Reading),
+                    last_read_chapter: Some(1.0),
+                    total_chapters: Some(3),
+                    ..RemoteState::default()
+                },
+                updates: updates.clone(),
+            })],
+        ));
+        TrackerLinkDao::new(state.kmrs_db.clone())
+            .upsert(&komga_db::dao::tracker_link::NewTrackerLink {
+                series_id: "s1",
+                user_id: &user_id,
+                provider: "anilist",
+                track_id: "42",
+                title: Some("Series"),
+                track_mode: TrackMode::Chapter,
+                chapter_offset: 0,
+            })
+            .unwrap();
+        ReadProgressDao::new(state.db.clone())
+            .save_many(&[
+                read_progress("b1", &user_id, true),
+                read_progress("b2", &user_id, true),
+            ])
+            .unwrap();
+
+        sync_series(&state, "s1".into(), user_id.clone()).await;
+
+        let updates = updates.lock().unwrap();
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].0, user_id);
+        assert_eq!(updates[0].1, "42");
+        assert_eq!(updates[0].2.last_read_chapter, Some(2.0));
     }
 
     #[tokio::test]

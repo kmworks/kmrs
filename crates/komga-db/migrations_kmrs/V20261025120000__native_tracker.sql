@@ -1,0 +1,34 @@
+CREATE TABLE TRACKER_OAUTH_TOKEN (
+    PROVIDER varchar NOT NULL CHECK (PROVIDER IN ('anilist', 'mal', 'bangumi', 'mangabaka')),
+    USER_ID varchar NOT NULL,
+    ACCESS_TOKEN varchar NOT NULL,
+    REFRESH_TOKEN varchar,
+    TOKEN_TYPE varchar,
+    EXPIRES_AT datetime,
+    USERNAME varchar,
+    CREATED_DATE datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    LAST_MODIFIED_DATE datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (PROVIDER, USER_ID)
+);
+
+CREATE TABLE TRACKER_OAUTH_PENDING (
+    PROVIDER varchar NOT NULL CHECK (PROVIDER IN ('anilist', 'mal', 'bangumi', 'mangabaka')),
+    NONCE varchar NOT NULL,
+    USER_ID varchar NOT NULL,
+    VERIFIER varchar NOT NULL,
+    CREATED_DATE datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (PROVIDER, NONCE)
+);
+CREATE INDEX idx__tracker_oauth_pending__user ON TRACKER_OAUTH_PENDING (PROVIDER, USER_ID);
+
+CREATE TABLE TRACKER_LEDGER (
+    PROVIDER varchar NOT NULL CHECK (PROVIDER IN ('anilist', 'mal', 'bangumi', 'mangabaka')),
+    USER_ID varchar NOT NULL,
+    TRACK_ID varchar NOT NULL,
+    TITLE varchar,
+    URL varchar,
+    COVER_URL varchar,
+    UPDATED_DATE datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (PROVIDER, USER_ID, TRACK_ID)
+);
+CREATE INDEX idx__tracker_ledger__user ON TRACKER_LEDGER (USER_ID, UPDATED_DATE);

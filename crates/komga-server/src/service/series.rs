@@ -4,8 +4,6 @@
 use crate::config::ThumbnailStorage;
 use crate::events::DomainEvent;
 pub use crate::service::book::MarkSelectedPreference;
-#[cfg(test)]
-use crate::state::test_search_index;
 use crate::state::AppState;
 use komga_core::model::book::{Book, BookMetadata};
 use komga_core::model::history::{HistoricalEvent, HistoricalEventType};
@@ -642,16 +640,13 @@ fn thumbnail_exists(thumbnail: &ThumbnailSeries) -> bool {
 pub(crate) mod tests {
     use super::*;
     use crate::config::ServerConfig;
-    use crate::settings::SettingsProvider;
     use crate::state::test_kmrs_db;
     use komga_core::model::media::MediaStatus;
     use komga_core::model::user::{ContentRestrictions, KomgaUser};
-    use komga_core::tsid::TsidFactory;
     use komga_db::dao::tasks::TasksDao;
     use komga_db::dao::user::UserDao;
     use komga_db::pool::{Database, DatabaseConfig, JournalMode};
     use komga_db::{Migrator, Placeholders};
-    use std::sync::Arc;
 
     pub(crate) fn test_state() -> AppState {
         crate::state::init_test_tracing();
@@ -665,9 +660,6 @@ pub(crate) mod tests {
         Migrator::new(&tasks_migrations, Placeholders::default())
             .migrate(&tasks_db.rw().unwrap())
             .unwrap();
-        // in-memory databases share a single connection, so the task pools reuse
-        // the same database: task execution and test assertions stay in sync
-        let task_db = db.clone();
         let db_config = |register_udfs| DatabaseConfig {
             file: std::env::temp_dir(),
             register_udfs,
@@ -704,29 +696,7 @@ pub(crate) mod tests {
             thumbnail_storage: Default::default(),
             thumbnail_deep_etag: true,
         };
-        AppState {
-            sessions: crate::auth::SessionStore::new(config.session_timeout),
-            settings: Arc::new(SettingsProvider::load(db.clone())),
-            tsid: Arc::new(TsidFactory::new_random_node()),
-            events: crate::events::event_bus(),
-            task_emitter: Arc::new(crate::service::TaskEmitter::new(
-                db.clone(),
-                tasks_db.clone(),
-                Arc::new(tokio::sync::Notify::new()),
-            )),
-            db,
-            task_db,
-            tasks_db,
-            kmrs_db: test_kmrs_db(),
-            config: Arc::new(config),
-            search_index: test_search_index(),
-            kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
-            kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-
-            shutdown_tx: tokio::sync::watch::channel(false).0,
-            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-            latest_update: Default::default(),
-        }
+        crate::state::test_app_state(config, db, tasks_db, test_kmrs_db()).0
     }
 
     pub(crate) fn seed_library(db: &Database, id: &str) {

@@ -1,7 +1,7 @@
 //! The `TRACKER_LINK` table in the separate `kmrs.sqlite` database: which
 //! platform entry (per provider) tracks a komga series for one user. Komga has
-//! no tracker concept, so this mapping is kmrs-private state; the platform
-//! side (OAuth tokens, ledger) lives in komf.
+//! no tracker concept, so this mapping is kmrs-private state. OAuth tokens and
+//! the linked-entry ledger use their own tables in the same database.
 
 use crate::pool::Database;
 use crate::Result;

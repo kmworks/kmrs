@@ -46,6 +46,7 @@ pub mod stats;
 pub mod syncpoints;
 #[allow(dead_code)]
 pub mod tasks;
+pub mod tracker;
 #[allow(dead_code)]
 pub mod transient_books;
 pub mod users;

@@ -39,6 +39,7 @@ LABEL org.opencontainers.image.source="https://github.com/kmworks/kmrs" \
 ENV KOMGA_CONFIG_DIR=/config \
     KOMGA_KOBO_KEPUBIFYPATH=/usr/local/bin/kepubify
 COPY --chmod=755 "dist/$TARGETARCH/kmrs" /usr/local/bin/kmrs
+COPY LICENSE NOTICE /usr/local/share/doc/kmrs/
 COPY --from=base /tmp/libpdfium.so /usr/local/bin/libpdfium.so
 COPY --chmod=755 --from=base /tmp/kepubify /usr/local/bin/kepubify
 # 777 so an arbitrary --user uid:gid can write when nothing is bind-mounted;

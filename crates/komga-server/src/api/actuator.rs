@@ -997,7 +997,6 @@ mod tests {
     use super::*;
     use crate::auth;
     use crate::config::ServerConfig;
-    use crate::settings::SettingsProvider;
     use crate::state::test_kmrs_db;
     use axum::body::Body;
     use axum::http::{HeaderMap, Request, StatusCode};
@@ -1017,37 +1016,12 @@ mod tests {
             .migrate(&db.rw().unwrap())
             .unwrap();
         let tasks_db = Database::open_in_memory(false).unwrap();
-        // dedicated task pools reuse the same in-memory database: task execution and assertions stay in sync
-        let task_db = db.clone();
         let tasks_migrations = komga_db::tasks_migrations();
         Migrator::new(&tasks_migrations, Placeholders::default())
             .migrate(&tasks_db.rw().unwrap())
             .unwrap();
         let config = ServerConfig::from_env();
-        let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
-        let state = AppState {
-            config: Arc::new(config.clone()),
-            settings: Arc::new(SettingsProvider::load(db.clone())),
-            task_emitter: Arc::new(crate::service::TaskEmitter::new(
-                db.clone(),
-                tasks_db.clone(),
-                std::sync::Arc::new(tokio::sync::Notify::new()),
-            )),
-            db,
-            task_db,
-            tasks_db,
-            kmrs_db: test_kmrs_db(),
-            sessions: auth::SessionStore::new(config.session_timeout),
-            tsid: Arc::new(komga_core::tsid::TsidFactory::new_random_node()),
-            events: crate::events::event_bus(),
-            search_index: crate::state::test_search_index(),
-            kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
-            kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-            shutdown_tx,
-            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-            latest_update: Default::default(),
-        };
-        (state, shutdown_rx)
+        crate::state::test_app_state(config, db, tasks_db, test_kmrs_db())
     }
 
     fn test_router(state: AppState) -> Router {

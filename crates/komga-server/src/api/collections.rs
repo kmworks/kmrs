@@ -4,8 +4,6 @@ use crate::auth::RequireAuth;
 use crate::dto::common::{Page, Pageable, SortOrder};
 use crate::error::ApiError;
 use crate::http::pagination::{QueryExt, QueryPageable};
-#[cfg(test)]
-use crate::state::test_search_index;
 use crate::state::AppState;
 use axum::body::Body;
 use axum::extract::{Path, State};
@@ -633,9 +631,8 @@ pub(crate) fn jpeg_response(bytes: Vec<u8>, cache_control: Option<&'static str>)
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::auth::{sha512_hex, SessionStore};
+    use crate::auth::sha512_hex;
     use crate::config::ServerConfig;
-    use crate::settings::SettingsProvider;
     use crate::state::test_kmrs_db;
     use axum::http::{HeaderMap, Request, StatusCode};
     use komga_core::model::user::{ApiKey, ContentRestrictions, KomgaUser, UserRole};
@@ -643,15 +640,11 @@ pub(crate) mod tests {
     use komga_db::dao::user::UserDao;
     use komga_db::pool::Database;
     use komga_db::{Migrator, Placeholders};
-    use std::sync::Arc;
-    use std::time::Duration;
     use tower::Service;
 
     pub(crate) fn test_state() -> AppState {
         let db = Database::open_in_memory(true).unwrap();
         let tasks_db = Database::open_in_memory(false).unwrap();
-        // dedicated task pools reuse the same in-memory database: task execution and assertions stay in sync
-        let task_db = db.clone();
         let migrations = komga_db::main_migrations();
         Migrator::new(&migrations, Placeholders::default())
             .migrate(&db.rw().unwrap())
@@ -660,29 +653,7 @@ pub(crate) mod tests {
         Migrator::new(&tasks_migrations, Placeholders::default())
             .migrate(&tasks_db.rw().unwrap())
             .unwrap();
-        AppState {
-            config: Arc::new(ServerConfig::from_env()),
-            settings: Arc::new(SettingsProvider::load(db.clone())),
-            sessions: SessionStore::new(Duration::from_secs(3600)),
-            tsid: Arc::new(komga_core::tsid::TsidFactory::new_random_node()),
-            events: crate::events::event_bus(),
-            task_emitter: Arc::new(crate::service::TaskEmitter::new(
-                db.clone(),
-                tasks_db.clone(),
-                std::sync::Arc::new(tokio::sync::Notify::new()),
-            )),
-            db,
-            task_db,
-            tasks_db,
-            search_index: test_search_index(),
-            kmrs_db: test_kmrs_db(),
-            kepub: crate::service::kepub::KepubConverter::new(tempfile::tempdir().unwrap().keep()),
-            kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
-
-            shutdown_tx: tokio::sync::watch::channel(false).0,
-            api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-            latest_update: Default::default(),
-        }
+        crate::state::test_app_state(ServerConfig::from_env(), db, tasks_db, test_kmrs_db()).0
     }
 
     /// Inserts a user and an API key whose plaintext is `api_key`; returns the user id

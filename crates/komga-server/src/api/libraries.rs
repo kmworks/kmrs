@@ -371,12 +371,7 @@ pub(crate) mod test_support {
     //! module with tests) and reused by sibling endpoint modules.
 
     use crate::auth;
-    use crate::settings::SettingsProvider;
-    #[cfg(test)]
-    use crate::state::test_kmrs_db;
-    #[cfg(test)]
-    use crate::state::test_search_index;
-    use crate::state::AppState;
+    use crate::state::{test_app_state, test_kmrs_db, AppState};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use komga_core::model::user::{ApiKey, KomgaUser, UserRole};
@@ -385,7 +380,6 @@ pub(crate) mod test_support {
     use komga_db::pool::Database;
     use komga_db::{Migrator, Placeholders};
     use std::path::PathBuf;
-    use std::sync::Arc;
     use tower::ServiceExt;
 
     pub(crate) struct TestApp {
@@ -408,37 +402,15 @@ pub(crate) mod test_support {
                 .migrate(&db.rw().unwrap())
                 .unwrap();
             let tasks_db = Database::open_in_memory(false).unwrap();
-            // dedicated task pools reuse the same in-memory database: task execution and assertions stay in sync
-            let task_db = db.clone();
             let tasks_migrations = komga_db::tasks_migrations();
             Migrator::new(&tasks_migrations, Placeholders::default())
                 .migrate(&tasks_db.rw().unwrap())
                 .unwrap();
-            let state = AppState {
-                config: Arc::new(config),
-                db: db.clone(),
-                task_db: task_db.clone(),
-                tasks_db: tasks_db.clone(),
-                kmrs_db: test_kmrs_db(),
-                sessions: auth::SessionStore::new(std::time::Duration::from_secs(3600)),
-                settings: Arc::new(SettingsProvider::load(db.clone())),
-                tsid: Arc::new(komga_core::tsid::TsidFactory::new_random_node()),
-                events: crate::events::event_bus(),
-                task_emitter: Arc::new(crate::service::TaskEmitter::new(
-                    db,
-                    tasks_db,
-                    std::sync::Arc::new(tokio::sync::Notify::new()),
-                )),
-                search_index: test_search_index(),
-                kepub: crate::service::kepub::KepubConverter::new(
-                    tempfile::tempdir().unwrap().keep(),
-                ),
-                kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
+            let (state, _) = test_app_state(config, db, tasks_db, test_kmrs_db());
+            Self::with_state(routes, state)
+        }
 
-                shutdown_tx: tokio::sync::watch::channel(false).0,
-                api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-                latest_update: Default::default(),
-            };
+        pub(crate) fn with_state(routes: axum::Router<AppState>, state: AppState) -> Self {
             let app = routes
                 .layer(axum::middleware::from_fn_with_state(
                     state.clone(),
@@ -458,10 +430,19 @@ pub(crate) mod test_support {
             uri: &str,
             api_key: &str,
         ) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
-            let request = Request::get(uri)
-                .header("X-API-Key", api_key)
-                .body(Body::empty())
-                .unwrap();
+            self.request(
+                Request::get(uri)
+                    .header("X-API-Key", api_key)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+        }
+
+        pub(crate) async fn request(
+            &self,
+            request: Request<Body>,
+        ) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
             let response = self.app.clone().oneshot(request).await.unwrap();
             let status = response.status();
             let headers = response.headers().clone();

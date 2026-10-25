@@ -165,6 +165,7 @@ async fn run() -> anyhow::Result<()> {
             task_notify.clone(),
         )),
         search_index: search_index.clone(),
+        tracker: Arc::new(service::tracker::TrackerServices::from_db(kmrs_db.clone())),
         kepub: service::kepub::KepubConverter::new(service::kepub::default_tmp_dir()),
         kobo_proxy: service::kobo_proxy::KoboProxy::new(),
         shutdown_tx,
@@ -288,6 +289,7 @@ pub fn build_router(state: AppState) -> axum::Router {
         .merge(api::smartlists::router())
         .merge(api::tasks::router())
         .merge(api::komf::router())
+        .merge(api::tracker::router())
         .merge(api::opds_v1::router())
         .merge(api::opds_v2::router())
         .merge(api::openapi::router())
