@@ -7,7 +7,7 @@
 
 **[Documentation](https://kmworks.date/server/)** · [Installation](https://kmworks.date/server/installation) · [Configuration](https://kmworks.date/server/configuration)
 
-A comic & manga server in a single static Rust binary, drop-in compatible with [Komga](https://komga.org) — same API, same database.
+A full-featured drop-in replacement for [Komga](https://komga.org) in Rust — same library formats, API, and database, plus additional capabilities. It supports CBZ, CBR, PDF, and EPUB, with a bundled web UI in a single static binary.
 
 *kmrs: Keep Manga Reading Simple.*
 
@@ -16,6 +16,7 @@ A comic & manga server in a single static Rust binary, drop-in compatible with [
 - **Library formats**: CBZ/ZIP, CBR/RAR, PDF, and EPUB — scanning, metadata extraction, thumbnails, and Komga-compatible page/resource serving (PDF rendering uses libpdfium)
 - **API parity**: REST `/api/**`, OPDS v1.2/v2, SSE, Kobo sync, and KOReader progress sync — endpoints, DTOs, pagination, error shapes, and authentication behavior match the Java version
 - **Verified against the Java version**: byte-for-byte Flyway migrations, a differential test harness comparing ~105 endpoints against a live Java instance, and schema contract tests
+- **Beyond Komga**: smart lists, reading trackers, CJK cross-search, outbound webhooks, reading statistics, and [more](https://kmworks.date/server/enhancements)
 
 ## Quick start
 
@@ -42,6 +43,7 @@ Full documentation lives at **[kmworks.date/server](https://kmworks.date/server/
 - [Serving a web UI](https://kmworks.date/server/webui) — bundled web UI, reverse-proxy setups
 - [Search](https://kmworks.date/server/search) — analyzer chain, CJK cross-search extensions
 - [Compatibility](https://kmworks.date/server/compatibility) and [Known limitations](https://kmworks.date/server/limitations)
+- [Enhancements](https://kmworks.date/server/enhancements) — additional capabilities and intentional behavior differences
 - [Development](https://kmworks.date/server/development) — tests, crate structure, heap profiling
 
 ## License
