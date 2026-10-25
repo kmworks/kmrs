@@ -854,7 +854,7 @@ mod tests {
                             (
                                 StatusCode::OK,
                                 Json(serde_json::json!({
-                                    "preferred_username": "mangabaka-user"
+                                    "data": {"nickname": "mangabaka-user"}
                                 })),
                             )
                         } else {

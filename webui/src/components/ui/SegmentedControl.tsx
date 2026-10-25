@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils/cn'
 
 interface SegmentedControlProps<T extends string> {
-  options: Array<{ value: T; label: string; icon?: ReactNode }>
+  options: Array<{ value: T; label: ReactNode; icon?: ReactNode }>
   value: T | undefined
   onChange: (v: T) => void
   className?: string
