@@ -1,0 +1,26 @@
+{
+  "anilist": {
+    "file": "anilist.png",
+    "page": "https://anilist.co",
+    "asset": "https://anilist.co/img/icons/apple-touch-icon.png",
+    "sha256": "529ea07a05bcff0c792d05fd1b1b7690866100e60804a0f91a5e0a814d18e9ad"
+  },
+  "mal": {
+    "file": "mal.svg",
+    "page": "https://myanimelist.net",
+    "asset": "https://cdn.myanimelist.net/images/favicon.svg",
+    "sha256": "d69813bdf5f5fd1c37d6bc03909437efe3d57b5ab3fe1d6e3597d190f6ca4495"
+  },
+  "bangumi": {
+    "file": "bangumi.svg",
+    "page": "https://bgm.tv",
+    "origin": "official SVG supplied by the user",
+    "sha256": "37d5eeaee52f723eb97dceaffc87ca1a97785dddccc76c981ca4dffa30dd0840"
+  },
+  "mangabaka": {
+    "file": "mangabaka.png",
+    "page": "https://mangabaka.org",
+    "asset": "https://mangabaka.org/images/logo.png",
+    "sha256": "d27ea6002a1f8b7dc4e8e91f856a65dd2db3f288601657d9f916654a9d629699"
+  }
+}

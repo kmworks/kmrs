@@ -4,7 +4,6 @@ use crate::dto::tracker::{
 };
 use crate::error::{ApiError, Violation};
 use crate::service::tracker::oauth::OAuthStatus;
-use crate::service::tracker::providers::bracket_search_term;
 use crate::service::tracker::{Provider, TrackerError, TrackerService};
 use crate::state::AppState;
 use axum::extract::{Path, Query, State};
@@ -257,9 +256,8 @@ async fn tracker_search(
     let provider = parse_provider(&provider)?;
     let service = tracker_for(&state, provider)?;
     require_login(&service, provider, &auth.0.user.id)?;
-    let name = bracket_search_term(&query.name, Some("×")).unwrap_or(query.name);
     let results = service
-        .search(&auth.0.user.id, &name, query.nsfw.unwrap_or(true))
+        .search(&auth.0.user.id, &query.name, query.nsfw.unwrap_or(true))
         .await
         .map_err(tracker_error)?;
     Ok(Json(results))
@@ -304,9 +302,9 @@ async fn tracker_update(
         provider.as_str(),
         &auth.0.user.id,
         &body.track_id,
-        body.update.title.as_deref(),
+        None,
         tracker_entry_url(provider, &body.track_id).as_deref(),
-        body.update.cover_url.as_deref(),
+        None,
     )?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -376,18 +374,19 @@ async fn tracker_oauth_callback(
     Query(query): Query<CallbackQuery>,
 ) -> Result<Redirect, ApiError> {
     let provider = parse_provider(&provider)?;
+    let context_path = context_path_prefix(state.config.server_context_path.as_deref())?;
     let target = match state
         .tracker
         .oauth()
         .handle_callback(provider, &query.code, &query.state)
         .await
     {
-        Ok(()) => "/account/trackers?oauth=success".to_string(),
+        Ok(()) => format!("{context_path}/account/trackers?oauth=success"),
         Err(error) => {
             tracing::warn!("tracker OAuth callback failed for {provider}: {error}");
             let message =
                 form_urlencoded::byte_serialize(error.to_string().as_bytes()).collect::<String>();
-            format!("/account/trackers?oauth=error&message={message}")
+            format!("{context_path}/account/trackers?oauth=error&message={message}")
         }
     };
     Ok(Redirect::to(&target))
@@ -753,6 +752,18 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn search_passes_query_through_unchanged() {
+            let (app, _, _) = user_app_with_stub();
+            let (_, body) = app
+                .get_json(
+                    "/api/v1/trackers/anilist/search?name=%5Bcomic%5D%5BTitle%5D%5BAuthor%5D",
+                    "k-user",
+                )
+                .await;
+            assert_eq!(body[0]["title"], "[comic][Title][Author]");
+        }
+
+        #[tokio::test]
         async fn remote_routes_use_the_authenticated_user() {
             let (app, user_id, stub) = user_app_with_stub();
             let (status, body) = app
@@ -795,8 +806,8 @@ mod tests {
 
             let (_, body) = app.get_json("/api/v1/trackers/ledger", "k-user").await;
             assert_eq!(body[0]["trackId"], "42");
-            assert_eq!(body[0]["title"], "Series");
-            assert_eq!(body[0]["coverUrl"], "https://img.example/cover.jpg");
+            assert_eq!(body[0]["title"], serde_json::Value::Null);
+            assert_eq!(body[0]["coverUrl"], serde_json::Value::Null);
 
             let other = insert_user(&app.state.db, "other@x.c", false, true, &[]);
             insert_api_key(&app.state.db, &other, "k-other");
@@ -867,7 +878,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn oauth_start_includes_context_path() {
+        async fn oauth_flow_includes_context_path() {
             let origin = serve_oauth().await;
             let app = user_app_with_oauth_context(&origin, Some("/komga"));
             let (status, headers, _) = app
@@ -892,6 +903,26 @@ mod tests {
                 state["redirectUrl"],
                 "http://kmrs.example/komga/api/v1/trackers/oauth/anilist/callback"
             );
+
+            let encoded_state =
+                form_urlencoded::byte_serialize(query["state"].as_bytes()).collect::<String>();
+            let callback =
+                format!("/api/v1/trackers/oauth/anilist/callback?code=ok&state={encoded_state}");
+            let (status, headers, _) = app.get_response(&callback, "k-user").await;
+            assert_eq!(status, StatusCode::SEE_OTHER);
+            assert_eq!(
+                headers.get(axum::http::header::LOCATION).unwrap(),
+                "/komga/account/trackers?oauth=success"
+            );
+
+            let (status, headers, _) = app.get_response(&callback, "k-user").await;
+            assert_eq!(status, StatusCode::SEE_OTHER);
+            let location = headers
+                .get(axum::http::header::LOCATION)
+                .unwrap()
+                .to_str()
+                .unwrap();
+            assert!(location.starts_with("/komga/account/trackers?oauth=error"));
         }
 
         #[tokio::test]

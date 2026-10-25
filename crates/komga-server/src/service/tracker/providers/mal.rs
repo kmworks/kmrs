@@ -1,7 +1,7 @@
 use super::super::oauth::OAuthManager;
 use super::super::{Provider, TrackerError, TrackerService};
 use super::parse_tracker_url;
-use futures_util::future::join_all;
+use futures_util::future::try_join_all;
 use komga_core::tracker::{RemoteState, TrackMediaType, TrackSearchItem, TrackStatus, TrackUpdate};
 use serde_json::Value;
 use std::sync::Arc;
@@ -161,8 +161,8 @@ impl MalTracker {
         }
     }
 
-    fn search_item(id: i64, summary: &Value, details: Option<&Value>) -> TrackSearchItem {
-        let detail = |name: &str| details.and_then(|details| details.get(name));
+    fn search_item(id: i64, summary: &Value, details: &Value) -> TrackSearchItem {
+        let detail = |name: &str| details.get(name);
         let title = detail("title").or_else(|| summary.get("title"));
         let picture = detail("main_picture").or_else(|| summary.get("main_picture"));
         TrackSearchItem {
@@ -216,7 +216,7 @@ impl TrackerService for MalTracker {
                     &format!("{}/manga/{id}?fields={SEARCH_FIELDS}", self.base_url),
                 )
                 .await?;
-            return Ok(vec![Self::search_item(id, &details, Some(&details))]);
+            return Ok(vec![Self::search_item(id, &details, &details)]);
         }
 
         let query = query.chars().take(64).collect::<String>();
@@ -241,16 +241,11 @@ impl TrackerService for MalTracker {
                         user_id,
                         &format!("{}/manga/{id}?fields={SEARCH_FIELDS}", self.base_url),
                     )
-                    .await
-                    .ok();
-                (summary, id, details)
+                    .await?;
+                Ok::<_, TrackerError>(Self::search_item(id, &summary, &details))
             })
         });
-        Ok(join_all(requests)
-            .await
-            .into_iter()
-            .map(|(summary, id, details)| Self::search_item(id, &summary, details.as_ref()))
-            .collect())
+        try_join_all(requests).await
     }
 
     async fn get_state(&self, user_id: &str, track_id: &str) -> Result<RemoteState, TrackerError> {
@@ -385,7 +380,7 @@ mod tests {
     use axum::{Json, Router};
     use komga_core::tracker::{BookTrackInput, TrackMode};
     use serde_json::json;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Mutex;
 
@@ -394,6 +389,7 @@ mod tests {
         requests: Arc<Mutex<Vec<CapturedRequest>>>,
         search_results: Value,
         details: Arc<HashMap<i64, Value>>,
+        failing_details: HashSet<i64>,
         unauthorized_once: Arc<AtomicBool>,
     }
 
@@ -449,6 +445,7 @@ mod tests {
                     {"node": {"id": 2, "title": "Summary Two"}}
                 ]),
                 details: Arc::new(details),
+                failing_details: HashSet::new(),
                 unauthorized_once: Arc::new(AtomicBool::new(false)),
             }
         }
@@ -488,11 +485,41 @@ mod tests {
             .strip_prefix("/v2/manga/")
             .and_then(|id| id.parse::<i64>().ok())
             .unwrap();
+        if mock.failing_details.contains(&id) {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message": "detail unavailable"})),
+            )
+                .into_response();
+        }
         Json(mock.details.get(&id).cloned().unwrap_or(Value::Null)).into_response()
     }
 
     async fn serve_mock(mock: MockMal) -> String {
         serve(Router::new().fallback(endpoint).with_state(mock)).await
+    }
+
+    #[tokio::test]
+    async fn search_propagates_any_detail_failure() {
+        let mut mock = MockMal::new();
+        mock.failing_details.insert(2);
+        let base_url = serve_mock(mock.clone()).await;
+        let (oauth, dao) = test_oauth(Provider::Mal, &base_url);
+        seed_token(&dao, Provider::Mal, "alice");
+        let tracker =
+            MalTracker::with_base_url(reqwest::Client::new(), oauth, format!("{base_url}/v2"));
+
+        assert!(matches!(
+            tracker.search("alice", "Test", true).await,
+            Err(TrackerError::Provider {
+                provider: Provider::Mal,
+                ..
+            })
+        ));
+        assert!(mock
+            .requests()
+            .iter()
+            .any(|request| request.path == "/v2/manga/2"));
     }
 
     #[tokio::test]
@@ -639,8 +666,6 @@ mod tests {
             last_read_volume: Some(4),
             start_read_date: Some("1969-12-31".into()),
             finish_read_date: Some("2026-10-25".into()),
-            title: Some("Local title".into()),
-            cover_url: Some("https://local.example/cover.jpg".into()),
         };
         tracker.update("alice", "42", &update).await.unwrap();
 

@@ -30,8 +30,6 @@ struct Subject {
     #[serde(default)]
     summary: Option<String>,
     #[serde(default)]
-    image: Option<String>,
-    #[serde(default)]
     images: Option<Images>,
     #[serde(default)]
     platform: Option<String>,
@@ -55,14 +53,6 @@ struct Images {
 struct SearchPage {
     #[serde(default)]
     data: Vec<Subject>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct LegacySearchPage {
-    #[serde(default)]
-    list: Vec<Subject>,
-    #[serde(default)]
-    subjects: Vec<Subject>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -321,8 +311,7 @@ impl BangumiTracker {
         let cover_url = subject
             .images
             .as_ref()
-            .and_then(|images| images.large.clone().or_else(|| images.common.clone()))
-            .or(subject.image);
+            .and_then(|images| images.large.clone().or_else(|| images.common.clone()));
         TrackSearchItem {
             id: subject.id.to_string(),
             title: if title.is_empty() {
@@ -359,27 +348,6 @@ impl BangumiTracker {
         Ok(page.data)
     }
 
-    async fn search_legacy(&self, query: &str) -> Result<Vec<Subject>, TrackerError> {
-        let mut url = self.api_url(&["search", "subject", query])?;
-        url.query_pairs_mut().append_pair("type", "1");
-        let response = self
-            .http
-            .get(url)
-            .header(reqwest::header::ACCEPT, "application/json")
-            .header(reqwest::header::USER_AGENT, USER_AGENT)
-            .send()
-            .await
-            .map_err(|error| {
-                provider_error(format!("Bangumi legacy search request failed: {error}"))
-            })?;
-        let page: LegacySearchPage = Self::decode_json(response, "Bangumi legacy search").await?;
-        Ok(if page.list.is_empty() {
-            page.subjects
-        } else {
-            page.list
-        })
-    }
-
     async fn subject(&self, user_id: &str, id: i64) -> Result<Subject, TrackerError> {
         self.get_json(
             user_id,
@@ -388,12 +356,14 @@ impl BangumiTracker {
         )
         .await
     }
-    async fn subject_totals(&self, user_id: &str, id: i64) -> (Option<i32>, Option<i32>) {
-        self.subject(user_id, id)
-            .await
-            .ok()
-            .map(|subject| (subject.eps.or(subject.total_episodes), subject.volumes))
-            .unwrap_or_default()
+
+    async fn subject_totals(
+        &self,
+        user_id: &str,
+        id: i64,
+    ) -> Result<(Option<i32>, Option<i32>), TrackerError> {
+        let subject = self.subject(user_id, id).await?;
+        Ok((subject.eps.or(subject.total_episodes), subject.volumes))
     }
 }
 
@@ -413,23 +383,12 @@ impl TrackerService for BangumiTracker {
         query: &str,
         nsfw: bool,
     ) -> Result<Vec<TrackSearchItem>, TrackerError> {
-        let tracked = self.current_tracked_ids(user_id).await.unwrap_or_default();
+        let tracked = self.current_tracked_ids(user_id).await?;
         if let Some(id) = Self::subject_url_id(query) {
             let subject = self.subject(user_id, id).await?;
             return Ok(vec![Self::search_item(subject, &tracked)]);
         }
-        let subjects = match self.search_v0(user_id, query, nsfw).await {
-            Ok(subjects) => subjects,
-            Err(error @ TrackerError::NotLoggedIn { .. }) => return Err(error),
-            Err(v0_error) => match self.search_legacy(query).await {
-                Ok(subjects) => subjects,
-                Err(legacy_error) => {
-                    return Err(provider_error(format!(
-                        "v0 search failed: {v0_error}; legacy search failed: {legacy_error}"
-                    )));
-                }
-            },
-        };
+        let subjects = self.search_v0(user_id, query, nsfw).await?;
         Ok(subjects
             .into_iter()
             .map(|subject| Self::search_item(subject, &tracked))
@@ -444,7 +403,7 @@ impl TrackerService for BangumiTracker {
             .send_authed(user_id, Method::GET, url, None, "Bangumi collection")
             .await?;
         if response.status() == StatusCode::NOT_FOUND {
-            let (total_chapters, total_volumes) = self.subject_totals(user_id, id).await;
+            let (total_chapters, total_volumes) = self.subject_totals(user_id, id).await?;
             return Ok(RemoteState {
                 total_chapters,
                 total_volumes,
@@ -453,23 +412,21 @@ impl TrackerService for BangumiTracker {
         }
         let collection: Collection = Self::decode_json(response, "Bangumi collection").await?;
         if collection.collection_type.is_none() {
-            let (total_chapters, total_volumes) = self.subject_totals(user_id, id).await;
+            let (total_chapters, total_volumes) = self.subject_totals(user_id, id).await?;
             return Ok(RemoteState {
                 total_chapters,
                 total_volumes,
                 ..RemoteState::default()
             });
         }
-        let subject = self.subject(user_id, id).await.ok();
+        let (total_chapters, total_volumes) = self.subject_totals(user_id, id).await?;
         Ok(RemoteState {
             score: collection.rate,
             status: collection_status(collection.collection_type),
             last_read_chapter: collection.ep_status.map(|value| value as f32),
             last_read_volume: collection.vol_status,
-            total_chapters: subject
-                .as_ref()
-                .and_then(|subject| subject.eps.or(subject.total_episodes)),
-            total_volumes: subject.as_ref().and_then(|subject| subject.volumes),
+            total_chapters,
+            total_volumes,
             start_read_date: None,
             finish_read_date: None,
         })
@@ -696,7 +653,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_v0_search_uses_local_legacy_origin_and_maps_results() {
+    async fn failed_v0_search_returns_error_without_legacy_request() {
         let (origin, mock) = serve(|request| match request.path.as_str() {
             "/v0/me" => (StatusCode::OK, json!({"username": "alice-bg"})),
             "/v0/users/alice-bg/collections" => (
@@ -707,56 +664,111 @@ mod tests {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 json!({"message": "v0 unavailable"}),
             ),
-            path if path.starts_with("/search/subject/") => (
-                StatusCode::OK,
-                json!({"list": [
-                    {
-                        "id": 7,
-                        "name": "Original",
-                        "name_cn": "中文标题",
-                        "image": "https://img.test/legacy.jpg",
-                        "summary": "Legacy result",
-                        "platform": "漫画"
-                    },
-                    {
-                        "id": 8,
-                        "name": "Novel",
-                        "name_cn": "",
-                        "images": {"large": "https://img.test/novel.jpg"},
-                        "platform": "轻小说"
-                    }
-                ]}),
-            ),
+            path if path.starts_with("/search/subject/") => {
+                (StatusCode::OK, json!({"list": [subject(7, "Legacy")]}))
+            }
             _ => (StatusCode::NOT_FOUND, json!({"message": "unexpected"})),
         })
         .await;
         let service = test_service(&origin);
 
-        let results = service.search("alice", "标题 / A", true).await.unwrap();
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].title, "中文标题");
-        assert_eq!(
-            results[0].cover_url.as_deref(),
-            Some("https://img.test/legacy.jpg")
-        );
-        assert!(results[0].tracked);
-        assert_eq!(results[0].media_type, Some(TrackMediaType::Manga));
-        assert_eq!(results[1].title, "Novel");
-        assert!(!results[1].tracked);
-        assert_eq!(results[1].media_type, Some(TrackMediaType::Novel));
+        assert!(matches!(
+            service.search("alice", "标题 / A", true).await,
+            Err(TrackerError::Provider {
+                provider: Provider::Bangumi,
+                ..
+            })
+        ));
         let requests = mock.requests();
-        let legacy = requests
+        assert!(!requests
             .iter()
-            .find(|request| request.path.starts_with("/search/subject/"))
-            .unwrap();
-        assert_eq!(legacy.method, Method::GET);
-        assert_eq!(query(legacy, "type").as_deref(), Some("1"));
-        assert_eq!(legacy.authorization, None);
+            .any(|request| request.path.starts_with("/search/subject/")));
         let v0 = requests
             .iter()
             .find(|request| request.path == "/v0/search/subjects")
             .unwrap();
         assert_eq!(v0.json.as_ref().unwrap()["filter"]["nsfw"], true);
+    }
+
+    #[tokio::test]
+    async fn search_propagates_collection_list_failure() {
+        let (origin, mock) = serve(|request| match request.path.as_str() {
+            "/v0/me" => (StatusCode::OK, json!({"username": "alice-bg"})),
+            "/v0/users/alice-bg/collections" => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({"message": "collections unavailable"}),
+            ),
+            "/v0/search/subjects" => (StatusCode::OK, json!({"data": [subject(7, "Book")]})),
+            _ => (StatusCode::NOT_FOUND, json!({"message": "unexpected"})),
+        })
+        .await;
+        let service = test_service(&origin);
+
+        assert!(matches!(
+            service.search("alice", "Book", false).await,
+            Err(TrackerError::Provider {
+                provider: Provider::Bangumi,
+                ..
+            })
+        ));
+        assert!(!mock
+            .requests()
+            .iter()
+            .any(|request| request.path == "/v0/search/subjects"));
+    }
+
+    async fn state_with_subject_detail_failure(
+        collection_status: StatusCode,
+        collection: Value,
+    ) -> Result<RemoteState, TrackerError> {
+        let (origin, _) = serve(move |request| match request.path.as_str() {
+            "/v0/me" => (StatusCode::OK, json!({"username": "alice-bg"})),
+            "/v0/users/alice-bg/collections/42" => (collection_status, collection.clone()),
+            "/v0/subjects/42" => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({"message": "subject unavailable"}),
+            ),
+            _ => (StatusCode::NOT_FOUND, json!({"message": "unexpected"})),
+        })
+        .await;
+        test_service(&origin).get_state("alice", "42").await
+    }
+
+    #[tokio::test]
+    async fn uncollected_state_propagates_subject_detail_failure() {
+        assert!(matches!(
+            state_with_subject_detail_failure(StatusCode::NOT_FOUND, json!({})).await,
+            Err(TrackerError::Provider {
+                provider: Provider::Bangumi,
+                ..
+            })
+        ));
+    }
+
+    #[tokio::test]
+    async fn missing_collection_type_state_propagates_subject_detail_failure() {
+        assert!(matches!(
+            state_with_subject_detail_failure(StatusCode::OK, json!({})).await,
+            Err(TrackerError::Provider {
+                provider: Provider::Bangumi,
+                ..
+            })
+        ));
+    }
+
+    #[tokio::test]
+    async fn collected_state_propagates_subject_detail_failure() {
+        assert!(matches!(
+            state_with_subject_detail_failure(
+                StatusCode::OK,
+                json!({"type": 3, "rate": 8, "ep_status": 12, "vol_status": 2}),
+            )
+            .await,
+            Err(TrackerError::Provider {
+                provider: Provider::Bangumi,
+                ..
+            })
+        ));
     }
 
     #[tokio::test]
@@ -877,7 +889,6 @@ mod tests {
             last_read_volume: Some(3),
             start_read_date: Some("2026-10-01".into()),
             finish_read_date: Some("2026-10-20".into()),
-            ..TrackUpdate::default()
         };
 
         service.update("alice", "42", &update).await.unwrap();

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { TrackerLogo } from '@/components/trackers/TrackerLogo'
 import { CoverImage } from '@/components/media/CoverImage'
 import { showToast } from '@/lib/store/toast'
 
@@ -116,6 +117,7 @@ function TrackerPill({ link, onEdit }: { link: TrackerLink; onEdit: () => void }
       onClick={onEdit}
       className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-line-strong hover:bg-overlay"
     >
+      <TrackerLogo provider={link.provider} className="size-4" />
       {t(`provider.${link.provider}`)}
       {stateQuery.isPending ? null : unauthorized ? (
         <span className="size-1.5 rounded-full bg-danger" aria-label={t('state.loginRequired')} />
@@ -164,7 +166,7 @@ function BindDialog({
     retry: false,
   })
 
-  // a series-metadata link for the selected provider resolves through komf's
+  // a series-metadata link for the selected provider resolves through the tracker
   // search box exactly like a pasted link: one direct, clickable candidate
   const suggestedUrl = suggestedUrls[provider]
   const suggestQuery = useQuery({
@@ -191,7 +193,12 @@ function BindDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title={t('bindDialog.title')} size="lg">
       <div className="flex flex-col gap-4 p-5">
         <SegmentedControl
-          options={PROVIDERS.map((p) => ({ value: p, label: t(`provider.${p}`) }))}
+          className="max-w-full flex-wrap"
+          options={PROVIDERS.map((p) => ({
+            value: p,
+            label: t(`provider.${p}`),
+            icon: <TrackerLogo provider={p} className="size-4" />,
+          }))}
           value={provider}
           onChange={setProvider}
         />
@@ -327,15 +334,18 @@ function EditDialogForm({
   const [mode, setMode] = useState(link.trackMode)
   const [offset, setOffset] = useState(String(link.chapterOffset))
   // pre-filled from the platform entry: what you see is what is stored there
-  const remoteStatus = state?.status
-  const [status, setStatus] = useState<TrackerStatusKey>(
-    remoteStatus && (STATUS_KEYS as readonly string[]).includes(remoteStatus)
-      ? (remoteStatus as TrackerStatusKey)
-      : 'reading',
-  )
-  const [score, setScore] = useState(state?.score != null ? String(state.score) : '')
-  const [chapter, setChapter] = useState(state?.lastReadChapter != null ? String(state.lastReadChapter) : '')
-  const [volume, setVolume] = useState(state?.lastReadVolume != null ? String(state.lastReadVolume) : '')
+  const initialStatus =
+    state?.status && (STATUS_KEYS as readonly string[]).includes(state.status)
+      ? (state.status as TrackerStatusKey)
+      : undefined
+  const [status, setStatus] = useState<TrackerStatusKey>(initialStatus ?? 'reading')
+  const [statusDirty, setStatusDirty] = useState(false)
+  const initialScore = state?.score != null ? String(state.score) : ''
+  const initialChapter = state?.lastReadChapter != null ? String(state.lastReadChapter) : ''
+  const initialVolume = state?.lastReadVolume != null ? String(state.lastReadVolume) : ''
+  const [score, setScore] = useState(initialScore)
+  const [chapter, setChapter] = useState(initialChapter)
+  const [volume, setVolume] = useState(initialVolume)
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -347,12 +357,14 @@ function EditDialogForm({
         trackMode: mode,
         chapterOffset: Number(offset) || 0,
       })
-      // remote fields go to the platform; empty fields are left untouched
-      const payload: Parameters<typeof trackersApi.update>[1] = { trackId: link.trackId, status }
-      if (score.trim() !== '') payload.score = Number(score)
-      if (chapter.trim() !== '') payload.lastReadChapter = Number(chapter)
-      if (volume.trim() !== '') payload.lastReadVolume = Number(volume)
-      await trackersApi.update(link.provider, payload)
+      const payload: Parameters<typeof trackersApi.update>[1] = { trackId: link.trackId }
+      const statusChanged = initialStatus === undefined ? statusDirty : status !== initialStatus
+      if (statusChanged) payload.status = status
+      if (score.trim() !== '' && score !== initialScore) payload.score = Number(score)
+      if (chapter.trim() !== '' && chapter !== initialChapter) payload.lastReadChapter = Number(chapter)
+      if (volume.trim() !== '' && volume !== initialVolume) payload.lastReadVolume = Number(volume)
+      // Binding-only edits must not create or overwrite a remote entry.
+      if (Object.keys(payload).length > 1) await trackersApi.update(link.provider, payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: trackerLinkKeys.all })
@@ -389,7 +401,10 @@ function EditDialogForm({
               size="sm"
               options={STATUS_KEYS.map((s) => ({ value: s, label: t(`status.${s}`) }))}
               value={status}
-              onChange={setStatus}
+              onChange={(value) => {
+                setStatus(value)
+                setStatusDirty(true)
+              }}
             />
             <div className="grid grid-cols-3 gap-3">
               <TextField label={t('editDialog.score')} type="number" value={score} onChange={(e) => setScore(e.target.value)} placeholder="—" />
