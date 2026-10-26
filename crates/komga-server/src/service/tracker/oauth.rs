@@ -87,7 +87,7 @@ impl OAuthApp {
                 client_secret: env_value(option_env!("KMRS_OAUTH_BANGUMI_CLIENT_SECRET")),
                 authorize_url: "https://bgm.tv/oauth/authorize".into(),
                 token_url: "https://bgm.tv/oauth/access_token".into(),
-                userinfo_url: "https://api.bgm.tv/v0/me".into(),
+                userinfo_url: "https://next.bgm.tv/p1/me".into(),
                 pkce: PkceMethod::None,
                 scope: None,
                 refresh_with_redirect: true,
@@ -788,6 +788,10 @@ mod tests {
             assert_eq!(app.client_id, env_value(id));
             assert_eq!(app.client_secret, env_value(secret));
         }
+        let bangumi = OAuthApp::for_provider(Provider::Bangumi);
+        assert_eq!(bangumi.authorize_url, "https://bgm.tv/oauth/authorize");
+        assert_eq!(bangumi.token_url, "https://bgm.tv/oauth/access_token");
+        assert_eq!(bangumi.userinfo_url, "https://next.bgm.tv/p1/me");
 
         let db = migrate(Database::open_in_memory(false).unwrap());
         let manager = OAuthManager::new(db, reqwest::Client::new());
