@@ -21,9 +21,6 @@
   },
   "heatmap": {
     "title": "閱讀活動",
-    "range3m": "近 3 個月",
-    "range6m": "近 6 個月",
-    "range1y": "近 12 個月",
     "empty": "此期間沒有閱讀活動。",
     "less": "較少",
     "more": "較多",

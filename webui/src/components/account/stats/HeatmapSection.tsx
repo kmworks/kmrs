@@ -1,18 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { statsApi } from '@/lib/api/stats'
 import { formatDay, monthShort, weekdayShort } from '@/lib/utils/format'
 import { cn } from '@/lib/utils/cn'
-import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { SectionState } from './SectionState'
 
-type RangeKey = '3m' | '6m' | '1y'
-const RANGE_MONTHS: Record<RangeKey, number> = { '3m': 3, '6m': 6, '1y': 12 }
+const RANGE_MONTHS = 12
 
-const CELL = 12
+const CELL = 10
 const GAP = 3
 const PITCH = CELL + GAP
 
@@ -42,7 +40,6 @@ export function HeatmapSection({ libraryId }: { libraryId?: string }) {
     queryKey: ['stats', 'activity', libraryId ?? 'all', tzOffsetMinutes],
     queryFn: () => statsApi.activity(libraryId, tzOffsetMinutes),
   })
-  const [range, setRange] = useState<RangeKey>('3m')
 
   const { weeks, quartile, hasData } = useMemo(() => {
     const byDay = new Map((query.data?.readingTimeSeries ?? []).map((p) => [p.date, p]))
@@ -50,7 +47,7 @@ export function HeatmapSection({ libraryId }: { libraryId?: string }) {
     const now = new Date()
     const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
     const cursor = new Date(end)
-    cursor.setUTCMonth(cursor.getUTCMonth() - RANGE_MONTHS[range])
+    cursor.setUTCMonth(cursor.getUTCMonth() - RANGE_MONTHS)
     // columns start on Sunday, matching the weekday buckets' indexing
     cursor.setUTCDate(cursor.getUTCDate() - cursor.getUTCDay())
 
@@ -70,7 +67,7 @@ export function HeatmapSection({ libraryId }: { libraryId?: string }) {
       weeks.push(week)
     }
     return { weeks, quartile: maxPages / 4, hasData }
-  }, [query.data, range])
+  }, [query.data])
 
   // a label loses to the next one when they would land closer than 3 columns:
   // the partial month at the range edge yields to the month that fills the grid
@@ -83,19 +80,7 @@ export function HeatmapSection({ libraryId }: { libraryId?: string }) {
 
   return (
     <section className="min-w-0 rounded-xl border border-line bg-surface p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold text-ink">{t('heatmap.title')}</h2>
-        <SegmentedControl
-          size="sm"
-          options={[
-            { value: '3m', label: t('heatmap.range3m') },
-            { value: '6m', label: t('heatmap.range6m') },
-            { value: '1y', label: t('heatmap.range1y') },
-          ]}
-          value={range}
-          onChange={setRange}
-        />
-      </div>
+      <h2 className="mb-4 text-[15px] font-semibold text-ink">{t('heatmap.title')}</h2>
       <SectionState query={query} skeleton={<Skeleton className="h-32 w-full" />}>
         {() =>
           !hasData ? (
