@@ -124,16 +124,16 @@ function VisibilitySection() {
       {prefsQuery.data && (
         <ul className="flex flex-wrap items-center gap-2">
           {selectedLibraries.length === 0 ? (
-            <li className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-3">
+            <li className="flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] text-ink-3">
               {t('page.allLibraries')}
             </li>
           ) : (
             selectedLibraries.map((library) => (
-              <li key={library.id} className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2">
-                <span className="max-w-40 truncate text-sm text-ink">{library.name}</span>
+              <li key={library.id} className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3">
+                <span className="max-w-40 truncate text-[13px] text-ink">{library.name}</span>
                 <IconButton
                   label={t('page.removeLibrary', { library: library.name })}
-                  className="-mr-1 size-6 text-ink-3"
+                  className="-mr-1.5 size-5 text-ink-3"
                   disabled={saveMutation.isPending}
                   onClick={() => saveLibraries(selectedLibraries.filter((item) => item.id !== library.id).map((item) => item.id))}
                 >
