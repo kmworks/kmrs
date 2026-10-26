@@ -336,6 +336,7 @@ impl OAuthManager {
     pub async fn handle_callback(
         &self,
         provider: Provider,
+        user_id: &str,
         code: &str,
         state_raw: &str,
     ) -> Result<(), TrackerError> {
@@ -345,6 +346,9 @@ impl OAuthManager {
             .dao
             .consume_pending(provider.as_str(), &state.nonce, time_codec::now_utc())?
             .ok_or(TrackerError::PendingExpired)?;
+        if pending.user_id != user_id {
+            return Err(TrackerError::InvalidState);
+        }
         let app = self.app(provider);
         let (client_id, client_secret) = app.credentials()?;
         let mut form = vec![
@@ -928,7 +932,7 @@ mod tests {
                 .verifier;
 
             manager
-                .handle_callback(provider, "authorization-code", &state_raw)
+                .handle_callback(provider, "alice", "authorization-code", &state_raw)
                 .await
                 .unwrap();
             let status = manager.status(provider, "alice").unwrap();
@@ -974,7 +978,7 @@ mod tests {
 
             assert!(matches!(
                 manager
-                    .handle_callback(provider, "authorization-code", &state_raw)
+                    .handle_callback(provider, "alice", "authorization-code", &state_raw)
                     .await,
                 Err(TrackerError::PendingExpired)
             ));
@@ -1061,6 +1065,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn callback_rejects_invalid_state_without_token_exchange() {
+        let mock = MockOAuth::new(serde_json::json!({}));
+        let base_url = serve(mock.clone()).await;
+        let (manager, _) = test_manager(vec![test_app(Provider::Mal, &base_url)]);
+
+        let error = manager
+            .handle_callback(Provider::Mal, "alice", "bad-code", "not-json")
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, TrackerError::InvalidState));
+        assert!(mock.token_requests().is_empty());
+        assert!(!manager.status(Provider::Mal, "alice").unwrap().logged_in);
+    }
+
+    #[tokio::test]
     async fn callback_exchange_failure_consumes_pending_without_fallback() {
         let mock = MockOAuth::new(serde_json::json!({}));
         mock.set_token_response(
@@ -1076,7 +1096,7 @@ mod tests {
         let (state_raw, _) = state(&url);
 
         let error = manager
-            .handle_callback(Provider::Mal, "bad-code", &state_raw)
+            .handle_callback(Provider::Mal, "alice", "bad-code", &state_raw)
             .await
             .unwrap_err();
         assert!(matches!(
@@ -1089,7 +1109,7 @@ mod tests {
         assert!(error.to_string().contains("400 Bad Request"));
         assert!(matches!(
             manager
-                .handle_callback(Provider::Mal, "bad-code", &state_raw)
+                .handle_callback(Provider::Mal, "alice", "bad-code", &state_raw)
                 .await,
             Err(TrackerError::PendingExpired)
         ));

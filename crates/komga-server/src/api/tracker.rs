@@ -371,6 +371,7 @@ struct CallbackQuery {
 
 async fn tracker_oauth_callback(
     State(state): State<AppState>,
+    auth: RequireAuth,
     Path(provider): Path<String>,
     Query(query): Query<CallbackQuery>,
 ) -> Result<Redirect, ApiError> {
@@ -379,7 +380,7 @@ async fn tracker_oauth_callback(
     let target = match state
         .tracker
         .oauth()
-        .handle_callback(provider, &query.code, &query.state)
+        .handle_callback(provider, &auth.0.user.id, &query.code, &query.state)
         .await
     {
         Ok(()) => format!("{context_path}/account/trackers?oauth=success"),
@@ -667,6 +668,7 @@ mod tests {
         use komga_db::pool::Database;
         use komga_db::{Migrator, Placeholders};
         use std::collections::{HashMap, HashSet};
+        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Mutex as StdMutex;
 
         fn test_state() -> AppState {
@@ -824,17 +826,22 @@ mod tests {
             assert_eq!(status, StatusCode::NOT_FOUND);
         }
 
-        async fn serve_oauth() -> String {
+        async fn serve_oauth() -> (String, Arc<AtomicUsize>) {
+            let token_requests = Arc::new(AtomicUsize::new(0));
+            let token_counter = token_requests.clone();
             let app = Router::new()
                 .route(
                     "/token/anilist",
-                    routing::post(|| async {
-                        Json(serde_json::json!({
-                            "access_token": "access-token",
-                            "refresh_token": "refresh-token",
-                            "token_type": "Bearer",
-                            "expires_in": 3600
-                        }))
+                    routing::post(move || {
+                        token_counter.fetch_add(1, Ordering::SeqCst);
+                        async {
+                            Json(serde_json::json!({
+                                "access_token": "access-token",
+                                "refresh_token": "refresh-token",
+                                "token_type": "Bearer",
+                                "expires_in": 3600
+                            }))
+                        }
                     }),
                 )
                 .route(
@@ -876,7 +883,7 @@ mod tests {
             tokio::spawn(async move {
                 axum::serve(listener, app).await.unwrap();
             });
-            format!("http://{address}")
+            (format!("http://{address}"), token_requests)
         }
 
         fn user_app_with_oauth(origin: &str) -> TestApp {
@@ -908,6 +915,33 @@ mod tests {
             app
         }
 
+        async fn oauth_callback_for(app: &TestApp, provider: &str, api_key: &str) -> String {
+            let (status, headers, _) = app
+                .request(
+                    Request::get(format!("/api/v1/trackers/oauth/{provider}/start"))
+                        .header("X-API-Key", api_key)
+                        .header("Host", "kmrs.example")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await;
+            assert_eq!(status, StatusCode::SEE_OTHER);
+            let location = headers
+                .get(axum::http::header::LOCATION)
+                .unwrap()
+                .to_str()
+                .unwrap();
+            let authorize = reqwest::Url::parse(location).unwrap();
+            let state = authorize
+                .query_pairs()
+                .find(|(name, _)| name == "state")
+                .map(|(_, value)| value.into_owned())
+                .unwrap();
+            let encoded_state =
+                form_urlencoded::byte_serialize(state.as_bytes()).collect::<String>();
+            format!("/api/v1/trackers/oauth/{provider}/callback?code=ok&state={encoded_state}")
+        }
+
         fn insert_token_without_username(
             app: &TestApp,
             provider: &str,
@@ -933,7 +967,7 @@ mod tests {
 
         #[tokio::test]
         async fn oauth_status_backfills_missing_mangabaka_username() {
-            let origin = serve_oauth().await;
+            let (origin, _) = serve_oauth().await;
             let app = user_app_with_oauth(&origin);
             let (user_id, token) =
                 insert_token_without_username(&app, "mangabaka", "mangabaka-access");
@@ -959,7 +993,7 @@ mod tests {
 
         #[tokio::test]
         async fn oauth_status_userinfo_failure_keeps_login() {
-            let origin = serve_oauth().await;
+            let (origin, _) = serve_oauth().await;
             let app = user_app_with_oauth(&origin);
             let (user_id, token) = insert_token_without_username(&app, "mal", "mal-access");
             let dao = TrackerOAuthDao::new(app.state.kmrs_db.clone());
@@ -977,8 +1011,50 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn oauth_callback_requires_authentication() {
+            let (origin, token_requests) = serve_oauth().await;
+            let app = user_app_with_oauth(&origin);
+            let callback = oauth_callback_for(&app, "anilist", "k-user").await;
+
+            let (status, _, _) = app
+                .request(Request::get(&callback).body(Body::empty()).unwrap())
+                .await;
+
+            assert_eq!(status, StatusCode::UNAUTHORIZED);
+            assert_eq!(token_requests.load(Ordering::SeqCst), 0);
+            let (_, body) = app
+                .get_json("/api/v1/trackers/oauth/anilist/status", "k-user")
+                .await;
+            assert_eq!(body["logged_in"], false);
+        }
+
+        #[tokio::test]
+        async fn oauth_callback_rejects_a_different_authenticated_user() {
+            let (origin, token_requests) = serve_oauth().await;
+            let app = user_app_with_oauth(&origin);
+            let other = insert_user(&app.state.db, "other@x.c", false, true, &[]);
+            insert_api_key(&app.state.db, &other, "k-other");
+            let callback = oauth_callback_for(&app, "anilist", "k-user").await;
+
+            let (status, headers, _) = app.get_response(&callback, "k-other").await;
+
+            assert_eq!(status, StatusCode::SEE_OTHER);
+            assert_eq!(
+                headers.get(axum::http::header::LOCATION).unwrap(),
+                "/account/trackers?oauth=error&message=invalid+OAuth+state"
+            );
+            assert_eq!(token_requests.load(Ordering::SeqCst), 0);
+            for api_key in ["k-user", "k-other"] {
+                let (_, body) = app
+                    .get_json("/api/v1/trackers/oauth/anilist/status", api_key)
+                    .await;
+                assert_eq!(body["logged_in"], false);
+            }
+        }
+
+        #[tokio::test]
         async fn oauth_flow_includes_context_path() {
-            let origin = serve_oauth().await;
+            let (origin, _) = serve_oauth().await;
             let app = user_app_with_oauth_context(&origin, Some("/komga"));
             let (status, headers, _) = app
                 .request(
@@ -1026,7 +1102,7 @@ mod tests {
 
         #[tokio::test]
         async fn oauth_callback_completes_login_and_logout() {
-            let origin = serve_oauth().await;
+            let (origin, _) = serve_oauth().await;
             let app = user_app_with_oauth(&origin);
             let (status, _, body) = app
                 .get_response("/api/v1/trackers/oauth/anilist/status", "k-user")
