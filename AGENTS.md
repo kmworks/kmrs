@@ -53,4 +53,4 @@ User docs live in the kmworks/website repo (`docs/server/`); edit them there. Th
 
 - CI: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`, builds on ubuntu/macos/windows, docker. Keep clippy warning-free.
 - PRs are in English (title, body, comments).
-- Squash-merge with a hand-written commit message (`gh pr merge --squash --subject ... --body ...`), never the default message.
+- Squash-merge with a hand-written commit message (`gh pr merge --squash --subject ... --body ...`), never the default message, and without `Co-Authored-By` trailers.
