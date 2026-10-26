@@ -25,9 +25,6 @@
   },
   "heatmap": {
     "title": "Activité de lecture",
-    "range3m": "3 derniers mois",
-    "range6m": "6 derniers mois",
-    "range1y": "12 derniers mois",
     "empty": "Aucune activité de lecture sur cette période.",
     "less": "Moins",
     "more": "Plus",
