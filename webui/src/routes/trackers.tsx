@@ -46,12 +46,6 @@ export function TrackersPage() {
     void queryClient.invalidateQueries({ queryKey: ['trackers', 'oauth'] })
   }, [searchParams, setSearchParams, queryClient, t])
 
-  const linksQuery = useQuery({
-    queryKey: trackerLinkKeys.all,
-    queryFn: () => trackersApi.listLinks(),
-    retry: false,
-  })
-
   const deleteMutation = useMutation({
     mutationFn: (link: { seriesId: string; provider: KomfOAuthProvider }) =>
       trackersApi.deleteLink(link.seriesId, link.provider),
@@ -65,8 +59,6 @@ export function TrackersPage() {
     onError: (e) => showToast(e instanceof Error ? e.message : t('toast.unlinkFailed')),
   })
 
-  const links = linksQuery.data ?? []
-
   return (
     <div>
       <PageHeader title={t('page.title')} />
@@ -78,7 +70,7 @@ export function TrackersPage() {
       </div>
 
       <VisibilitySection />
-      <TrackerBindings links={links} loading={linksQuery.isPending} onUnlink={setDeleting} />
+      <TrackerBindings onUnlink={setDeleting} />
 
       <ConfirmDeleteDialog
         open={!!deleting}

@@ -8,6 +8,7 @@ use crate::Result;
 use komga_core::time_codec;
 use komga_core::tracker::TrackMode;
 use rusqlite::Row;
+use std::collections::BTreeMap;
 use time::OffsetDateTime;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +35,20 @@ pub struct NewTrackerLink<'a> {
     pub title: Option<&'a str>,
     pub track_mode: TrackMode,
     pub chapter_offset: i32,
+}
+
+#[derive(Debug)]
+pub struct TrackerLinkGroup {
+    pub series_id: String,
+    pub links: Vec<TrackerLink>,
+}
+
+#[derive(Debug)]
+pub struct TrackerLinkPage {
+    pub groups: Vec<TrackerLinkGroup>,
+    pub total: u64,
+    pub series_count: u64,
+    pub provider_counts: BTreeMap<String, u64>,
 }
 
 pub struct TrackerLinkDao {
@@ -90,13 +105,104 @@ impl TrackerLinkDao {
         Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
     }
 
-    pub fn list_by_user(&self, user_id: &str) -> Result<Vec<TrackerLink>> {
+    pub fn page_by_user(
+        &self,
+        user_id: &str,
+        provider: Option<&str>,
+        limit: Option<u32>,
+        offset: u64,
+    ) -> Result<TrackerLinkPage> {
         let conn = self.db.ro()?;
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {COLUMNS} FROM TRACKER_LINK WHERE USER_ID = ? ORDER BY SERIES_ID, PROVIDER"
-        ))?;
-        let rows = stmt.query_map(rusqlite::params![user_id], row_to_link)?;
-        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+        let series_count = conn.query_row(
+            "SELECT COUNT(DISTINCT SERIES_ID) FROM TRACKER_LINK WHERE USER_ID = ?",
+            [user_id],
+            |row| row.get::<_, u64>(0),
+        )?;
+        let total = if let Some(provider) = provider {
+            conn.query_row(
+                "SELECT COUNT(DISTINCT SERIES_ID) FROM TRACKER_LINK \
+                 WHERE USER_ID = ? AND PROVIDER = ?",
+                rusqlite::params![user_id, provider],
+                |row| row.get::<_, u64>(0),
+            )?
+        } else {
+            series_count
+        };
+        let provider_counts = {
+            let mut stmt = conn.prepare(
+                "SELECT PROVIDER, COUNT(DISTINCT SERIES_ID) FROM TRACKER_LINK \
+                 WHERE USER_ID = ? GROUP BY PROVIDER",
+            )?;
+            let rows = stmt.query_map([user_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+            })?;
+            rows.collect::<std::result::Result<BTreeMap<_, _>, _>>()?
+        };
+
+        let mut sql = "SELECT SERIES_ID FROM TRACKER_LINK \
+                       WHERE USER_ID = ?1 AND (?2 IS NULL OR PROVIDER = ?2) \
+                       GROUP BY SERIES_ID ORDER BY SERIES_ID"
+            .to_string();
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![
+            Box::new(user_id.to_string()),
+            Box::new(provider.map(str::to_string)),
+        ];
+        if let Some(limit) = limit {
+            sql.push_str(" LIMIT ?3 OFFSET ?4");
+            params.push(Box::new(i64::from(limit.max(1))));
+            params.push(Box::new(i64::try_from(offset).unwrap_or(i64::MAX)));
+        }
+        let series_ids = {
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
+                row.get::<_, String>(0)
+            })?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+
+        let mut groups: Vec<TrackerLinkGroup> = Vec::new();
+        if !series_ids.is_empty() {
+            let placeholders = series_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(user_id.to_string())];
+            params.extend(
+                series_ids
+                    .into_iter()
+                    .map(|id| Box::new(id) as Box<dyn rusqlite::ToSql>),
+            );
+            let mut stmt = conn.prepare(&format!(
+                "SELECT {COLUMNS} FROM TRACKER_LINK \
+                 WHERE USER_ID = ? AND SERIES_ID IN ({placeholders}) \
+                 ORDER BY SERIES_ID, PROVIDER"
+            ))?;
+            let rows = stmt.query_map(rusqlite::params_from_iter(params), row_to_link)?;
+            let links = rows.collect::<std::result::Result<Vec<_>, _>>()?;
+            for link in links {
+                match groups.last_mut() {
+                    Some(group) if group.series_id == link.series_id => group.links.push(link),
+                    _ => groups.push(TrackerLinkGroup {
+                        series_id: link.series_id.clone(),
+                        links: vec![link],
+                    }),
+                }
+            }
+        }
+
+        Ok(TrackerLinkPage {
+            groups,
+            total,
+            series_count,
+            provider_counts,
+        })
+    }
+
+    #[cfg(test)]
+    pub fn list_by_user(&self, user_id: &str) -> Result<Vec<TrackerLink>> {
+        Ok(self
+            .page_by_user(user_id, None, None, 0)?
+            .groups
+            .into_iter()
+            .flat_map(|group| group.links)
+            .collect())
     }
 
     /// Inserts the binding or replaces the target entry and options of an
@@ -218,15 +324,33 @@ mod tests {
     }
 
     #[test]
-    fn list_by_user_spans_series() {
+    fn page_by_user_spans_series() {
         let dao = test_dao();
         dao.upsert(&link("ser-1", "alice", "anilist", "1")).unwrap();
-        dao.upsert(&link("ser-2", "alice", "bangumi", "2")).unwrap();
-        dao.upsert(&link("ser-1", "bob", "anilist", "3")).unwrap();
-        let all = dao.list_by_user("alice").unwrap();
-        assert_eq!(all.len(), 2);
-        assert_eq!(all[0].series_id, "ser-1");
-        assert_eq!(all[1].series_id, "ser-2");
+        dao.upsert(&link("ser-1", "alice", "mal", "2")).unwrap();
+        dao.upsert(&link("ser-2", "alice", "bangumi", "3")).unwrap();
+        dao.upsert(&link("ser-1", "bob", "anilist", "4")).unwrap();
+
+        let first = dao.page_by_user("alice", None, Some(1), 0).unwrap();
+        assert_eq!(first.total, 2);
+        assert_eq!(first.series_count, 2);
+        assert_eq!(first.groups.len(), 1);
+        assert_eq!(first.groups[0].series_id, "ser-1");
+        assert_eq!(first.groups[0].links.len(), 2);
+        assert_eq!(first.provider_counts["anilist"], 1);
+        assert_eq!(first.provider_counts["mal"], 1);
+        assert_eq!(first.provider_counts["bangumi"], 1);
+
+        let second = dao.page_by_user("alice", None, Some(1), 1).unwrap();
+        assert_eq!(second.groups.len(), 1);
+        assert_eq!(second.groups[0].series_id, "ser-2");
+
+        let filtered = dao.page_by_user("alice", Some("anilist"), None, 0).unwrap();
+        assert_eq!(filtered.total, 1);
+        assert_eq!(filtered.series_count, 2);
+        assert_eq!(filtered.groups.len(), 1);
+        assert_eq!(filtered.groups[0].series_id, "ser-1");
+        assert_eq!(filtered.groups[0].links.len(), 2);
     }
 
     #[test]
