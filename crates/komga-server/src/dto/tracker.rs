@@ -1,6 +1,8 @@
+use crate::dto::common::Page;
 use komga_core::tracker::TrackUpdate;
 use komga_db::dao::tracker_link::TrackerLink;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +31,28 @@ impl From<TrackerLink> for TrackerLinkDto {
             last_modified_date: komga_core::time_codec::format_datetime(link.last_modified_date),
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackerLinkGroupDto {
+    pub series_id: String,
+    pub links: Vec<TrackerLinkDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackerLinkCountsDto {
+    pub series: u64,
+    pub providers: BTreeMap<String, u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackerLinkPageDto {
+    #[serde(flatten)]
+    pub page: Page<TrackerLinkGroupDto>,
+    pub counts: TrackerLinkCountsDto,
 }
 
 #[derive(Debug, Deserialize)]

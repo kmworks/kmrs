@@ -914,6 +914,18 @@ export interface TrackerLink {
   lastModifiedDate: string
 }
 
+export interface TrackerLinkGroup {
+  seriesId: string
+  links: TrackerLink[]
+}
+
+export interface TrackerLinkPage extends Page<TrackerLinkGroup> {
+  counts: {
+    series: number
+    providers: Partial<Record<KomfOAuthProvider, number>>
+  }
+}
+
 /** The subset of a binding the edit dialog works on; a freshly bound entry
  * (before any reload) satisfies it too. */
 export type TrackerLinkRef = Pick<

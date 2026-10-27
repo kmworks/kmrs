@@ -61,14 +61,37 @@ impl TrackerLedgerDao {
         Ok(())
     }
 
-    pub fn list_by_user(&self, user_id: &str) -> Result<Vec<TrackLedgerItem>> {
+    pub fn page_by_user(
+        &self,
+        user_id: &str,
+        limit: Option<u32>,
+        offset: u64,
+    ) -> Result<(Vec<TrackLedgerItem>, u64)> {
         let conn = self.db.ro()?;
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {COLUMNS} FROM TRACKER_LEDGER WHERE USER_ID = ? \
+        let total = conn.query_row(
+            "SELECT COUNT(*) FROM TRACKER_LEDGER WHERE USER_ID = ?",
+            [user_id],
+            |row| row.get::<_, u64>(0),
+        )?;
+        let mut sql = format!(
+            "SELECT {COLUMNS} FROM TRACKER_LEDGER WHERE USER_ID = ?1 \
              ORDER BY UPDATED_DATE DESC, PROVIDER, TRACK_ID"
-        ))?;
-        let rows = stmt.query_map(rusqlite::params![user_id], row_to_item)?;
-        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+        );
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(user_id.to_string())];
+        if let Some(limit) = limit {
+            sql.push_str(" LIMIT ?2 OFFSET ?3");
+            params.push(Box::new(i64::from(limit.max(1))));
+            params.push(Box::new(i64::try_from(offset).unwrap_or(i64::MAX)));
+        }
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(params), row_to_item)?;
+        let items = rows.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok((items, total))
+    }
+
+    #[cfg(test)]
+    pub fn list_by_user(&self, user_id: &str) -> Result<Vec<TrackLedgerItem>> {
+        Ok(self.page_by_user(user_id, None, 0)?.0)
     }
 }
 
@@ -107,6 +130,14 @@ mod tests {
         assert_eq!(dao.list_by_user("alice").unwrap().len(), 2);
         assert_eq!(dao.list_by_user("bob").unwrap().len(), 1);
         assert!(dao.list_by_user("nobody").unwrap().is_empty());
+
+        let (first, total) = dao.page_by_user("alice", Some(1), 0).unwrap();
+        assert_eq!(total, 2);
+        assert_eq!(first.len(), 1);
+        let (second, total) = dao.page_by_user("alice", Some(1), 1).unwrap();
+        assert_eq!(total, 2);
+        assert_eq!(second.len(), 1);
+        assert_ne!(first[0].provider, second[0].provider);
 
         dao.upsert(
             "anilist",

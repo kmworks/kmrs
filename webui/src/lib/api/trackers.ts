@@ -3,6 +3,7 @@ import type {
   KomfOAuthProvider,
   KomfOAuthStatus,
   TrackerLink,
+  TrackerLinkPage,
   TrackerLinkUpsert,
   TrackerPreferences,
   TrackerSearchItem,
@@ -13,6 +14,7 @@ import type {
 /** TanStack Query keys for the tracker bindings; shared by every consumer. */
 export const trackerLinkKeys = {
   all: ['trackers', 'links'] as const,
+  list: (page: number, provider?: KomfOAuthProvider) => ['trackers', 'links', { page, provider }] as const,
   series: (seriesId: string) => ['trackers', 'links', seriesId] as const,
   preferences: ['trackers', 'preferences'] as const,
 }
@@ -86,7 +88,8 @@ export function trackerUrlsFromMetadata(links: Array<{ url: string }>): Partial<
 
 export const trackersApi = {
   // bindings are kmrs-side state, scoped to the calling user
-  listLinks: () => api.get<TrackerLink[]>('/api/v1/trackers/links'),
+  listLinks: (params?: { page?: number; size?: number; provider?: KomfOAuthProvider }) =>
+    api.get<TrackerLinkPage>('/api/v1/trackers/links', params),
   listSeriesLinks: (seriesId: string) => api.get<TrackerLink[]>(`/api/v1/trackers/links/${seriesId}`),
   upsertLink: (seriesId: string, body: TrackerLinkUpsert) =>
     api.put<TrackerLink>(`/api/v1/trackers/links/${seriesId}`, body),

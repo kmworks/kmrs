@@ -1,8 +1,11 @@
 use crate::auth::RequireAuth;
+use crate::dto::common::Page;
 use crate::dto::tracker::{
-    TrackerLinkDto, TrackerLinkUpsertDto, TrackerPreferencesDto, TrackerUpdateRequestDto,
+    TrackerLinkCountsDto, TrackerLinkDto, TrackerLinkGroupDto, TrackerLinkPageDto,
+    TrackerLinkUpsertDto, TrackerPreferencesDto, TrackerUpdateRequestDto,
 };
 use crate::error::{ApiError, Violation};
+use crate::http::pagination::{QueryExt, QueryPageable};
 use crate::service::tracker::oauth::OAuthStatus;
 use crate::service::tracker::{Provider, TrackerError, TrackerService};
 use crate::state::AppState;
@@ -110,9 +113,33 @@ fn require_login(
 async fn list_all_tracker_links(
     State(state): State<AppState>,
     auth: RequireAuth,
-) -> Result<Json<Vec<TrackerLinkDto>>, ApiError> {
-    let links = TrackerLinkDao::new(state.kmrs_db.clone()).list_by_user(&auth.0.user.id)?;
-    Ok(Json(links.into_iter().map(TrackerLinkDto::from).collect()))
+    query: QueryPageable,
+) -> Result<Json<TrackerLinkPageDto>, ApiError> {
+    let provider = query.params.first("provider");
+    if let Some(provider) = provider {
+        check_tracker_provider(provider)?;
+    }
+    let limit = (!query.pageable.unpaged).then_some(query.pageable.size);
+    let result = TrackerLinkDao::new(state.kmrs_db.clone()).page_by_user(
+        &auth.0.user.id,
+        provider,
+        limit,
+        query.pageable.offset(),
+    )?;
+    let counts = TrackerLinkCountsDto {
+        series: result.series_count,
+        providers: result.provider_counts,
+    };
+    let content = result
+        .groups
+        .into_iter()
+        .map(|group| TrackerLinkGroupDto {
+            series_id: group.series_id,
+            links: group.links.into_iter().map(TrackerLinkDto::from).collect(),
+        })
+        .collect();
+    let page = Page::of(content, result.total, &query.pageable);
+    Ok(Json(TrackerLinkPageDto { page, counts }))
 }
 
 async fn list_tracker_links(
@@ -236,9 +263,15 @@ async fn put_tracker_preferences(
 async fn tracker_ledger(
     State(state): State<AppState>,
     auth: RequireAuth,
-) -> Result<Json<Vec<TrackLedgerItem>>, ApiError> {
-    let items = TrackerLedgerDao::new(state.kmrs_db.clone()).list_by_user(&auth.0.user.id)?;
-    Ok(Json(items))
+    query: QueryPageable,
+) -> Result<Json<Page<TrackLedgerItem>>, ApiError> {
+    let limit = (!query.pageable.unpaged).then_some(query.pageable.size);
+    let (items, total) = TrackerLedgerDao::new(state.kmrs_db.clone()).page_by_user(
+        &auth.0.user.id,
+        limit,
+        query.pageable.offset(),
+    )?;
+    Ok(Json(Page::of(items, total, &query.pageable)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -522,10 +555,12 @@ mod tests {
         .await;
         let (status, body) = app.get_json("/api/v1/trackers/links", "k-user").await;
         assert_eq!(status, StatusCode::OK);
-        let links = body.as_array().unwrap();
-        assert_eq!(links.len(), 3);
+        let groups = body["content"].as_array().unwrap();
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0]["links"].as_array().unwrap().len(), 2);
+        assert_eq!(body["totalElements"], 2);
         let (_, body) = app.get_json("/api/v1/trackers/links", "k-other").await;
-        assert_eq!(body, serde_json::json!([]));
+        assert!(body["content"].as_array().unwrap().is_empty());
 
         let (status, _) = app
             .request_json(
@@ -540,6 +575,62 @@ mod tests {
         let links = body.as_array().unwrap();
         assert_eq!(links.len(), 1);
         assert_eq!(links[0]["provider"], "mal");
+    }
+
+    #[tokio::test]
+    async fn tracker_links_are_paged_by_series_with_provider_counts() {
+        let (app, user_id) = user_app();
+        let dao = TrackerLinkDao::new(app.state.kmrs_db.clone());
+        let insert = |series_id: &str, provider: &str| {
+            dao.upsert(&NewTrackerLink {
+                series_id,
+                user_id: &user_id,
+                provider,
+                track_id: "42",
+                title: None,
+                track_mode: TrackMode::Auto,
+                chapter_offset: 0,
+            })
+            .unwrap();
+        };
+        for index in 0..21 {
+            insert(&format!("ser-{index:02}"), "anilist");
+        }
+        insert("ser-00", "mal");
+        insert("ser-01", "mal");
+
+        let (status, body) = app.get_json("/api/v1/trackers/links", "k-user").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["totalElements"], 21);
+        assert_eq!(body["totalPages"], 2);
+        assert_eq!(body["number"], 0);
+        assert_eq!(body["last"], false);
+        assert_eq!(body["content"].as_array().unwrap().len(), 20);
+        assert_eq!(body["content"][0]["seriesId"], "ser-00");
+        assert_eq!(body["content"][0]["links"].as_array().unwrap().len(), 2);
+        assert_eq!(body["counts"]["series"], 21);
+        assert_eq!(body["counts"]["providers"]["anilist"], 21);
+        assert_eq!(body["counts"]["providers"]["mal"], 2);
+
+        let (_, body) = app
+            .get_json("/api/v1/trackers/links?page=1&size=20", "k-user")
+            .await;
+        assert_eq!(body["content"].as_array().unwrap().len(), 1);
+        assert_eq!(body["content"][0]["seriesId"], "ser-20");
+        assert_eq!(body["last"], true);
+
+        let (_, body) = app
+            .get_json(
+                "/api/v1/trackers/links?provider=mal&page=1&size=1",
+                "k-user",
+            )
+            .await;
+        assert_eq!(body["totalElements"], 2);
+        assert_eq!(body["totalPages"], 2);
+        assert_eq!(body["content"].as_array().unwrap().len(), 1);
+        assert_eq!(body["content"][0]["seriesId"], "ser-01");
+        assert_eq!(body["content"][0]["links"].as_array().unwrap().len(), 2);
+        assert_eq!(body["counts"]["series"], 21);
     }
 
     #[tokio::test]
@@ -810,9 +901,10 @@ mod tests {
             }
 
             let (_, body) = app.get_json("/api/v1/trackers/ledger", "k-user").await;
-            assert_eq!(body[0]["trackId"], "42");
-            assert_eq!(body[0]["title"], serde_json::Value::Null);
-            assert_eq!(body[0]["coverUrl"], serde_json::Value::Null);
+            assert_eq!(body["totalElements"], 1);
+            assert_eq!(body["content"][0]["trackId"], "42");
+            assert_eq!(body["content"][0]["title"], serde_json::Value::Null);
+            assert_eq!(body["content"][0]["coverUrl"], serde_json::Value::Null);
 
             let other = insert_user(&app.state.db, "other@x.c", false, true, &[]);
             insert_api_key(&app.state.db, &other, "k-other");
@@ -824,6 +916,39 @@ mod tests {
                 .get_json("/api/v1/komf/trackers/anilist/search?name=Series", "k-user")
                 .await;
             assert_eq!(status, StatusCode::NOT_FOUND);
+        }
+
+        #[tokio::test]
+        async fn tracker_ledger_is_paged() {
+            let (app, _, _) = user_app_with_stub();
+            for index in 0..21 {
+                let (status, _) = app
+                    .request_json(
+                        "POST",
+                        "/api/v1/trackers/anilist/update",
+                        "k-user",
+                        Some(serde_json::json!({ "trackId": index.to_string() })),
+                    )
+                    .await;
+                assert_eq!(status, StatusCode::NO_CONTENT);
+            }
+
+            let (status, body) = app.get_json("/api/v1/trackers/ledger", "k-user").await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(body["totalElements"], 21);
+            assert_eq!(body["totalPages"], 2);
+            assert_eq!(body["number"], 0);
+            assert_eq!(body["last"], false);
+            assert_eq!(body["content"].as_array().unwrap().len(), 20);
+
+            let (_, body) = app
+                .get_json("/api/v1/trackers/ledger?page=1&size=20", "k-user")
+                .await;
+            assert_eq!(body["totalElements"], 21);
+            assert_eq!(body["totalPages"], 2);
+            assert_eq!(body["number"], 1);
+            assert_eq!(body["last"], true);
+            assert_eq!(body["content"].as_array().unwrap().len(), 1);
         }
 
         async fn serve_oauth() -> (String, Arc<AtomicUsize>) {

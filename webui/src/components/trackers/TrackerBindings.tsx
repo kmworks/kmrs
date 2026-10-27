@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ArrowRight, ChartLineUp, Trash } from '@phosphor-icons/react'
+import { trackerLinkKeys, trackersApi } from '@/lib/api/trackers'
 import type { KomfOAuthProvider, TrackerLink } from '@/lib/api/types'
 import { urls } from '@/lib/utils/urls'
 import { Button } from '@/components/ui/Button'
@@ -25,31 +27,26 @@ function filterLabel(label: string, count: number) {
   )
 }
 
-export function TrackerBindings({
-  links,
-  loading,
-  onUnlink,
-}: {
-  links: TrackerLink[]
-  loading: boolean
-  onUnlink: (link: TrackerLink) => void
-}) {
+export function TrackerBindings({ onUnlink }: { onUnlink: (link: TrackerLink) => void }) {
   const { t } = useTranslation('trackers')
   const [filter, setFilter] = useState<ProviderFilter>('all')
   const [page, setPage] = useState(0)
-  const groups = useMemo(() => {
-    const bySeries = new Map<string, TrackerLink[]>()
-    for (const link of links) {
-      const group = bySeries.get(link.seriesId) ?? []
-      group.push(link)
-      bySeries.set(link.seriesId, group)
-    }
-    return Array.from(bySeries.values())
-  }, [links])
-  const filtered = filter === 'all' ? groups : groups.filter((group) => group.some((link) => link.provider === filter))
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const currentPage = Math.min(page, pageCount - 1)
-  const pageGroups = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
+  const provider = filter === 'all' ? undefined : filter
+  const linksQuery = useQuery({
+    queryKey: trackerLinkKeys.list(page, provider),
+    queryFn: () => trackersApi.listLinks({ page, size: PAGE_SIZE, provider }),
+    placeholderData: keepPreviousData,
+    retry: false,
+  })
+  const data = linksQuery.data
+  const totalPages = data?.totalPages
+  const groups = data?.content ?? []
+  const seriesCount = data?.counts.series ?? 0
+  const pageCount = Math.max(1, totalPages ?? 1)
+
+  if (totalPages !== undefined && page > 0 && page >= totalPages) {
+    setPage(Math.max(0, totalPages - 1))
+  }
 
   return (
     <section className="mt-8">
@@ -60,7 +57,7 @@ export function TrackerBindings({
         </h2>
         <p className="mt-1 text-xs text-ink-3">{t('page.bindingsHint')}</p>
       </div>
-      {loading ? null : links.length === 0 ? (
+      {linksQuery.isPending ? null : seriesCount === 0 ? (
         <p className="text-sm text-ink-3">{t('section.empty')}</p>
       ) : (
         <>
@@ -73,26 +70,23 @@ export function TrackerBindings({
               setPage(0)
             }}
             options={[
-              { value: 'all', label: filterLabel(t('page.filterAll'), groups.length) },
+              { value: 'all', label: filterLabel(t('page.filterAll'), seriesCount) },
               ...PROVIDERS.map((provider) => ({
                 value: provider,
-                label: filterLabel(
-                  t(`provider.${provider}`),
-                  links.filter((link) => link.provider === provider).length,
-                ),
+                label: filterLabel(t(`provider.${provider}`), data?.counts.providers[provider] ?? 0),
                 icon: <TrackerLogo provider={provider} className="size-3.5" />,
               })),
             ]}
           />
-          {pageGroups.length === 0 ? (
+          {groups.length === 0 ? (
             <p className="text-sm text-ink-3">{t('page.noMatches')}</p>
           ) : (
             <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
-              {pageGroups.map((group) => {
-                const first = group[0]
+              {groups.map((group) => {
+                const first = group.links[0]
                 const title = first.title || `#${first.trackId}`
                 return (
-                  <li key={first.seriesId} className="flex flex-col gap-2 px-4 py-2 lg:flex-row lg:items-center lg:gap-4">
+                  <li key={group.seriesId} className="flex flex-col gap-2 px-4 py-2 lg:flex-row lg:items-center lg:gap-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2.5">
                       <CoverImage src={urls.seriesThumbnail(first.seriesId)} alt={title} className="w-9 shrink-0" />
                       <Link
@@ -103,7 +97,7 @@ export function TrackerBindings({
                       </Link>
                     </div>
                     <div className="flex flex-wrap gap-1.5 lg:justify-end">
-                      {group.map((link) => (
+                      {group.links.map((link) => (
                         <div
                           key={link.provider}
                           className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-line bg-raised px-2 text-xs"
@@ -129,16 +123,21 @@ export function TrackerBindings({
           )}
           {pageCount > 1 && (
             <div className="mt-4 flex items-center justify-between gap-3">
-              <p className="text-sm text-ink-3">{t('page.pageInfo', { page: currentPage + 1, pages: pageCount })}</p>
+              <p className="text-sm text-ink-3">{t('page.pageInfo', { page: page + 1, pages: pageCount })}</p>
               <div className="flex gap-2">
-                <Button variant="secondary" size="sm" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={page === 0 || linksQuery.isFetching}
+                  onClick={() => setPage(page - 1)}
+                >
                   <ArrowLeft className="size-4" /> {t('page.previous')}
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={currentPage >= pageCount - 1}
-                  onClick={() => setPage(currentPage + 1)}
+                  disabled={!data || data.last || linksQuery.isFetching}
+                  onClick={() => setPage(page + 1)}
                 >
                   {t('page.next')} <ArrowRight className="size-4" />
                 </Button>
