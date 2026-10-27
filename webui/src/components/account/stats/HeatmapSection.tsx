@@ -13,6 +13,7 @@ const RANGE_MONTHS = 12
 const CELL = 10
 const GAP = 3
 const PITCH = CELL + GAP
+const WEEKDAY_WIDTH = 24
 
 // the empty level must stay visible on both themes, so it derives from ink, not raised
 const LEVELS = [
@@ -69,12 +70,9 @@ export function HeatmapSection({ libraryId }: { libraryId?: string }) {
     return { weeks, quartile: maxPages / 4, hasData }
   }, [query.data])
 
-  // a label loses to the next one when they would land closer than 3 columns:
-  // the partial month at the range edge yields to the month that fills the grid
-  const monthLabels = weeks
-    .map((week, wi) => ({ wi, day: week[0].day, month: week[0].day.slice(0, 7) }))
-    .filter((c, i, arr) => i === 0 || arr[i - 1].month !== c.month)
-    .filter((c, i, arr) => i === arr.length - 1 || arr[i + 1].wi - c.wi >= 3)
+  const monthLabels = weeks.flatMap((week, wi) =>
+    week.filter((cell) => cell.day.endsWith('-01')).map((cell) => ({ wi, day: cell.day })),
+  )
 
   const level = (pages: number) => (pages === 0 || quartile === 0 ? 0 : Math.min(4, Math.ceil(pages / quartile)))
 
@@ -88,15 +86,15 @@ export function HeatmapSection({ libraryId }: { libraryId?: string }) {
           ) : (
             <div className="overflow-x-auto">
               <div className="inline-block">
-                <div className="relative mb-1 h-4" style={{ marginLeft: 32 }}>
+                <div className="relative mb-1 h-4" style={{ marginLeft: WEEKDAY_WIDTH + GAP }}>
                   {monthLabels.map(({ wi, day }) => (
                     <span key={wi} className="absolute text-[10px] text-ink-3" style={{ left: wi * PITCH }}>
                       {monthShort(day)}
                     </span>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex w-6 flex-col" style={{ gap: GAP }}>
+                <div className="flex" style={{ gap: GAP }}>
+                  <div className="flex flex-col" style={{ gap: GAP, width: WEEKDAY_WIDTH }}>
                     {Array.from({ length: 7 }, (_, dow) => (
                       <div key={dow} className="flex items-center text-[10px] text-ink-3" style={{ height: CELL }}>
                         {dow % 2 === 1 ? weekdayShort(dow) : null}
@@ -125,7 +123,7 @@ export function HeatmapSection({ libraryId }: { libraryId?: string }) {
                               activity:
                                 cell.pages > 0 ? t('heatmap.pages', { count: cell.pages }) : t('heatmap.noActivity'),
                             })}
-                            className={cn('rounded-[3px]', LEVELS[level(cell.pages)])}
+                            className={cn('rounded-[2px]', LEVELS[level(cell.pages)])}
                             style={{ width: CELL, height: CELL }}
                           />
                         </Tooltip>
@@ -136,7 +134,7 @@ export function HeatmapSection({ libraryId }: { libraryId?: string }) {
                 <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-ink-3">
                   {t('heatmap.less')}
                   {LEVELS.map((c) => (
-                    <span key={c} className={cn('inline-block rounded-[3px]', c)} style={{ width: CELL, height: CELL }} />
+                    <span key={c} className={cn('inline-block rounded-[2px]', c)} style={{ width: CELL, height: CELL }} />
                   ))}
                   {t('heatmap.more')}
                 </div>
