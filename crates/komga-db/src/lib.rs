@@ -12,7 +12,7 @@ pub mod udf;
 pub use error::{Error, Result};
 pub use migrate::{Migrator, Placeholders};
 
-/// Migration list for the main database (database.sqlite): 89 SQL + 5 Java ports.
+/// Migration list for the main database (database.sqlite): 90 SQL + 5 Java ports.
 pub fn main_migrations() -> Vec<migrate::Migration> {
     let sql: &[migrate::SqlMigration] = include!(concat!(env!("OUT_DIR"), "/migrations_main.rs"));
     let mut migrations: Vec<migrate::Migration> = sql

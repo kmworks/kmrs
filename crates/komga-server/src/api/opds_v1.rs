@@ -2239,6 +2239,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn publishers_feed_paginates() {
+        let state = test_state();
+        admin(&state);
+        seed_library(&state, "lib1", "L");
+        for i in 0..21 {
+            let series_id = format!("s{i}");
+            let publisher = format!("Publisher {i:02}");
+            seed_series(&state, &series_id, "lib1", &publisher);
+            seed_publisher(&state, &series_id, &publisher);
+        }
+        let app = test_app(&state);
+
+        let response = app
+            .clone()
+            .oneshot(authed("/opds/v1.2/publishers", ADMIN_KEY))
+            .await
+            .unwrap();
+        let xml = body_string(response).await;
+        assert_eq!(xml.matches("<entry>").count(), 20);
+        assert!(xml.contains("rel=\"next\" href=\"http://localhost/opds/v1.2/publishers?page=1\""));
+        assert!(!xml.contains("rel=\"previous\""));
+
+        let response = app
+            .oneshot(authed("/opds/v1.2/publishers?page=1", ADMIN_KEY))
+            .await
+            .unwrap();
+        let xml = body_string(response).await;
+        assert_eq!(xml.matches("<entry>").count(), 1);
+        assert!(
+            xml.contains("rel=\"previous\" href=\"http://localhost/opds/v1.2/publishers?page=0\"")
+        );
+        assert!(!xml.contains("rel=\"next\""));
+    }
+
+    #[tokio::test]
     async fn thumbnail_small_generated_vs_sidecar() {
         let state = test_state();
         admin(&state);
