@@ -35,12 +35,9 @@ fn koreader_sample_offsets() -> impl Iterator<Item = u64> {
 /// `want_file` requests the full-file XXH3-128 hash, `want_koreader` the KOReader
 /// partial MD5. When both are requested the file is streamed once from start to end; the
 /// KOReader sample points are captured from the sequential stream as it passes them
-/// (they are ascending, so one monotonic pass covers every offset), reproducing the exact
-/// JVM buffer-reuse semantics of `KoreaderHasher.kt`: the 1024-byte buffer is never
-/// cleared, so a sample shorter than 1024 bytes (at EOF) is padded with the residue of
-/// the previous sample, and samples at or beyond EOF are skipped without updating the
-/// buffer. Network mounts may return partial buffers; the carry-over (`collected`)
-/// reassembles a sample across reads, so the result matches a clean read.
+/// (they are ascending, so one monotonic pass covers every offset). Each sample contains
+/// at most 1024 bytes, with a short final sample ending at EOF. The carry-over (`collected`)
+/// reassembles a sample across short streaming reads.
 /// Returns `(file_hash, koreader_hash)`, `None` for a hash that was not requested.
 pub fn compute_hashes(
     path: &Path,
@@ -63,7 +60,7 @@ fn compute_hashes_impl<R: Read>(
     want_file: bool,
     want_koreader: bool,
 ) -> std::io::Result<(Option<String>, Option<String>)> {
-    // Only offsets strictly below EOF contribute; the rest are skipped (JVM `n == 0`).
+    // Only offsets strictly below EOF contribute.
     let sample_offsets: Vec<u64> = if want_koreader {
         koreader_sample_offsets().filter(|&o| o < len).collect()
     } else {
@@ -72,7 +69,7 @@ fn compute_hashes_impl<R: Read>(
 
     let mut file_hasher = xxhash_rust::xxh3::Xxh3::with_seed(0);
     let mut koreader_ctx = md5::Context::new();
-    let mut koreader_buf = [0u8; 1024]; // JVM buffer, carries residue across samples
+    let mut koreader_buf = [0u8; 1024];
     let mut sample_idx = 0usize; // next sample offset to collect
     let mut collected = 0usize; // bytes collected so far for the current sample
     let mut buffer = vec![0u8; 1 << 20]; // network mounts charge per read() call
@@ -104,8 +101,7 @@ fn compute_hashes_impl<R: Read>(
                 collected += e - s;
             }
             if collected == target {
-                // A read that returns anything consumes the whole 1024-byte buffer.
-                koreader_ctx.consume(&koreader_buf[..]);
+                koreader_ctx.consume(&koreader_buf[..target]);
                 sample_idx += 1;
                 collected = 0;
             } else {
@@ -131,8 +127,7 @@ fn compute_hashes_impl<R: Read>(
 /// KOReader's partial MD5, as ported by komga (`KoreaderHasher.kt`): samples at offsets
 /// `1024 << (2i)` for i in -1..=10 **with JVM shift semantics** (`shl` masks the shift count to
 /// 6 bits, so i=-1 becomes `1024 << 62` = 0 — the file head, not 256 as in KOReader's Lua).
-/// The whole 1024-byte buffer is fed to MD5 whenever a read returns anything, including
-/// leftovers from the previous read (or zeros on the first).
+/// Only the bytes returned by each read are hashed; offsets at or past EOF contribute nothing.
 pub fn compute_koreader_hash(path: &Path) -> std::io::Result<String> {
     use std::io::{Seek, SeekFrom};
     let mut file = std::fs::File::open(path)?;
@@ -143,7 +138,7 @@ pub fn compute_koreader_hash(path: &Path) -> std::io::Result<String> {
         file.seek(SeekFrom::Start(offset))?;
         let n = file.read(&mut buffer)?;
         if n > 0 {
-            context.consume(buffer);
+            context.consume(&buffer[..n]);
         }
     }
     let digest = context.finalize();
@@ -183,7 +178,7 @@ mod tests {
         std::fs::write(&tiny, (0u8..100).collect::<Vec<_>>()).unwrap();
         assert_eq!(
             compute_koreader_hash(&tiny).unwrap(),
-            "6ebd2f0c1acf7e8f7e0e205c671a86e1"
+            "7acedd1a84a4cfcb6e7a16003242945e"
         );
 
         let empty = dir.join("empty2.bin");
@@ -199,15 +194,28 @@ mod tests {
     }
 
     #[test]
+    fn koreader_hash_short_read_excludes_stale_buffer_bytes() {
+        let dir = std::env::temp_dir().join("kmrs-hasher-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("short-read.bin");
+        std::fs::write(&path, patterned(1989)).unwrap();
+        const EXPECTED: &str = "cf6bce859a8f8256dd41df0ff89a56b4";
+
+        assert_eq!(compute_koreader_hash(&path).unwrap(), EXPECTED);
+        let (_, combined) = compute_hashes(&path, false, true).unwrap();
+        assert_eq!(combined.as_deref(), Some(EXPECTED));
+    }
+
+    #[test]
     fn compute_hashes_matches_individual_functions() {
         let dir = std::env::temp_dir().join("kmrs-hasher-test");
         std::fs::create_dir_all(&dir).unwrap();
-        // sizes exercise: empty, tiny, residue-at-sample-tail (2000), the 300000
+        // sizes exercise: empty, tiny, a short final sample (2000), the 300000
         // reference vector, and a size whose 1M sample lies mid-file
         for (name, data) in [
             ("merge-empty.bin", Vec::new()),
             ("merge-tiny.bin", patterned(100)),
-            ("merge-residue.bin", patterned(2000)),
+            ("merge-short-final-sample.bin", patterned(2000)),
             ("merge-300k.bin", patterned(300_000)),
             ("merge-5m.bin", patterned(5_000_000)),
         ] {

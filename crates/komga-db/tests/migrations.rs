@@ -1,4 +1,4 @@
-//! Migration integration test: runs all 94 main-database migrations plus the
+//! Migration integration test: runs all 95 main-database migrations plus the
 //! tasks-database migrations, and verifies the history table and final schema.
 
 use komga_db::migrate::{MigrateError, Migrator, Placeholders};
@@ -16,9 +16,9 @@ fn migrate_main(conn: &Connection) -> usize {
 fn fresh_db_applies_all_migrations() {
     let conn = Connection::open_in_memory().unwrap();
     let applied = migrate_main(&conn);
-    assert_eq!(applied, 94, "89 SQL + 5 JDBC migrations");
+    assert_eq!(applied, 95, "90 SQL + 5 JDBC migrations");
 
-    // history table: 94 rows all successful, 5 of them JDBC with NULL checksum
+    // history table: 95 rows all successful, 5 of them JDBC with NULL checksum
     let (total, jdbc, null_checksum): (i64, i64, i64) = conn
         .query_row(
             "SELECT COUNT(*), \
@@ -29,7 +29,7 @@ fn fresh_db_applies_all_migrations() {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .unwrap();
-    assert_eq!(total, 94);
+    assert_eq!(total, 95);
     assert_eq!(jdbc, 5);
     assert_eq!(null_checksum, 5);
 
@@ -111,6 +111,39 @@ fn fresh_db_applies_all_migrations() {
         )
         .unwrap();
     assert_eq!(delete_empty, "1");
+}
+
+#[test]
+fn koreader_hash_migration_clears_existing_hashes() {
+    let conn = Connection::open_in_memory().unwrap();
+    let migrations = main_migrations();
+    let before: Vec<_> = migrations
+        .into_iter()
+        .filter(|migration| {
+            !matches!(migration, komga_db::migrate::Migration::Sql(sql) if sql.file_name == "V20261020111142__recompute_koreader_hash.sql")
+        })
+        .collect();
+    Migrator::new(&before, Placeholders::default())
+        .migrate(&conn)
+        .unwrap();
+    conn.execute_batch(
+        "INSERT INTO LIBRARY (ID, NAME, ROOT) VALUES ('l1', 'l1', 'file:/'); \
+         INSERT INTO SERIES (ID, FILE_LAST_MODIFIED, NAME, URL, LIBRARY_ID) \
+         VALUES ('s1', '2020-01-01 00:00:00.0', 's1', 'file:/s1', 'l1'); \
+         INSERT INTO BOOK (ID, FILE_LAST_MODIFIED, NAME, URL, SERIES_ID, LIBRARY_ID, FILE_HASH_KOREADER) \
+         VALUES ('b1', '2020-01-01 00:00:00.0', 'b1', 'file:/b1', 's1', 'l1', 'stale');",
+    )
+    .unwrap();
+
+    assert_eq!(migrate_main(&conn), 1);
+    let hash: String = conn
+        .query_row(
+            "SELECT FILE_HASH_KOREADER FROM BOOK WHERE ID = 'b1'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(hash, "");
 }
 
 #[test]
