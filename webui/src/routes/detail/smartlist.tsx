@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +37,9 @@ import {
   SERIES_FILTER_GROUPS,
 } from '@/components/filters/types'
 import { SmartListDialog } from '@/components/smartlists/SmartListDialog'
+import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
+import { SeriesSelectionBar } from '@/components/browse/SeriesSelectionBar'
+import { cardSelection, useSelection } from '@/components/selection/useSelection'
 
 const PAGE_SIZE = 48
 
@@ -100,12 +103,19 @@ function SmartListContent({ list, isBook }: { list: SmartListDto; isBook: boolea
     },
   })
 
+  const selection = useSelection()
+  const clearSelection = selection.clear
+  useEffect(() => {
+    clearSelection()
+  }, [filterKey, sortParam, list.id, isBook, clearSelection])
+
   const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = itemsQuery
   const loadMore = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage && !isPlaceholderData) void fetchNextPage()
   }, [hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage])
 
   const items = itemsQuery.data?.pages.flatMap((p) => p.content) ?? []
+  const loadedIds = items.map((item) => item.id)
   const total = itemsQuery.data?.pages[0]?.totalElements
   // edit/delete are owner-or-admin, matching the API; cover uploads stay owner-only there
   const own = isOwner(user, list.ownerId)
@@ -185,6 +195,7 @@ function SmartListContent({ list, isBook }: { list: SmartListDto; isBook: boolea
         sortOptions={isBook ? BOOK_SORT_OPTIONS : SERIES_SORT_OPTIONS}
         sort={sort.current}
         onSortChange={sort.set}
+        selection={selection}
       />
 
       {itemsQuery.isPending ? (
@@ -209,9 +220,14 @@ function SmartListContent({ list, isBook }: { list: SmartListDto; isBook: boolea
           <MediaGrid>
             {items.map((item) =>
               isBook ? (
-                <BookCard key={item.id} book={item as BookDto} showSeries />
+                <BookCard
+                  key={item.id}
+                  book={item as BookDto}
+                  showSeries
+                  selection={cardSelection(selection, item.id, loadedIds)}
+                />
               ) : (
-                <SeriesCard key={item.id} series={item as SeriesDto} />
+                <SeriesCard key={item.id} series={item as SeriesDto} selection={cardSelection(selection, item.id, loadedIds)} />
               ),
             )}
           </MediaGrid>
@@ -224,6 +240,11 @@ function SmartListContent({ list, isBook }: { list: SmartListDto; isBook: boolea
         </>
       )}
 
+      {isBook ? (
+        <BooksSelectionBar selection={selection} loadedIds={loadedIds} />
+      ) : (
+        <SeriesSelectionBar selection={selection} items={items as SeriesDto[]} />
+      )}
       <FilterDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

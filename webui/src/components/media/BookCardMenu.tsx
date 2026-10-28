@@ -5,7 +5,6 @@ import {
   ArrowCounterClockwise,
   ArrowsClockwise,
   Checks,
-  CheckSquare,
   DownloadSimple,
   FileMagnifyingGlass,
   ListPlus,
@@ -27,12 +26,10 @@ interface BookCardMenuProps {
   trigger: ReactNode
   /** leading navigation items; each card links one destination and offers the other here */
   navItem?: ReactNode
-  /** when set, offers entering selection mode with this book */
-  onSelect?: () => void
 }
 
 /** Book actions shared by horizontal and grid cards, plus the dialogs they open. */
-export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuProps) {
+export function BookCardMenu({ book, trigger, navItem }: BookCardMenuProps) {
   const { t } = useTranslation('media')
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -75,11 +72,6 @@ export function BookCardMenu({ book, trigger, navItem, onSelect }: BookCardMenuP
     <>
       <Menu trigger={trigger}>
         {navItem}
-        {onSelect && (
-          <MenuItem onSelect={onSelect}>
-            <CheckSquare className="size-4" /> {t('menu.select')}
-          </MenuItem>
-        )}
         {!completed && (
           <MenuItem onSelect={() => markMutation.mutate(true)}>
             <Checks className="size-4" /> {t('menu.markAsRead')}

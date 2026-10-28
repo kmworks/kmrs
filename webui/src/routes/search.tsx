@@ -20,6 +20,7 @@ import { HorizontalRow } from '@/components/media/HorizontalRow'
 import { MediaGrid } from '@/components/media/MediaGrid'
 import { CollectionCard, ReadListCard, SeriesCard } from '@/components/media/SeriesCard'
 import { cardSelection, useSelection } from '@/components/selection/useSelection'
+import { SelectionModeButton } from '@/components/selection/SelectionModeButton'
 import { SeriesSelectionBar } from '@/components/browse/SeriesSelectionBar'
 import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
 import { libraryScopeCondition } from '@/components/filters/builders'
@@ -74,12 +75,20 @@ export function SearchPage() {
   return (
     <div>
       <HistoryBackButton to="/dashboard" className="mb-2 -ml-2" />
-      <div className="mb-7 overflow-x-auto pb-1">
-        <SegmentedControl<SearchTab>
-          options={TABS.map((value) => ({ value, label: t(`tabs.${value}`) }))}
-          value={tab}
-          onChange={onTabChange}
-        />
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 overflow-x-auto pb-1">
+          <SegmentedControl<SearchTab>
+            options={TABS.map((value) => ({ value, label: t(`tabs.${value}`) }))}
+            value={tab}
+            onChange={onTabChange}
+          />
+        </div>
+        {(tab === 'series' || tab === 'books') && (
+          <SelectionModeButton
+            active={tab === 'series' ? seriesSel.active : booksSel.active}
+            onToggle={tab === 'series' ? seriesSel.toggleActive : booksSel.toggleActive}
+          />
+        )}
       </div>
 
       {!q ? (

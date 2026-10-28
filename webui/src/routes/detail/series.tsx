@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
@@ -70,6 +70,8 @@ import { activeFilterCount, serializeFilters, useBrowseFilters } from '@/compone
 import { serializeSort, useSortState } from '@/components/filters/sort'
 import { buildBookSearch } from '@/components/filters/builders'
 import { BOOK_DETAIL_FILTER_GROUPS, SERIES_BOOK_DEFAULT_SORT, SERIES_BOOK_SORT_OPTIONS } from '@/components/filters/types'
+import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
+import { cardSelection, useSelection } from '@/components/selection/useSelection'
 
 const PAGE_SIZE = 48
 
@@ -184,6 +186,12 @@ export function SeriesDetailPage() {
 
   useDocumentTitle(title || undefined)
 
+  const selection = useSelection()
+  const clearSelection = selection.clear
+  useEffect(() => {
+    clearSelection()
+  }, [filterKey, sortParam, seriesId, clearSelection])
+
   const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = booksQuery
   const loadMore = useCallback(() => {
     // isPlaceholderData means a stale query is shown while filters changed; don't page the old one
@@ -205,6 +213,7 @@ export function SeriesDetailPage() {
   const readTarget = readTargetQuery.data
   const readTargetRoute = readTarget ? readRoute(readTarget) : null
   const books = booksQuery.data?.pages.flatMap((p) => p.content) ?? []
+  const bookIds = books.map((b) => b.id)
   const booksTotal = booksQuery.data?.pages[0]?.totalElements
   const collections = collectionsQuery.data ?? []
   const cover = urls.seriesThumbnail(series.id, bust || undefined)
@@ -411,6 +420,7 @@ export function SeriesDetailPage() {
           sortOptions={SERIES_BOOK_SORT_OPTIONS}
           sort={sort.current}
           onSortChange={sort.set}
+          selection={selection}
         />
         {booksQuery.isPending ? (
           <GridSkeleton count={6} />
@@ -433,7 +443,7 @@ export function SeriesDetailPage() {
           <>
             <MediaGrid>
               {books.map((b) => (
-                <BookCard key={b.id} book={b} />
+                <BookCard key={b.id} book={b} selection={cardSelection(selection, b.id, bookIds)} />
               ))}
             </MediaGrid>
             <Sentinel active={!!hasNextPage && !isPlaceholderData} onIntersect={loadMore} />
@@ -446,6 +456,7 @@ export function SeriesDetailPage() {
         )}
       </section>
 
+      <BooksSelectionBar selection={selection} loadedIds={bookIds} />
       <AddToCollectionDialog
         open={addToCollectionOpen}
         onOpenChange={setAddToCollectionOpen}

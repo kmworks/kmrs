@@ -69,6 +69,7 @@ export function BooksGrid({ libraryId }: { libraryId?: string }) {
         sortOptions={BOOK_SORT_OPTIONS}
         sort={sort.current}
         onSortChange={sort.set}
+        selection={selection}
       />
       {q.isPending ? (
         <GridSkeleton count={18} />

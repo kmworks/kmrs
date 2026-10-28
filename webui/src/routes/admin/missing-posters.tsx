@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ImageBroken, WarningCircle } from '@phosphor-icons/react'
@@ -13,6 +13,9 @@ import { MediaGrid } from '@/components/media/MediaGrid'
 import { BookCard } from '@/components/media/BookCard'
 import { LibraryFilterMenu } from '@/components/admin/LibraryFilterMenu'
 import { Sentinel } from '@/components/filters/Sentinel'
+import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
+import { SelectionModeButton } from '@/components/selection/SelectionModeButton'
+import { cardSelection, useSelection } from '@/components/selection/useSelection'
 
 function searchFor(libraryId: string | null): BookSearch {
   const conditions: SearchCondition[] = [
@@ -27,6 +30,11 @@ function searchFor(libraryId: string | null): BookSearch {
 export function AdminMissingPostersPage() {
   const { t } = useTranslation('admin-maintenance')
   const [libraryId, setLibraryId] = useState<string | null>(null)
+  const selection = useSelection()
+  const clearSelection = selection.clear
+  useEffect(() => {
+    clearSelection()
+  }, [libraryId, clearSelection])
 
   useDocumentTitle(t('layout:nav.missingPosters'))
 
@@ -40,6 +48,7 @@ export function AdminMissingPostersPage() {
   })
 
   const items = q.data?.pages.flatMap((p) => p.content) ?? []
+  const loadedIds = items.map((b) => b.id)
   const total = q.data?.pages[0]?.totalElements
 
   return (
@@ -47,7 +56,12 @@ export function AdminMissingPostersPage() {
       <PageHeader
         title={t('layout:nav.missingPosters')}
         subtitle={t('missingPosters.subtitle')}
-        actions={<LibraryFilterMenu value={libraryId} onChange={setLibraryId} />}
+        actions={
+          <>
+            <LibraryFilterMenu value={libraryId} onChange={setLibraryId} />
+            <SelectionModeButton active={selection.active} onToggle={selection.toggleActive} />
+          </>
+        }
       />
 
       {q.isPending ? (
@@ -70,7 +84,7 @@ export function AdminMissingPostersPage() {
           <p className="mb-4 text-sm text-ink-3">{t('missingPosters.count', { count: total ?? items.length })}</p>
           <MediaGrid>
             {items.map((b) => (
-              <BookCard key={b.id} book={b} showSeries />
+              <BookCard key={b.id} book={b} showSeries selection={cardSelection(selection, b.id, loadedIds)} />
             ))}
           </MediaGrid>
           {q.isFetchingNextPage && (
@@ -88,6 +102,7 @@ export function AdminMissingPostersPage() {
           />
         </>
       )}
+      <BooksSelectionBar selection={selection} loadedIds={loadedIds} />
     </div>
   )
 }

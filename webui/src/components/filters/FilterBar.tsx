@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button'
 import { describeActiveFilters, parseAuthor, parseNotableEntity, type ActiveFilterItem } from './filterUrl'
 import { SortMenu } from './SortMenu'
 import type { AuthorFilter, FilterGroupDef, FilterState, GroupKey, NotableEntityFilter, SortOption, SortState } from './types'
+import { SelectionModeButton } from '@/components/selection/SelectionModeButton'
+import type { Selection } from '@/components/selection/useSelection'
 
 interface FilterBarProps {
   count?: number
@@ -20,6 +22,7 @@ interface FilterBarProps {
   sortOptions: SortOption[]
   sort: SortState
   onSortChange: (s: SortState) => void
+  selection?: Selection
 }
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -51,6 +54,7 @@ export function FilterBar({
   sortOptions,
   sort,
   onSortChange,
+  selection,
 }: FilterBarProps) {
   const { t } = useTranslation('filters')
   // the search box represents q, so the q chip would just duplicate it
@@ -107,6 +111,7 @@ export function FilterBar({
           )}
         </Button>
         <SortMenu options={sortOptions} value={sort} onChange={onSortChange} />
+        {selection && <SelectionModeButton active={selection.active} onToggle={selection.toggleActive} />}
       </div>
     </div>
   )
