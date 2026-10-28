@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -38,6 +38,8 @@ import {
 import { EditCollectionMembers } from '@/components/collections/EditCollectionMembers'
 import { SeriesPickerDialog } from '@/components/collections/SeriesPickerDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
+import { SeriesSelectionBar } from '@/components/browse/SeriesSelectionBar'
+import { cardSelection, useSelection } from '@/components/selection/useSelection'
 
 const PAGE_SIZE = 48
 
@@ -151,6 +153,12 @@ export function CollectionDetailPage() {
 
   useDocumentTitle(collection?.name)
 
+  const selection = useSelection()
+  const clearSelection = selection.clear
+  useEffect(() => {
+    clearSelection()
+  }, [filterKey, sortParam, collectionId, editing, clearSelection])
+
   const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = seriesQuery
   const loadMore = useCallback(() => {
     // isPlaceholderData means a stale query is shown while filters changed; don't page the old one
@@ -176,6 +184,7 @@ export function CollectionDetailPage() {
   if (!collection) return null
 
   const allSeries = seriesQuery.data?.pages.flatMap((p) => p.content) ?? []
+  const loadedIds = allSeries.map((s) => s.id)
   const seriesTotal = seriesQuery.data?.pages[0]?.totalElements
   // positions only match the badges when viewing the manual order top to bottom
   const showOrder = collection.ordered && sort.current.property === 'collection.number' && sort.current.direction === 'asc'
@@ -237,6 +246,7 @@ export function CollectionDetailPage() {
             sortOptions={COLLECTION_SERIES_SORT_OPTIONS}
             sort={sort.current}
             onSortChange={sort.set}
+            selection={selection}
           />
 
           {seriesQuery.isPending ? (
@@ -261,7 +271,7 @@ export function CollectionDetailPage() {
               <MediaGrid>
                 {allSeries.map((s, i) => (
                   <div key={s.id} className="relative">
-                    <SeriesCard series={s} />
+                    <SeriesCard series={s} selection={cardSelection(selection, s.id, loadedIds)} />
                     {showOrder && <OrderBadge index={i + 1} />}
                   </div>
                 ))}
@@ -277,6 +287,7 @@ export function CollectionDetailPage() {
         </>
       )}
 
+      <SeriesSelectionBar selection={selection} items={allSeries} />
       <FilterDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

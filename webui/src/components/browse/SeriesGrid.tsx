@@ -86,6 +86,7 @@ export function SeriesGrid({ libraryId }: { libraryId?: string }) {
         sortOptions={SERIES_SORT_OPTIONS}
         sort={sort.current}
         onSortChange={sort.set}
+        selection={selection}
       />
       <AlphabetBar
         groups={alphaQuery.data}

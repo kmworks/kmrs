@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import type { BatchRunState } from '@/components/selection/useBatchRun'
 
 interface SelectionBarProps {
+  active: boolean
   count: number
   /** items currently loaded; caps "Select all" */
   loaded: number
@@ -16,15 +17,15 @@ interface SelectionBarProps {
   children: ReactNode
 }
 
-/** Floating batch-action bar pinned to the bottom of the viewport while a selection exists. */
-export function SelectionBar({ count, loaded, state, onSelectAll, onClear, onDismiss, children }: SelectionBarProps) {
+/** Floating batch-action bar pinned to the bottom of the viewport in selection mode. */
+export function SelectionBar({ active, count, loaded, state, onSelectAll, onClear, onDismiss, children }: SelectionBarProps) {
   const { t } = useTranslation('browse')
   const reduce = useReducedMotion()
   const busy = state.status === 'running'
 
   return (
     <AnimatePresence>
-      {count > 0 && (
+      {active && (
         <motion.div
           className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-10 flex justify-center px-4"
           initial={reduce ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.97 }}

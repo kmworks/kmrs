@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowCounterClockwise, ArrowsClockwise, Checks, CheckSquare, FileMagnifyingGlass, FolderPlus, PencilSimple, Sparkle, Trash } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowsClockwise, Checks, FileMagnifyingGlass, FolderPlus, PencilSimple, Sparkle, Trash } from '@phosphor-icons/react'
 import type { SeriesDto } from '@/lib/api/types'
 import { seriesApi } from '@/lib/api/series'
 import { isAdmin, useAuthStore } from '@/lib/store/auth'
@@ -14,7 +14,7 @@ import { KomfIdentifyDialog } from '@/components/metadata/KomfIdentifyDialog'
 import { showToast } from '@/lib/store/toast'
 
 /** Series actions for grid cards, plus the dialogs they open. */
-export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDto; trigger: ReactNode; onSelect?: () => void }) {
+export function SeriesCardMenu({ series, trigger }: { series: SeriesDto; trigger: ReactNode }) {
   const { t } = useTranslation('media')
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -58,11 +58,6 @@ export function SeriesCardMenu({ series, trigger, onSelect }: { series: SeriesDt
   return (
     <>
       <Menu trigger={trigger}>
-        {onSelect && (
-          <MenuItem onSelect={onSelect}>
-            <CheckSquare className="size-4" /> {t('menu.select')}
-          </MenuItem>
-        )}
         <MenuItem onSelect={() => markMutation.mutate(hasUnread)}>
           {hasUnread ? <Checks className="size-4" /> : <ArrowCounterClockwise className="size-4" />}
           {hasUnread ? t('menu.markAsRead') : t('menu.markAsUnread')}

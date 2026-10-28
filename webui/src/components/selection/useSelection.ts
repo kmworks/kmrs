@@ -4,8 +4,9 @@ export interface Selection {
   /** selected ids, in insertion order */
   ids: string[]
   size: number
-  /** true once at least one item is selected; drives card-wide toggle behavior */
+  /** selection mode is on, independently of the number of selected items */
   active: boolean
+  toggleActive: () => void
   has: (id: string) => boolean
   toggle: (id: string) => void
   /** shift-click: applies to the inclusive range between the last toggled id and `id` within
@@ -17,6 +18,7 @@ export interface Selection {
 
 export function useSelection(): Selection {
   const [ids, setIds] = useState<string[]>([])
+  const [active, setActive] = useState(false)
   const anchorRef = useRef<string | null>(null)
 
   const toggle = useCallback((id: string) => {
@@ -47,16 +49,20 @@ export function useSelection(): Selection {
     anchorRef.current = null
     setIds(all)
   }, [])
-  // keep the same state when already empty so filter-change effects don't re-render
   const clear = useCallback(() => {
     anchorRef.current = null
+    setActive(false)
     setIds((prev) => (prev.length ? [] : prev))
   }, [])
+  const toggleActive = useCallback(() => {
+    if (active) clear()
+    else setActive(true)
+  }, [active, clear])
   const has = useCallback((id: string) => ids.includes(id), [ids])
 
   return useMemo(
-    () => ({ ids, size: ids.length, active: ids.length > 0, has, toggle, toggleRange, selectAll, clear }),
-    [ids, has, toggle, toggleRange, selectAll, clear],
+    () => ({ ids, size: ids.length, active, toggleActive, has, toggle, toggleRange, selectAll, clear }),
+    [ids, active, toggleActive, has, toggle, toggleRange, selectAll, clear],
   )
 }
 

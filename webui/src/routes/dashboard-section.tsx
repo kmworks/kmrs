@@ -1,10 +1,11 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Books, WarningCircle } from '@phosphor-icons/react'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { usePinnedLibraries } from '@/lib/store/clientSettings'
+import type { SeriesDto } from '@/lib/api/types'
 import { BackButton } from '@/components/ui/BackButton'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -16,6 +17,10 @@ import { DASHBOARD_SECTIONS, type DashboardSectionKey } from '@/components/dashb
 import { dashboardLibraryIds, dashboardScope } from '@/components/dashboard/sectionConfig'
 import { PinnedLibrariesEmpty } from '@/components/dashboard/PinnedLibrariesEmpty'
 import { PinLibrariesDialog } from '@/components/layout/PinLibrariesDialog'
+import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
+import { SeriesSelectionBar } from '@/components/browse/SeriesSelectionBar'
+import { SelectionModeButton } from '@/components/selection/SelectionModeButton'
+import { cardSelection, useSelection } from '@/components/selection/useSelection'
 
 export function DashboardSectionPage() {
   const { t } = useTranslation('dashboard')
@@ -31,6 +36,11 @@ export function DashboardSectionPage() {
   const scope = dashboardScope(libraryId, pinned)
   const pinnedEmpty = !libraryId && pinned !== undefined && pinned.length === 0
   const [pinDialogOpen, setPinDialogOpen] = useState(false)
+  const selection = useSelection()
+  const clearSelection = selection.clear
+  useEffect(() => {
+    clearSelection()
+  }, [sectionKey, scope, clearSelection])
 
   useDocumentTitle(section ? t(section.titleKey) : undefined)
 
@@ -49,6 +59,7 @@ export function DashboardSectionPage() {
   if (!section) return <Navigate to={homeTo} replace />
 
   const items = query.data?.pages.flatMap((p) => p.content) ?? []
+  const loadedIds = items.map((item) => item.id)
   const total = query.data?.pages[0]?.totalElements
 
   return (
@@ -57,6 +68,7 @@ export function DashboardSectionPage() {
       <PageHeader
         title={t(section.titleKey)}
         subtitle={total != null ? t(section.kind === 'book' ? 'bookCount' : 'seriesCount', { count: total }) : undefined}
+        actions={<SelectionModeButton active={selection.active} onToggle={selection.toggleActive} />}
       />
       {pinnedEmpty ? (
         <PinnedLibrariesEmpty onManage={() => setPinDialogOpen(true)} />
@@ -75,7 +87,7 @@ export function DashboardSectionPage() {
         <>
           <MediaGrid>
             {items.map((item) => (
-              <Fragment key={item.id}>{section.renderGrid(item)}</Fragment>
+              <Fragment key={item.id}>{section.renderGrid(item, cardSelection(selection, item.id, loadedIds))}</Fragment>
             ))}
           </MediaGrid>
           <Sentinel
@@ -85,6 +97,11 @@ export function DashboardSectionPage() {
             }}
           />
         </>
+      )}
+      {section.kind === 'book' ? (
+        <BooksSelectionBar selection={selection} loadedIds={loadedIds} />
+      ) : (
+        <SeriesSelectionBar selection={selection} items={items as SeriesDto[]} />
       )}
       <PinLibrariesDialog open={pinDialogOpen} onOpenChange={setPinDialogOpen} />
     </div>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +35,8 @@ import { BOOK_DETAIL_FILTER_GROUPS, READLIST_BOOK_SORT_OPTIONS, READLIST_DATE_SO
 import { EditReadListBooks } from '@/components/readlists/EditReadListBooks'
 import { BookPickerDialog } from '@/components/readlists/BookPickerDialog'
 import { PosterManager } from '@/components/metadata/PosterManager'
+import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
+import { cardSelection, useSelection } from '@/components/selection/useSelection'
 
 const PAGE_SIZE = 48
 
@@ -172,6 +174,12 @@ export function ReadListDetailPage() {
 
   useDocumentTitle(readlist?.name)
 
+  const selection = useSelection()
+  const clearSelection = selection.clear
+  useEffect(() => {
+    clearSelection()
+  }, [filterKey, sortParam, readListId, editing, clearSelection])
+
   const { hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage } = booksQuery
   const loadMore = useCallback(() => {
     // isPlaceholderData means a stale query is shown while filters changed; don't page the old one
@@ -193,6 +201,7 @@ export function ReadListDetailPage() {
   if (!readlist) return null
 
   const books = booksQuery.data?.pages.flatMap((p) => p.content) ?? []
+  const bookIds = books.map((b) => b.id)
   const booksTotal = booksQuery.data?.pages[0]?.totalElements
   const continueTarget = continueQuery.data
   const continueRoute = continueTarget ? readRoute(continueTarget) : null
@@ -286,6 +295,7 @@ export function ReadListDetailPage() {
             sortOptions={READLIST_BOOK_SORT_OPTIONS}
             sort={sort.current}
             onSortChange={sort.set}
+            selection={selection}
           />
 
           {booksQuery.isPending ? (
@@ -310,7 +320,7 @@ export function ReadListDetailPage() {
               <MediaGrid>
                 {books.map((b, i) => (
                   <div key={b.id} className="relative">
-                    <BookCard book={b} showSeries />
+                    <BookCard book={b} showSeries selection={cardSelection(selection, b.id, bookIds)} />
                     {showOrder && <OrderBadge index={i + 1} />}
                   </div>
                 ))}
@@ -326,6 +336,7 @@ export function ReadListDetailPage() {
         </>
       )}
 
+      <BooksSelectionBar selection={selection} loadedIds={bookIds} />
       <FilterDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

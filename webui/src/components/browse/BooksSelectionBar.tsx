@@ -34,8 +34,11 @@ export function BooksSelectionBar({ selection, loadedIds }: BooksSelectionBarPro
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['books'] })
     queryClient.invalidateQueries({ queryKey: ['series'] })
-    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['collections'] })
     queryClient.invalidateQueries({ queryKey: ['readlists'] })
+    queryClient.invalidateQueries({ queryKey: ['smart-lists'] })
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['admin', 'missing-posters'] })
   }
 
   // after a successful run the bar lingers briefly so the result message reads, then the selection clears
@@ -70,6 +73,7 @@ export function BooksSelectionBar({ selection, loadedIds }: BooksSelectionBarPro
   return (
     <>
       <SelectionBar
+        active={selection.active}
         count={selection.size}
         loaded={loadedIds.length}
         state={state}
@@ -80,17 +84,17 @@ export function BooksSelectionBar({ selection, loadedIds }: BooksSelectionBarPro
         }}
         onDismiss={reset}
       >
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => mark(true)}>
+        <Button variant="ghost" size="sm" disabled={busy || selection.size === 0} onClick={() => mark(true)}>
           <Checks className="size-4" />
           {t('selection.markRead')}
         </Button>
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => mark(false)}>
+        <Button variant="ghost" size="sm" disabled={busy || selection.size === 0} onClick={() => mark(false)}>
           {t('selection.markUnread')}
         </Button>
         <Menu
           side="top"
           trigger={
-            <IconButton label={t('selection.moreActions')} className="size-8">
+            <IconButton label={t('selection.moreActions')} className="size-8" disabled={busy || selection.size === 0}>
               <DotsThreeVertical className="size-4.5" />
             </IconButton>
           }

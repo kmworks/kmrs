@@ -3,6 +3,7 @@ import { booksApi } from '@/lib/api/books'
 import { seriesApi } from '@/lib/api/series'
 import type { BookDto, Page, SearchCondition, SeriesDto } from '@/lib/api/types'
 import { BookCard } from '@/components/media/BookCard'
+import type { CardSelection } from '@/components/selection/useSelection'
 import { KeepReadingCard } from '@/components/media/KeepReadingCard'
 import { SeriesCard } from '@/components/media/SeriesCard'
 import { HorizontalCardSkeleton } from '@/components/ui/Skeleton'
@@ -17,7 +18,7 @@ export interface DashboardSectionDef {
   /** libraryIds undefined aggregates every library; callers must not pass an empty array */
   fetchPage: (libraryIds: string[] | undefined, page: number) => Promise<Page<BookDto | SeriesDto>>
   renderRow: (item: BookDto | SeriesDto) => ReactNode
-  renderGrid: (item: BookDto | SeriesDto) => ReactNode
+  renderGrid: (item: BookDto | SeriesDto, selection: CardSelection) => ReactNode
   /** pending placeholder for the row; defaults to grid card skeletons */
   renderSkeleton?: () => ReactNode
 }
@@ -26,7 +27,7 @@ interface BookSectionDef {
   titleKey: string
   fetchPage: (libraryIds: string[] | undefined, page: number) => Promise<Page<BookDto>>
   renderRow: (book: BookDto) => ReactNode
-  renderGrid: (book: BookDto) => ReactNode
+  renderGrid: (book: BookDto, selection: CardSelection) => ReactNode
   renderSkeleton?: () => ReactNode
 }
 
@@ -34,7 +35,7 @@ interface SeriesSectionDef {
   titleKey: string
   fetchPage: (libraryIds: string[] | undefined, page: number) => Promise<Page<SeriesDto>>
   renderRow: (series: SeriesDto) => ReactNode
-  renderGrid: (series: SeriesDto) => ReactNode
+  renderGrid: (series: SeriesDto, selection: CardSelection) => ReactNode
 }
 
 // per-kind defs keep card props typed; the record erases to the union for shared consumption
@@ -55,9 +56,9 @@ function oneMonthAgo(): string {
 }
 
 const bookRow = (b: BookDto) => <BookRowCard book={b} />
-const bookGrid = (b: BookDto) => <BookCard book={b} showSeries />
+const bookGrid = (b: BookDto, selection: CardSelection) => <BookCard book={b} showSeries selection={selection} />
 const seriesRow = (s: SeriesDto) => <SeriesRowCard series={s} />
-const seriesGrid = (s: SeriesDto) => <SeriesCard series={s} />
+const seriesGrid = (s: SeriesDto, selection: CardSelection) => <SeriesCard series={s} selection={selection} />
 
 export const DASHBOARD_SECTIONS = {
   'keep-reading': bookSection({

@@ -97,7 +97,6 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
                 )}
               </>
             }
-            onSelect={selection ? () => selection.onToggle() : undefined}
             trigger={<CardMenuButton aria-label={t('card.actionsFor', { title })} />}
           />
         )
