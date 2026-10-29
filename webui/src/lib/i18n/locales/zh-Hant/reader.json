@@ -60,7 +60,8 @@
     "animations": "翻頁動畫",
     "alwaysFullscreen": "一律全螢幕",
     "sidePadding": "側邊留白",
-    "pageGap": "頁面間距"
+    "pageGap": "頁面間距",
+    "splitWide": "切割寬頁面"
   },
   "scale": {
     "screen": "符合螢幕",

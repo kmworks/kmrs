@@ -60,7 +60,8 @@
     "animations": "페이지 넘김 애니메이션",
     "alwaysFullscreen": "항상 전체 화면",
     "sidePadding": "좌우 여백",
-    "pageGap": "페이지 간격"
+    "pageGap": "페이지 간격",
+    "splitWide": "넓은 페이지 분할"
   },
   "scale": {
     "screen": "화면에 맞춤",

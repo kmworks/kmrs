@@ -60,7 +60,8 @@
     "animations": "翻页动画",
     "alwaysFullscreen": "始终全屏",
     "sidePadding": "左右边距",
-    "pageGap": "页面间距"
+    "pageGap": "页面间距",
+    "splitWide": "切割宽页面"
   },
   "scale": {
     "screen": "适应屏幕",

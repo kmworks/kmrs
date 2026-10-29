@@ -60,7 +60,8 @@
     "animations": "Blätteranimation",
     "alwaysFullscreen": "Immer Vollbild",
     "sidePadding": "Seitenrand",
-    "pageGap": "Seitenabstand"
+    "pageGap": "Seitenabstand",
+    "splitWide": "Breite Seiten teilen"
   },
   "scale": {
     "screen": "An Bildschirm anpassen",

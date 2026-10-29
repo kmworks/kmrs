@@ -60,7 +60,8 @@
     "animations": "Page turn animation",
     "alwaysFullscreen": "Always fullscreen",
     "sidePadding": "Side padding",
-    "pageGap": "Page gap"
+    "pageGap": "Page gap",
+    "splitWide": "Split wide pages"
   },
   "scale": {
     "screen": "Fit screen",

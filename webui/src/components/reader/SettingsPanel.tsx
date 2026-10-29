@@ -66,6 +66,7 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const scale = useReaderSettings((s) => s.scale)
   const pageLayout = useReaderSettings((s) => s.pageLayout)
+  const splitWide = useReaderSettings((s) => s.splitWide)
   const continuousScale = useReaderSettings((s) => s.continuousScale)
   const continuousPadding = useReaderSettings((s) => s.continuousPadding)
   const continuousMargin = useReaderSettings((s) => s.continuousMargin)
@@ -156,12 +157,21 @@ export function SettingsPanel({
 
               {!webtoon && (
                 <Section title={t('panel.layout')}>
-                  <SegmentedControl
-                    options={layoutOptions}
-                    value={pageLayout}
-                    onChange={(v) => update({ pageLayout: v })}
-                    size="sm"
-                  />
+                  <div className="space-y-3">
+                    <SegmentedControl
+                      options={layoutOptions}
+                      value={pageLayout}
+                      onChange={(v) => update({ pageLayout: v })}
+                      size="sm"
+                    />
+                    <Row label={t('panel.splitWide')}>
+                      <Switch
+                        checked={splitWide}
+                        onCheckedChange={(v) => update({ splitWide: v })}
+                        label={t('panel.splitWide')}
+                      />
+                    </Row>
+                  </div>
                 </Section>
               )}
 

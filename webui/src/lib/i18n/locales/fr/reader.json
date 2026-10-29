@@ -60,7 +60,8 @@
     "animations": "Animation de tour de page",
     "alwaysFullscreen": "Toujours en plein écran",
     "sidePadding": "Marge latérale",
-    "pageGap": "Écart entre pages"
+    "pageGap": "Écart entre pages",
+    "splitWide": "Découper les pages larges"
   },
   "scale": {
     "screen": "Ajuster à l'écran",

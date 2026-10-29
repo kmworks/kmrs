@@ -60,7 +60,8 @@
     "animations": "ページめくりアニメーション",
     "alwaysFullscreen": "常に全画面",
     "sidePadding": "左右の余白",
-    "pageGap": "ページ間隔"
+    "pageGap": "ページ間隔",
+    "splitWide": "見開きページを分割"
   },
   "scale": {
     "screen": "画面に合わせる",
