@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CircleNotch, DotsThreeVertical, Image, ListChecks, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
@@ -11,6 +11,7 @@ import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { useChanged } from '@/lib/hooks/useChanged'
 import { Button } from '@/components/ui/Button'
 import { BackButton } from '@/components/ui/BackButton'
+import { useGoBack } from '@/lib/hooks/useGoBack'
 import { Dialog } from '@/components/ui/Dialog'
 import { IconButton } from '@/components/ui/IconButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
@@ -95,7 +96,7 @@ function RenameCollectionDialog({
 export function CollectionDetailPage() {
   const { t } = useTranslation('detail')
   const { collectionId = '' } = useParams()
-  const navigate = useNavigate()
+  const goBack = useGoBack()
   const queryClient = useQueryClient()
   const admin = isAdmin(useAuthStore((s) => s.user))
   const [editing, setEditing] = useState(false)
@@ -138,7 +139,7 @@ export function CollectionDetailPage() {
     mutationFn: () => collectionsApi.delete(collectionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collections'] })
-      navigate('/collections')
+      goBack('/collections')
     },
   })
 

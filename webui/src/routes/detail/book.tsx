@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { BackButton } from '@/components/ui/BackButton'
+import { useGoBack } from '@/lib/hooks/useGoBack'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
 import { ClampedText } from '@/components/ui/ClampedText'
 import { CoverImage } from '@/components/media/CoverImage'
@@ -67,6 +68,7 @@ export function BookDetailPage() {
   const { t, i18n } = useTranslation('detail')
   const { bookId = '' } = useParams()
   const navigate = useNavigate()
+  const goBack = useGoBack()
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const bust = useBust(bookId)
@@ -123,8 +125,7 @@ export function BookDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['books'] })
       queryClient.invalidateQueries({ queryKey: ['series'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      if (book?.oneshot) navigate('/series')
-      else navigate(`/series/${book?.seriesId ?? ''}`)
+      goBack(book?.oneshot ? '/series' : `/series/${book?.seriesId ?? ''}`)
     },
     onError: (e) => showToast(e instanceof Error ? e.message : t('toast.deleteFileFailed')),
   })
