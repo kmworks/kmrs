@@ -803,6 +803,7 @@ mod tests {
                     description: None,
                     tracked: true,
                     media_type: None,
+                    series: false,
                     url: None,
                 }])
             }

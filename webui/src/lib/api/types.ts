@@ -957,6 +957,8 @@ export interface TrackerSearchItem {
   tracked: boolean
   /** manga/novel distinction when the platform provides it */
   mediaType?: 'manga' | 'novel'
+  /** the entry groups a whole series rather than one volume */
+  series: boolean
   url?: string
 }
 

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowSquareOut, BookOpen, Plus } from '@phosphor-icons/react'
 import { trackerEntryUrl, trackerLinkKeys, trackersApi, trackerUrlsFromMetadata } from '@/lib/api/trackers'
 import { ApiError } from '@/lib/api/client'
-import type { KomfOAuthProvider, TrackerLink, TrackerLinkRef, TrackerState } from '@/lib/api/types'
+import type { KomfOAuthProvider, TrackerLink, TrackerLinkRef, TrackerSearchItem, TrackerState } from '@/lib/api/types'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { TextField } from '@/components/ui/TextField'
@@ -286,7 +286,7 @@ function ResultRow({
   binding,
   onBind,
 }: {
-  item: { id: string; title: string; coverUrl?: string; tracked: boolean; mediaType?: 'manga' | 'novel' }
+  item: Pick<TrackerSearchItem, 'id' | 'title' | 'coverUrl' | 'tracked' | 'mediaType' | 'series'>
   binding: boolean
   onBind: () => void
 }) {
@@ -302,11 +302,11 @@ function ResultRow({
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-ink">{item.title}</p>
-        {(item.mediaType || item.tracked) && (
+        {(item.mediaType || item.series || item.tracked) && (
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs">
-            {item.mediaType && (
+            {(item.mediaType || item.series) && (
               <span className="rounded bg-raised px-1.5 py-0.5 text-[11px] font-medium text-ink-3">
-                {t(`mediaType.${item.mediaType}`)}
+                {item.series ? t(`mediaTypeSeries.${item.mediaType ?? 'other'}`) : t(`mediaType.${item.mediaType}`)}
               </span>
             )}
             {item.tracked && (

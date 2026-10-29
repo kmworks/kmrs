@@ -40,6 +40,11 @@
     "manga": "Manga",
     "novel": "Novel"
   },
+  "mediaTypeSeries": {
+    "manga": "Manga series",
+    "novel": "Novel series",
+    "other": "Series"
+  },
   "bindDialog": {
     "title": "Link a tracker entry",
     "selectProvider": "Select a platform to search",
