@@ -191,7 +191,15 @@ function Reader({ bookId }: { bookId: string }) {
   }, [page, context, contextId, incognito, setSearchParams])
 
   useEffect(() => {
-    if (page === null || incognito || deferLastPageProgress) return
+    if (page === null || incognito) return
+    if (deferLastPageProgress) {
+      // a final page measured as wide after landing may already have a save queued
+      if (pendingPage.current === page) {
+        window.clearTimeout(progressTimer.current)
+        pendingPage.current = null
+      }
+      return
+    }
     pendingPage.current = page
     window.clearTimeout(progressTimer.current)
     progressTimer.current = window.setTimeout(() => {
