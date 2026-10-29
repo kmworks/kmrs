@@ -40,6 +40,11 @@
     "manga": "漫畫",
     "novel": "小說"
   },
+  "mediaTypeSeries": {
+    "manga": "漫畫系列",
+    "novel": "小說系列",
+    "other": "系列"
+  },
   "bindDialog": {
     "title": "關聯追蹤條目",
     "selectProvider": "請先選擇要關聯的平台",

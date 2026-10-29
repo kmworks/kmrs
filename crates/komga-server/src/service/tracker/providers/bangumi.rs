@@ -34,6 +34,8 @@ struct Subject {
     #[serde(default)]
     platform: Option<SubjectPlatform>,
     #[serde(default)]
+    series: bool,
+    #[serde(default)]
     eps: Option<i32>,
     #[serde(default)]
     volumes: Option<i32>,
@@ -277,6 +279,7 @@ impl BangumiTracker {
             description: subject.summary.or(subject.info),
             tracked,
             media_type,
+            series: subject.series,
             url: Some(format!("{SITE_ORIGIN}/subject/{}", subject.id)),
         }
     }
@@ -595,6 +598,7 @@ mod tests {
                 let mut manga = slim_subject(101, "Book");
                 manga["nameCN"] = json!("书籍");
                 manga["interest"] = json!({"type": 3, "rate": 8});
+                manga["series"] = json!(true);
                 let mut novel = slim_subject(102, "Novel");
                 novel["platform"]["typeCN"] = json!("轻小说");
                 (StatusCode::OK, json!({"data": [manga, novel], "total": 2}))
@@ -612,9 +616,11 @@ mod tests {
         assert_eq!(results[0].title, "书籍");
         assert!(results[0].tracked);
         assert_eq!(results[0].media_type, Some(TrackMediaType::Manga));
+        assert!(results[0].series);
         assert_eq!(results[0].description.as_deref(), Some("Info 101"));
         assert_eq!(results[1].id, "102");
         assert!(!results[1].tracked);
+        assert!(!results[1].series);
         assert_eq!(results[1].media_type, Some(TrackMediaType::Novel));
         assert_eq!(results[1].description.as_deref(), Some("Info 102"));
         let requests = mock.requests();

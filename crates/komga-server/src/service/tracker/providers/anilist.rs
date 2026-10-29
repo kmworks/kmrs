@@ -336,6 +336,7 @@ impl AniListTracker {
                 .get("mediaListEntry")
                 .is_some_and(|entry| !entry.is_null()),
             media_type,
+            series: false,
             url: Some(format!("https://anilist.co/manga/{id}")),
         })
     }

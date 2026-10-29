@@ -391,6 +391,7 @@ impl MangaBakaTracker {
             description: series.description.clone(),
             tracked,
             media_type,
+            series: false,
             url: Some(format!("{SITE_ORIGIN}/{}", series.id)),
         }
     }
