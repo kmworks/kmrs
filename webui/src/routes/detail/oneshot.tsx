@@ -37,6 +37,7 @@ import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { BackButton } from '@/components/ui/BackButton'
+import { useGoBack } from '@/lib/hooks/useGoBack'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
 import { ClampedText } from '@/components/ui/ClampedText'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -78,6 +79,7 @@ export function OneshotDetailPage() {
   const { t, i18n } = useTranslation('detail')
   const { seriesId = '' } = useParams()
   const navigate = useNavigate()
+  const goBack = useGoBack()
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const rowCardWidth = useDensityCardWidth()
@@ -162,7 +164,7 @@ export function OneshotDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['books'] })
       queryClient.invalidateQueries({ queryKey: ['series'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      navigate('/series')
+      goBack('/series')
     },
     onError: (e) => showToast(e instanceof Error ? e.message : t('toast.deleteFileFailed')),
   })

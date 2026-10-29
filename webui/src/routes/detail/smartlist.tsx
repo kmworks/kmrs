@@ -10,6 +10,7 @@ import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { readRoute } from '@/lib/utils/nav'
 import { Button } from '@/components/ui/Button'
 import { BackButton } from '@/components/ui/BackButton'
+import { useGoBack } from '@/lib/hooks/useGoBack'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { IconButton } from '@/components/ui/IconButton'
 import { Menu, MenuItem, MenuSeparator } from '@/components/ui/Menu'
@@ -48,6 +49,7 @@ function SmartListContent({ list, isBook }: { list: SmartListDto; isBook: boolea
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
+  const goBack = useGoBack()
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [postersOpen, setPostersOpen] = useState(false)
@@ -99,7 +101,7 @@ function SmartListContent({ list, isBook }: { list: SmartListDto; isBook: boolea
     mutationFn: () => smartListsApi.delete(list.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smart-lists'] })
-      navigate('/smart-lists')
+      goBack('/smart-lists')
     },
   })
 

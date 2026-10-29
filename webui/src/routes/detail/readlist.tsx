@@ -12,6 +12,7 @@ import { useChanged } from '@/lib/hooks/useChanged'
 import { readRoute } from '@/lib/utils/nav'
 import { Button } from '@/components/ui/Button'
 import { BackButton } from '@/components/ui/BackButton'
+import { useGoBack } from '@/lib/hooks/useGoBack'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { Dialog } from '@/components/ui/Dialog'
 import { IconButton } from '@/components/ui/IconButton'
@@ -109,6 +110,7 @@ export function ReadListDetailPage() {
   const { t } = useTranslation('detail')
   const { readListId = '' } = useParams()
   const navigate = useNavigate()
+  const goBack = useGoBack()
   const queryClient = useQueryClient()
   const admin = isAdmin(useAuthStore((s) => s.user))
   const [editing, setEditing] = useState(false)
@@ -160,7 +162,7 @@ export function ReadListDetailPage() {
     mutationFn: () => readlistsApi.delete(readListId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['readlists'] })
-      navigate('/readlists')
+      goBack('/readlists')
     },
   })
 
