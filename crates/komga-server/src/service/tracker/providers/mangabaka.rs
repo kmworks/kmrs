@@ -1,4 +1,4 @@
-use super::parse_tracker_url;
+use super::{parse_tracker_url, search_info};
 use crate::service::tracker::oauth::OAuthManager;
 use crate::service::tracker::{Provider, TrackerError, TrackerService};
 use komga_core::tracker::{RemoteState, TrackMediaType, TrackSearchItem, TrackStatus, TrackUpdate};
@@ -38,6 +38,10 @@ struct Series {
     cover: Cover,
     #[serde(default)]
     description: Option<String>,
+    #[serde(default)]
+    year: Option<i64>,
+    #[serde(default)]
+    authors: Option<Vec<String>>,
     #[serde(default)]
     status: String,
     #[serde(default, rename = "type")]
@@ -388,6 +392,7 @@ impl MangaBakaTracker {
                         .as_ref()
                         .and_then(|cover| cover.url.clone())
                 }),
+            info: search_info(series.year, series.authors.iter().flatten().cloned()),
             description: series.description.clone(),
             tracked,
             media_type,
@@ -689,6 +694,8 @@ mod tests {
                 "x350": {"x1": format!("https://img.test/{id}.jpg")}
             },
             "description": format!("Description {id}"),
+            "year": 1989,
+            "authors": if id == 8 { Value::Null } else { json!(["MIURA Kentaro", "MORI Kouji"]) },
             "status": "completed",
             "type": if id == 8 { "novel" } else { "manga" },
             "total_chapters": "20",
@@ -721,6 +728,11 @@ mod tests {
         );
         assert_eq!(results[0].media_type, Some(TrackMediaType::Manga));
         assert_eq!(results[0].url.as_deref(), Some("https://mangabaka.org/7"));
+        assert_eq!(
+            results[0].info.as_deref(),
+            Some("1989 / MIURA Kentaro / MORI Kouji")
+        );
+        assert_eq!(results[1].info.as_deref(), Some("1989"));
         assert!(!results[1].tracked);
         assert_eq!(results[1].media_type, Some(TrackMediaType::Novel));
         let requests = mock.requests();

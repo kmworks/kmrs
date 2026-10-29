@@ -800,6 +800,7 @@ mod tests {
                     id: user_id.to_string(),
                     title: query.to_string(),
                     cover_url: None,
+                    info: None,
                     description: None,
                     tracked: true,
                     media_type: None,

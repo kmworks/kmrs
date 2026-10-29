@@ -1,13 +1,12 @@
 use super::super::oauth::OAuthManager;
 use super::super::{Provider, TrackerError, TrackerService};
-use super::parse_tracker_url;
+use super::{parse_tracker_url, search_info};
 use komga_core::tracker::{RemoteState, TrackMediaType, TrackSearchItem, TrackStatus, TrackUpdate};
 use serde_json::Value;
 use std::sync::Arc;
 
 const BASE_URL: &str = "https://api.myanimelist.net/v2";
-const SEARCH_FIELDS: &str =
-    "id,title,synopsis,num_chapters,main_picture,status,media_type,my_list_status";
+const SEARCH_FIELDS: &str = "id,title,synopsis,num_chapters,main_picture,status,media_type,my_list_status,start_date,authors{first_name,last_name}";
 const SEARCH_LIMIT: usize = 20;
 
 pub struct MalTracker {
@@ -173,6 +172,21 @@ impl MalTracker {
                 .and_then(|picture| picture.get("large"))
                 .and_then(Value::as_str)
                 .map(str::to_string),
+            info: search_info(
+                detail("start_date")
+                    .and_then(Value::as_str)
+                    .and_then(|date| date.get(..4))
+                    .and_then(|year| year.parse().ok()),
+                detail("authors")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|author| author.get("node"))
+                    .map(|person| {
+                        let name = |key| person.get(key).and_then(Value::as_str).unwrap_or("");
+                        format!("{} {}", name("first_name"), name("last_name"))
+                    }),
+            ),
             description: detail("synopsis")
                 .and_then(Value::as_str)
                 .map(str::to_string),
@@ -395,6 +409,8 @@ mod tests {
                         "id": 1,
                         "title": "Detail One",
                         "synopsis": "First synopsis",
+                        "start_date": "1989-08-25",
+                        "authors": [{"node": {"id": 1868, "first_name": "Kentarou", "last_name": "Miura"}, "role": "Story & Art"}],
                         "main_picture": {"large": "https://img.example/one.jpg"},
                         "media_type": "light_novel",
                         "my_list_status": {"status": "reading"}
@@ -502,6 +518,7 @@ mod tests {
         assert_eq!(items[0].id, "1");
         assert_eq!(items[0].title, "Detail One");
         assert_eq!(items[0].description.as_deref(), Some("First synopsis"));
+        assert_eq!(items[0].info.as_deref(), Some("1989 / Kentarou Miura"));
         assert_eq!(
             items[0].cover_url.as_deref(),
             Some("https://img.example/one.jpg")
