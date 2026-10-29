@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import type { ReadingDirection } from '@/lib/api/types'
 import { useReaderSettings, type ScaleType } from '@/lib/store/readerSettings'
-import { buildSpreads, type SpreadPage } from '@/lib/utils/spreads'
+import { buildSpreads, isLandscape, type SpreadPage } from '@/lib/utils/spreads'
 import { cn } from '@/lib/utils/cn'
 import { useWindowKeys } from './keys'
 import { usePinchZoom } from './usePinchZoom'
@@ -16,6 +16,10 @@ interface PagedReaderProps {
   onToggleChrome: () => void
   onJumpPrevious: () => void
   onJumpNext: () => void
+  onMeasure: (page: number, width: number, height: number) => void
+  /** shown half of a split wide page; owned by the caller so progress saving can see it */
+  splitHalf: 0 | 1
+  onSplitHalfChange: (half: 0 | 1) => void
 }
 
 /** The page a spread reports back: the visually last one (right page in LTR, left page in RTL). */
@@ -38,6 +42,31 @@ function imgClass(scale: ScaleType, double: boolean): string {
   }
 }
 
+/**
+ * A split box shows one half of a wide page: one axis follows the scale mode and
+ * aspect-ratio derives the other, so the box behaves like a standalone half-page image.
+ */
+function splitBoxStyle(scale: ScaleType, width: number, height: number): CSSProperties {
+  const style: CSSProperties = { aspectRatio: `${width / 2} / ${height}` }
+  switch (scale) {
+    case 'WIDTH':
+      style.width = '100%'
+      break
+    case 'WIDTH_SHRINK_ONLY':
+      style.width = `min(100%, ${width / 2}px)`
+      break
+    case 'HEIGHT':
+      style.height = '100dvh'
+      break
+    case 'ORIGINAL':
+      style.width = width / 2
+      break
+    default:
+      style.width = `min(calc(100dvh * ${width / 2 / height}), 100%)`
+  }
+  return style
+}
+
 export function PagedReader({
   pages,
   page,
@@ -46,9 +75,13 @@ export function PagedReader({
   onToggleChrome,
   onJumpPrevious,
   onJumpNext,
+  onMeasure,
+  splitHalf,
+  onSplitHalfChange,
 }: PagedReaderProps) {
   const scale = useReaderSettings((s) => s.scale)
   const pageLayout = useReaderSettings((s) => s.pageLayout)
+  const splitWide = useReaderSettings((s) => s.splitWide)
   const animations = useReaderSettings((s) => s.animations)
   const swipe = useReaderSettings((s) => s.swipe)
   const reduceMotion = useReducedMotion()
@@ -64,6 +97,13 @@ export function PagedReader({
   const flip = direction === 'RIGHT_TO_LEFT'
   const vertical = direction === 'VERTICAL'
   const spreadIndex = pageToSpread[page] ?? 0
+  // a measured re-pair can change the visible spread's composition while its index stays
+  const spreadKey = spreads[spreadIndex]?.map((p) => (p.blank ? 'b' : p.number)).join('-') ?? ''
+  // in single-page layout a wide page turns in two halves instead of one spread step
+  const splitOn = splitWide && pageLayout === 'SINGLE_PAGE'
+  const curSpread = spreads[spreadIndex]
+  const curSplittable =
+    splitOn && curSpread?.length === 1 && !curSpread[0].blank && isLandscape(curSpread[0])
   const animate = animations && !reduceMotion
   // fit modes stay inside the viewport; the rest need a scrollable slide
   const scrollable = scale === 'WIDTH' || scale === 'WIDTH_SHRINK_ONLY' || scale === 'ORIGINAL'
@@ -82,20 +122,32 @@ export function PagedReader({
     consumeClick,
     reset: resetPinch,
   } = usePinchZoom({ zoomedTouchAction: 'none' })
-  // layout shifts (page turn, fit mode, direction) leave stale pan offsets behind
+  // layout shifts (page turn, fit mode, direction, spread re-pairing, half swap) leave stale pan offsets behind
   useLayoutEffect(() => {
     resetPinch()
-  }, [spreadIndex, scale, pageLayout, direction, resetPinch])
+  }, [spreadIndex, spreadKey, splitHalf, splitOn, scale, pageLayout, direction, resetPinch])
 
   const goSpread = useCallback((i: number) => onPageChange(spreadCurrentPage(spreads[i])), [spreads, onPageChange])
   const prev = useCallback(() => {
-    if (spreadIndex > 0) goSpread(spreadIndex - 1)
-    else onJumpPrevious()
-  }, [spreadIndex, goSpread, onJumpPrevious])
+    if (curSplittable && splitHalf === 1) {
+      onSplitHalfChange(0)
+      return
+    }
+    if (spreadIndex > 0) {
+      const target = spreads[spreadIndex - 1]
+      goSpread(spreadIndex - 1)
+      // landing on a wide page from after it means its second half shows first
+      if (splitOn && target.length === 1 && !target[0].blank && isLandscape(target[0])) onSplitHalfChange(1)
+    } else onJumpPrevious()
+  }, [curSplittable, splitHalf, splitOn, spreadIndex, spreads, goSpread, onJumpPrevious, onSplitHalfChange])
   const next = useCallback(() => {
+    if (curSplittable && splitHalf === 0) {
+      onSplitHalfChange(1)
+      return
+    }
     if (spreadIndex < spreads.length - 1) goSpread(spreadIndex + 1)
     else onJumpNext()
-  }, [spreadIndex, spreads.length, goSpread, onJumpNext])
+  }, [curSplittable, splitHalf, spreadIndex, spreads.length, goSpread, onJumpNext, onSplitHalfChange])
   const turnLeft = useCallback(() => {
     if (!vertical) (flip ? next : prev)()
   }, [vertical, flip, next, prev])
@@ -120,17 +172,19 @@ export function PagedReader({
     }
   })
 
-  // fetch two spreads ahead of the ±2 render window
+  // fetch two spreads ahead of the ±2 render window; the probes double as dimension
+  // sources for pages the server has not measured, settling their spread early
   useEffect(() => {
     for (const i of [spreadIndex + 3, spreadIndex + 4]) {
       spreads[i]?.forEach((p) => {
         if (!p.blank) {
           const img = new Image()
+          img.onload = () => onMeasure(p.number, img.naturalWidth, img.naturalHeight)
           img.src = p.url
         }
       })
     }
-  }, [spreadIndex, spreads])
+  }, [spreadIndex, spreads, onMeasure])
 
   const wheelRef = useRef<{ delta: number; locked: boolean; timer?: number }>({ delta: 0, locked: false })
   useEffect(() => {
@@ -253,6 +307,30 @@ export function PagedReader({
                   )}
                 >
                   {spread.map((p, j) => {
+                    // only the current spread crops; neighbours render whole pages so the
+                    // slide animation shows the destination page before its half applies
+                    if (i === spreadIndex && curSplittable && p.width && p.height) {
+                      // object-position swaps halves on the same element, so no image reload
+                      const side = (flip ? ['right', 'left'] : ['left', 'right'])[splitHalf]
+                      return (
+                        <div
+                          key={p.number}
+                          className="shrink-0 overflow-hidden"
+                          style={splitBoxStyle(scale, p.width, p.height)}
+                        >
+                          <img
+                            src={p.url}
+                            alt={t('pageAlt', { page: p.number })}
+                            draggable={false}
+                            className="block h-full w-full object-cover"
+                            style={{ objectPosition: `${side} center` }}
+                            onLoad={(e) =>
+                              onMeasure(p.number, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)
+                            }
+                          />
+                        </div>
+                      )
+                    }
                     const cls = imgClass(scale, double)
                     const dim = p.width && p.height ? { aspectRatio: `${p.width} / ${p.height}` } : undefined
                     return near || p.blank ? (
@@ -263,6 +341,11 @@ export function PagedReader({
                         draggable={false}
                         className={cls}
                         style={dim}
+                        onLoad={
+                          p.blank
+                            ? undefined
+                            : (e) => onMeasure(p.number, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)
+                        }
                       />
                     ) : (
                       <div key={p.number} aria-hidden className={cls} style={dim} />

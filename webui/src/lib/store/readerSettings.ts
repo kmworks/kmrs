@@ -12,6 +12,8 @@ export type EpubFontFamily = 'Original' | `server:${string}` | `local:${string}`
 interface ReaderSettings {
   scale: ScaleType
   pageLayout: PagedReaderLayout
+  /** split wide pages into two half-page turns in single-page layout */
+  splitWide: boolean
   continuousScale: ContinuousScaleType
   /** side padding percent, 0-40 step 5 */
   continuousPadding: number
@@ -46,6 +48,7 @@ export const useReaderSettings = create<ReaderSettingsState>()(
     (set) => ({
       scale: 'SCREEN',
       pageLayout: 'SINGLE_PAGE',
+      splitWide: false,
       continuousScale: 'WIDTH',
       continuousPadding: 0,
       continuousMargin: 0,

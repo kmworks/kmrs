@@ -13,6 +13,7 @@ interface ContinuousReaderProps {
   onToggleChrome: () => void
   onJumpPrevious: () => void
   onJumpNext: () => void
+  onMeasure: (page: number, width: number, height: number) => void
 }
 
 export function ContinuousReader({
@@ -22,6 +23,7 @@ export function ContinuousReader({
   onToggleChrome,
   onJumpPrevious,
   onJumpNext,
+  onMeasure,
 }: ContinuousReaderProps) {
   const scale = useReaderSettings((s) => s.continuousScale)
   const padding = useReaderSettings((s) => s.continuousPadding)
@@ -174,7 +176,13 @@ export function ContinuousReader({
                 }}
               >
                 {load && (
-                  <img src={p.url} alt={t('pageAlt', { page: p.number })} draggable={false} className="block h-auto w-full" />
+                  <img
+                    src={p.url}
+                    alt={t('pageAlt', { page: p.number })}
+                    draggable={false}
+                    className="block h-auto w-full"
+                    onLoad={(e) => onMeasure(p.number, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+                  />
                 )}
               </div>
             )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +20,8 @@ import {
 import { needsConvert, supportedImageFormats } from '@/lib/utils/imageSupport'
 import { showToast } from '@/lib/store/toast'
 import { urls } from '@/lib/utils/urls'
-import type { PagedReaderLayout, SpreadPage } from '@/lib/utils/spreads'
+import type { PageDims, PagedReaderLayout, SpreadPage } from '@/lib/utils/spreads'
+import { isLandscape, recordMeasured } from '@/lib/utils/spreads'
 import { readingDirectionLabel } from '@/lib/utils/format'
 import { convertErrorCodes, mediaIssue } from '@/lib/utils/mediaStatus'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
@@ -98,6 +99,8 @@ function Reader({ bookId }: { bookId: string }) {
 
   const settingsDirection = useReaderSettings((s) => s.readingDirection)
   const background = useReaderSettings((s) => s.background)
+  const pageLayout = useReaderSettings((s) => s.pageLayout)
+  const splitWide = useReaderSettings((s) => s.splitWide)
   const user = useAuthStore((s) => s.user)
   const admin = isAdmin(user)
 
@@ -123,10 +126,30 @@ function Reader({ bookId }: { bookId: string }) {
       }))
     },
   })
-  const pages = pagesQuery.data
+  const rawPages = pagesQuery.data
+  // pages without server dimensions get them from loaded images, so landscape pages
+  // re-pair into solo spreads; page-number-based navigation keeps the current page put
+  const [measuredDims, setMeasuredDims] = useState<Record<number, PageDims>>({})
+  const reportDims = useCallback(
+    (page: number, width: number, height: number) => {
+      const dto = rawPages?.[page - 1]
+      setMeasuredDims((prev) => recordMeasured(prev, page, { width, height }, !!dto?.width && !!dto?.height))
+    },
+    [rawPages],
+  )
+  const pages = useMemo(() => {
+    if (!rawPages || Object.keys(measuredDims).length === 0) return rawPages
+    return rawPages.map((p) => {
+      if (p.width && p.height) return p
+      const m = measuredDims[p.number]
+      return m ? { ...p, width: m.width, height: m.height } : p
+    })
+  }, [rawPages, measuredDims])
   const pagesCount = pages?.length ?? 0
 
   const [page, setPage] = useState<number | null>(null)
+  // split-wide half lives here so progress saving can tell a finished page from a finished half
+  const [splitHalf, setSplitHalf] = useState<0 | 1>(0)
   const [chromeVisible, setChromeVisible] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [explorerOpen, setExplorerOpen] = useState(false)
@@ -136,6 +159,12 @@ function Reader({ bookId }: { bookId: string }) {
   const [posterBusy, setPosterBusy] = useState(false)
 
   const direction = sessionDirection ?? settingsDirection
+
+  // the server marks a book read as soon as the saved page is the last one, so the first
+  // half of a split final page reports nothing; the second half reports the page normally
+  const splitOn = splitWide && pageLayout === 'SINGLE_PAGE' && direction !== 'WEBTOON'
+  const deferLastPageProgress =
+    splitOn && splitHalf === 0 && page !== null && page === pagesCount && !!pages && isLandscape(pages[pagesCount - 1])
 
   const progressTimer = useRef<number | undefined>(undefined)
   const pendingPage = useRef<number | null>(null)
@@ -163,6 +192,14 @@ function Reader({ bookId }: { bookId: string }) {
 
   useEffect(() => {
     if (page === null || incognito) return
+    if (deferLastPageProgress) {
+      // a final page measured as wide after landing may already have a save queued
+      if (pendingPage.current === page) {
+        window.clearTimeout(progressTimer.current)
+        pendingPage.current = null
+      }
+      return
+    }
     pendingPage.current = page
     window.clearTimeout(progressTimer.current)
     progressTimer.current = window.setTimeout(() => {
@@ -171,7 +208,7 @@ function Reader({ bookId }: { bookId: string }) {
         pendingPage.current = null
       }
     }, 300)
-  }, [page, bookId, incognito])
+  }, [page, bookId, incognito, deferLastPageProgress])
 
   // flush the debounced progress on exit
   useEffect(
@@ -203,7 +240,11 @@ function Reader({ bookId }: { bookId: string }) {
 
   const goTo = useCallback(
     (n: number) => {
-      if (pagesCount > 0) setPage(Math.min(Math.max(1, n), pagesCount))
+      if (pagesCount > 0) {
+        // a jump targets a page, not a half
+        setSplitHalf(0)
+        setPage(Math.min(Math.max(1, n), pagesCount))
+      }
     },
     [pagesCount],
   )
@@ -452,6 +493,7 @@ function Reader({ bookId }: { bookId: string }) {
           onToggleChrome={toggleChrome}
           onJumpPrevious={() => boundaryTurn('previous')}
           onJumpNext={() => boundaryTurn('next')}
+          onMeasure={reportDims}
         />
       ) : (
         <PagedReader
@@ -462,6 +504,9 @@ function Reader({ bookId }: { bookId: string }) {
           onToggleChrome={toggleChrome}
           onJumpPrevious={() => boundaryTurn('previous')}
           onJumpNext={() => boundaryTurn('next')}
+          onMeasure={reportDims}
+          splitHalf={splitHalf}
+          onSplitHalfChange={setSplitHalf}
         />
       )}
 

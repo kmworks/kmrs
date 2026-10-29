@@ -60,7 +60,8 @@
     "animations": "Animazione cambio pagina",
     "alwaysFullscreen": "Sempre a schermo intero",
     "sidePadding": "Margini laterali",
-    "pageGap": "Spazio tra pagine"
+    "pageGap": "Spazio tra pagine",
+    "splitWide": "Dividi le pagine larghe"
   },
   "scale": {
     "screen": "Adatta allo schermo",

@@ -11,6 +11,29 @@ export interface SpreadPage extends Partial<PageDto> {
 export const isLandscape = (p: { width?: number; height?: number }): boolean =>
   !!p.width && !!p.height && p.width > p.height
 
+export interface PageDims {
+  width: number
+  height: number
+}
+
+/**
+ * Dimensions measured from a loaded image fill the gaps the server left: server values win,
+ * and invalid or unchanged values keep the map identity so React skips the re-render.
+ */
+export function recordMeasured(
+  prev: Record<number, PageDims>,
+  page: number,
+  dims: PageDims,
+  hasServerDims: boolean,
+): Record<number, PageDims> {
+  if (hasServerDims) return prev
+  if (!Number.isFinite(dims.width) || !Number.isFinite(dims.height) || dims.width <= 0 || dims.height <= 0)
+    return prev
+  const old = prev[page]
+  if (old && old.width === dims.width && old.height === dims.height) return prev
+  return { ...prev, [page]: dims }
+}
+
 /**
  * Cover page pairs with a blank on its outer side, landscape pages always get a solo spread.
  */
