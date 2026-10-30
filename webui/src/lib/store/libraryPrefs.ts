@@ -21,6 +21,24 @@ export const useLibraryPrefs = create<LibraryPrefsState>()(
       setSort: (scope, sort) => set((s) => ({ sort: { ...s.sort, [scope]: sort } })),
       setFilters: (scope, filters) => set((s) => ({ filters: { ...s.filters, [scope]: filters } })),
     }),
-    { name: 'kmweb.libraryPrefs' },
+    {
+      name: 'kmweb.libraryPrefs',
+      version: 1,
+      // v1: book title sorts used to persist 'metadata.titleSort', which the books API never accepted
+      migrate: (persisted) => {
+        const state = persisted as LibraryPrefs
+        return {
+          ...state,
+          sort: Object.fromEntries(
+            Object.entries(state.sort ?? {}).map(([scope, value]) => [
+              scope,
+              scope.startsWith('books:') && value.startsWith('metadata.titleSort,')
+                ? `metadata.title${value.slice('metadata.titleSort'.length)}`
+                : value,
+            ]),
+          ),
+        }
+      },
+    },
   ),
 )

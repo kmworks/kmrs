@@ -225,7 +225,8 @@ export const SERIES_SORT_OPTIONS: SortOption[] = [
 ]
 
 export const BOOK_SORT_OPTIONS: SortOption[] = [
-  { labelKey: 'filters:sort.title', property: 'metadata.titleSort' },
+  // books have no titleSort column; the server sorts books by metadata.title
+  { labelKey: 'filters:sort.title', property: 'metadata.title' },
   { labelKey: 'filters:sort.series', property: 'series' },
   { labelKey: 'filters:sort.number', property: 'metadata.numberSort' },
   { labelKey: 'filters:sort.dateAdded', property: 'createdDate' },
