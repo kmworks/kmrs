@@ -3,7 +3,7 @@ import { useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import type { ReadingDirection } from '@/lib/api/types'
 import { useReaderSettings, type ScaleType } from '@/lib/store/readerSettings'
-import { buildSpreads, isLandscape, type SpreadPage } from '@/lib/utils/spreads'
+import { buildSpreads, isLandscape, measureWhenKnown, type SpreadPage } from '@/lib/utils/spreads'
 import { cn } from '@/lib/utils/cn'
 import { useWindowKeys } from './keys'
 import { usePinchZoom } from './usePinchZoom'
@@ -172,14 +172,16 @@ export function PagedReader({
     }
   })
 
-  // fetch two spreads ahead of the ±2 render window; the probes double as dimension
-  // sources for pages the server has not measured, settling their spread early
+  // probe the current spread and two spreads ahead of the ±2 render window; the probes
+  // double as dimension sources for pages the server has not measured, and the header
+  // poll settles the current page's pairing before its image has finished loading
   useEffect(() => {
-    for (const i of [spreadIndex + 3, spreadIndex + 4]) {
+    for (const i of [spreadIndex, spreadIndex + 3, spreadIndex + 4]) {
       spreads[i]?.forEach((p) => {
         if (!p.blank) {
           const img = new Image()
           img.onload = () => onMeasure(p.number, img.naturalWidth, img.naturalHeight)
+          measureWhenKnown(img, (w, h) => onMeasure(p.number, w, h))
           img.src = p.url
         }
       })
