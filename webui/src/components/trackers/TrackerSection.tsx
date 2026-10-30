@@ -286,7 +286,10 @@ function ResultRow({
   binding,
   onBind,
 }: {
-  item: Pick<TrackerSearchItem, 'id' | 'title' | 'coverUrl' | 'tracked' | 'mediaType' | 'series'>
+  item: Pick<
+    TrackerSearchItem,
+    'id' | 'title' | 'coverUrl' | 'info' | 'description' | 'tracked' | 'mediaType' | 'series'
+  >
   binding: boolean
   onBind: () => void
 }) {
@@ -302,6 +305,7 @@ function ResultRow({
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-ink">{item.title}</p>
+        {item.info && <p className="mt-0.5 truncate text-xs text-ink-2">{item.info}</p>}
         {(item.mediaType || item.series || item.tracked) && (
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs">
             {(item.mediaType || item.series) && (
@@ -312,6 +316,11 @@ function ResultRow({
             {item.tracked && (
               <span className="font-medium text-accent-strong">{t('bindDialog.tracked')}</span>
             )}
+          </p>
+        )}
+        {item.description && (
+          <p className="mt-1 line-clamp-2 text-xs text-ink-3" title={item.description}>
+            {item.description}
           </p>
         )}
       </div>

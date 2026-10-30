@@ -953,6 +953,8 @@ export interface TrackerSearchItem {
   id: string
   title: string
   coverUrl?: string
+  /** one line of publication facts (year, authors, ...) */
+  info?: string
   description?: string
   tracked: boolean
   /** manga/novel distinction when the platform provides it */

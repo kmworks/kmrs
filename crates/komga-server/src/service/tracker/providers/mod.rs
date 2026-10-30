@@ -10,9 +10,39 @@ pub fn parse_tracker_url(input: &str) -> Option<reqwest::Url> {
         .ok()
 }
 
+// two names is enough to tell entries apart and keeps the line short; the
+// separator matches the info line Bangumi returns ready-made
+const INFO_AUTHORS: usize = 2;
+
+pub fn search_info(year: Option<i64>, authors: impl IntoIterator<Item = String>) -> Option<String> {
+    let parts: Vec<String> = year
+        .filter(|year| *year > 0)
+        .map(|year| year.to_string())
+        .into_iter()
+        .chain(
+            authors
+                .into_iter()
+                .map(|author| author.trim().to_string())
+                .filter(|author| !author.is_empty())
+                .take(INFO_AUTHORS),
+        )
+        .collect();
+    (!parts.is_empty()).then(|| parts.join(" / "))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn search_info_joins_year_and_first_authors() {
+        assert_eq!(
+            search_info(Some(1989), ["A".into(), " ".into(), "B".into(), "C".into()]).as_deref(),
+            Some("1989 / A / B")
+        );
+        assert_eq!(search_info(Some(0), ["A".into()]).as_deref(), Some("A"));
+        assert_eq!(search_info(None, Vec::new()), None);
+    }
 
     #[test]
     fn tracker_urls_accept_missing_scheme() {

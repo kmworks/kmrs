@@ -276,7 +276,8 @@ impl BangumiTracker {
             }
             .into(),
             cover_url,
-            description: subject.summary.or(subject.info),
+            info: subject.info.filter(|info| !info.is_empty()),
+            description: subject.summary.filter(|summary| !summary.is_empty()),
             tracked,
             media_type,
             series: subject.series,
@@ -617,12 +618,14 @@ mod tests {
         assert!(results[0].tracked);
         assert_eq!(results[0].media_type, Some(TrackMediaType::Manga));
         assert!(results[0].series);
-        assert_eq!(results[0].description.as_deref(), Some("Info 101"));
+        assert_eq!(results[0].info.as_deref(), Some("Info 101"));
+        assert_eq!(results[0].description, None);
         assert_eq!(results[1].id, "102");
         assert!(!results[1].tracked);
         assert!(!results[1].series);
         assert_eq!(results[1].media_type, Some(TrackMediaType::Novel));
-        assert_eq!(results[1].description.as_deref(), Some("Info 102"));
+        assert_eq!(results[1].info.as_deref(), Some("Info 102"));
+        assert_eq!(results[1].description, None);
         let requests = mock.requests();
         assert_eq!(requests.len(), 1);
         let search = &requests[0];
@@ -984,6 +987,7 @@ mod tests {
         assert_eq!(results[0].id, "1902");
         assert!(results[0].tracked);
         assert_eq!(results[0].media_type, Some(TrackMediaType::Manga));
+        assert_eq!(results[0].info.as_deref(), Some("Info 1902"));
         assert_eq!(results[0].description.as_deref(), Some("Summary 1902"));
         assert_eq!(
             results[0].url.as_deref(),
