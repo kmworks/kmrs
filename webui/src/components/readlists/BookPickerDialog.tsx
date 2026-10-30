@@ -59,7 +59,7 @@ export function BookPickerDialog({
   const q = useInfiniteQuery({
     queryKey: ['book-picker', search],
     queryFn: ({ pageParam }) =>
-      booksApi.list({ search: { fullTextSearch: search }, page: pageParam, size: 24, sort: ['metadata.titleSort'] }),
+      booksApi.list({ search: { fullTextSearch: search }, page: pageParam, size: 24, sort: ['metadata.title'] }),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.last ? undefined : last.number + 1),
     enabled: open,

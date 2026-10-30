@@ -26,6 +26,7 @@ export function sortLabel(options: SortOption[], property: string): string {
 /** name/number-like fields read naturally ascending; everything else (dates, counts) newest/largest first */
 export function defaultDirection(property: string): 'asc' | 'desc' {
   return property === 'metadata.titleSort' ||
+    property === 'metadata.title' ||
     property === 'name' ||
     property === 'series' ||
     property === 'url' ||
