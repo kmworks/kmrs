@@ -17,6 +17,24 @@ export interface PageDims {
 }
 
 /**
+ * The natural size settles as soon as the browser has parsed the image header, long before
+ * the load event, so polling reports dimensions early enough to fix spread pairing before
+ * the page is shown. Capped so a stalled load cannot poll forever; the load handler stays
+ * as the fallback.
+ */
+export function measureWhenKnown(img: HTMLImageElement, report: (width: number, height: number) => void): void {
+  let frames = 0
+  const poll = () => {
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      report(img.naturalWidth, img.naturalHeight)
+      return
+    }
+    if (!img.complete && ++frames < 600) requestAnimationFrame(poll)
+  }
+  requestAnimationFrame(poll)
+}
+
+/**
  * Dimensions measured from a loaded image fill the gaps the server left: server values win,
  * and invalid or unchanged values keep the map identity so React skips the re-render.
  */
