@@ -3,7 +3,7 @@ import { useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import type { ReadingDirection } from '@/lib/api/types'
 import { useReaderSettings, type ScaleType } from '@/lib/store/readerSettings'
-import { buildSpreads, isLandscape, measureWhenKnown, type SpreadPage } from '@/lib/utils/spreads'
+import { buildSpreads, isLandscape, measureWhenKnown, slotAspectRatio, type SpreadPage } from '@/lib/utils/spreads'
 import { cn } from '@/lib/utils/cn'
 import { useWindowKeys } from './keys'
 import { usePinchZoom } from './usePinchZoom'
@@ -334,7 +334,10 @@ export function PagedReader({
                       )
                     }
                     const cls = imgClass(scale, double)
-                    const dim = p.width && p.height ? { aspectRatio: `${p.width} / ${p.height}` } : undefined
+                    // every slot keeps an aspect-ratio box (real dims once measured, a 2:3
+                    // fallback before) so an unloaded page holds its own half instead of
+                    // collapsing and letting the loaded mate sit in the spread's middle
+                    const dim = { aspectRatio: slotAspectRatio(p) }
                     return near || p.blank ? (
                       <img
                         key={p.number || `blank-${j}`}

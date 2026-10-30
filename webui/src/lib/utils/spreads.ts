@@ -35,6 +35,16 @@ export function measureWhenKnown(img: HTMLImageElement, report: (width: number, 
 }
 
 /**
+ * The aspect-ratio box a page slot reserves before its dimensions are known. Manga pages
+ * are close to 2:3 (blankOf's fallback canvas uses the same ratio), so an unloaded page
+ * already occupies its own half of a spread instead of collapsing to a zero-size box and
+ * letting the loaded mate sit in the middle until its size arrives.
+ */
+export function slotAspectRatio(p: { width?: number; height?: number }): string {
+  return p.width && p.height ? `${p.width} / ${p.height}` : '2 / 3'
+}
+
+/**
  * Dimensions measured from a loaded image fill the gaps the server left: server values win,
  * and invalid or unchanged values keep the map identity so React skips the re-render.
  */

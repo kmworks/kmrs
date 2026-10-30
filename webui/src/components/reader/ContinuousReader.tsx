@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { useReaderSettings } from '@/lib/store/readerSettings'
-import type { SpreadPage } from '@/lib/utils/spreads'
+import { slotAspectRatio, type SpreadPage } from '@/lib/utils/spreads'
 import { useWindowKeys } from './keys'
 import { usePinchZoom } from './usePinchZoom'
 
@@ -170,9 +170,11 @@ export function ContinuousReader({
                 data-page={p.number}
                 className="mx-auto"
                 style={{
-                  width: scale === 'WIDTH' ? `${100 - padding * 2}%` : p.width ? p.width : undefined,
+                  width: scale === 'WIDTH' ? `${100 - padding * 2}%` : (p.width ?? '100%'),
                   marginTop: i === 0 ? 0 : margin,
-                  aspectRatio: p.width && p.height ? `${p.width} / ${p.height}` : undefined,
+                  // reserve the slot's height before the image loads so the pages
+                  // below do not shift when it arrives
+                  aspectRatio: slotAspectRatio(p),
                 }}
               >
                 {load && (
