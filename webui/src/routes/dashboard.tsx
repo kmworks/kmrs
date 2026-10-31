@@ -131,7 +131,9 @@ export function DashboardPage() {
               libraries={libraries}
               pinnedIds={pinned ?? []}
               value={libraryId ?? 'all'}
-              onChange={(v) => navigate(v === 'all' ? '/dashboard' : `/libraries/${v}/recommended`)}
+              // a scope switch re-views the same dashboard, it isn't a navigation step:
+              // replace, or history.back replays scope states instead of leaving the page
+              onChange={(v) => navigate(v === 'all' ? '/dashboard' : `/libraries/${v}/recommended`, { replace: true })}
             />
           </div>
         )}
