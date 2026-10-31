@@ -1,17 +1,16 @@
-//! HEIF/HEIC pages through `image`'s decoding hooks, next to the JXL and JPEG 2000 ones.
+//! HEIF, HEIC and AVIF pages through `image`'s decoding hooks, next to the JXL and JPEG 2000 ones.
 
-use heic_rs::{DecodeOptions, PixelLayout};
 use image::error::{DecodingError, ImageFormatHint};
 use image::hooks::{register_decoding_hook, register_format_detection_hook, GenericReader};
 use image::{ColorType, ImageDecoder, ImageError, ImageResult};
+use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
 use std::fmt::Display;
 use std::io::Read;
-use std::panic::{catch_unwind, AssertUnwindSafe};
 
 const EXTENSION: &str = "heic";
 
-/// The `ftyp` brands `detect::detect_media_type` reports as HEIF or HEIC.
-static SIGNATURES: [[u8; 12]; 10] = [
+/// The `ftyp` brands `detect::detect_media_type` reports as HEIF, HEIC or AVIF.
+static SIGNATURES: [[u8; 12]; 12] = [
     *b"\0\0\0\0ftypmif1",
     *b"\0\0\0\0ftypmsf1",
     *b"\0\0\0\0ftypheic",
@@ -22,6 +21,8 @@ static SIGNATURES: [[u8; 12]; 10] = [
     *b"\0\0\0\0ftypheis",
     *b"\0\0\0\0ftyphevm",
     *b"\0\0\0\0ftyphevs",
+    *b"\0\0\0\0ftypavif",
+    *b"\0\0\0\0ftypavis",
 ];
 
 /// Skips the leading box size.
@@ -42,7 +43,7 @@ struct HeifDecoder {
     bytes: Vec<u8>,
     width: u32,
     height: u32,
-    layout: PixelLayout,
+    color_type: ColorType,
 }
 
 impl HeifDecoder {
@@ -51,18 +52,22 @@ impl HeifDecoder {
         reader
             .read_to_end(&mut bytes)
             .map_err(ImageError::IoError)?;
-        let info = guarded(|| heic_rs::probe(&bytes))?;
-        let layout = match (info.has_alpha, info.bit_depth > 8) {
-            (false, false) => PixelLayout::Rgb8,
-            (true, false) => PixelLayout::Rgba8,
-            (false, true) => PixelLayout::Rgb16,
-            (true, true) => PixelLayout::Rgba16,
+        let (width, height, color_type) = {
+            let context = HeifContext::read_from_bytes(&bytes).map_err(decoding_error)?;
+            let handle = context.primary_image_handle().map_err(decoding_error)?;
+            let color_type = match (handle.has_alpha_channel(), handle.luma_bits_per_pixel() > 8) {
+                (false, false) => ColorType::Rgb8,
+                (true, false) => ColorType::Rgba8,
+                (false, true) => ColorType::Rgb16,
+                (true, true) => ColorType::Rgba16,
+            };
+            (handle.width(), handle.height(), color_type)
         };
         Ok(Self {
             bytes,
-            width: info.width,
-            height: info.height,
-            layout,
+            width,
+            height,
+            color_type,
         })
     }
 }
@@ -73,24 +78,44 @@ impl ImageDecoder for HeifDecoder {
     }
 
     fn color_type(&self) -> ColorType {
-        match self.layout {
-            PixelLayout::Rgba8 => ColorType::Rgba8,
-            PixelLayout::Rgb16 => ColorType::Rgb16,
-            PixelLayout::Rgba16 => ColorType::Rgba16,
-            _ => ColorType::Rgb8,
-        }
+        self.color_type
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        let options = DecodeOptions::default()
-            .with_layout(self.layout)
-            .with_alpha(self.layout.has_alpha())
-            .with_transforms(true);
-        let decoded = guarded(|| heic_rs::decode(&self.bytes, &options))?;
-        if decoded.data.len() != buf.len() {
-            return Err(decoding_error("decoded size differs from the container's"));
+        let chroma = match self.color_type {
+            ColorType::Rgba8 => RgbChroma::Rgba,
+            ColorType::Rgb16 => RgbChroma::HdrRgbLe,
+            ColorType::Rgba16 => RgbChroma::HdrRgbaLe,
+            _ => RgbChroma::Rgb,
+        };
+        let context = HeifContext::read_from_bytes(&self.bytes).map_err(decoding_error)?;
+        let handle = context.primary_image_handle().map_err(decoding_error)?;
+        let image = LibHeif::new()
+            .decode(&handle, ColorSpace::Rgb(chroma), None)
+            .map_err(decoding_error)?;
+        let planes = image.planes();
+        let plane = planes
+            .interleaved
+            .ok_or_else(|| decoding_error("no interleaved plane"))?;
+
+        let wide = self.color_type.bytes_per_pixel() > self.color_type.channel_count();
+        let row_size = self.width as usize * self.color_type.bytes_per_pixel() as usize;
+        let max = ((1u32 << plane.bits_per_pixel) - 1) as f32;
+        for (out, row) in buf
+            .chunks_exact_mut(row_size)
+            .zip(plane.data.chunks_exact(plane.stride))
+        {
+            if wide {
+                // Samples are stored at their coded depth, in the low bits.
+                let samples = row.as_chunks::<2>().0;
+                for (out, sample) in out.as_chunks_mut::<2>().0.iter_mut().zip(samples) {
+                    let sample = u16::from_le_bytes(*sample) as f32 / max;
+                    *out = ((sample * u16::MAX as f32).round() as u16).to_ne_bytes();
+                }
+            } else {
+                out.copy_from_slice(&row[..row_size]);
+            }
         }
-        buf.copy_from_slice(&decoded.data);
         Ok(())
     }
 
@@ -99,27 +124,9 @@ impl ImageDecoder for HeifDecoder {
     }
 }
 
-/// `heic-rs` is pinned and young: a panic on a malformed page must fail that page, not its worker.
-fn guarded<T>(decode: impl FnOnce() -> heic_rs::Result<T>) -> ImageResult<T> {
-    catch_unwind(AssertUnwindSafe(decode))
-        .map_err(|_| decoding_error("decoder panicked"))?
-        .map_err(decoding_error)
-}
-
 fn decoding_error(error: impl Display) -> ImageError {
     ImageError::Decoding(DecodingError::new(
         ImageFormatHint::Name("HEIF".to_string()),
         error.to_string(),
     ))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn panic_becomes_a_decoding_error() {
-        let result: ImageResult<()> = guarded(|| panic!("malformed"));
-        assert!(matches!(result, Err(ImageError::Decoding(_))));
-    }
 }

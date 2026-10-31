@@ -62,8 +62,8 @@ image = "0.25.9"
 # Pure Rust decoders for the formats `image` lacks, wired in through its decoding hooks.
 jxl-image-rs-integration = "0.8"
 hayro-jpeg2000 = { version = "0.4", features = ["image"] }
-# Pinned exactly: a young single-maintainer decoder parsing untrusted files.
-heic-rs = "=0.1.4"
+# Links libheif through pkg-config; see `.github/actions/setup-libheif`.
+libheif-rs = { version = "3", default-features = false, features = ["v1_17"] }
 moka = { version = "0.12", features = ["future", "sync"] }
 sysinfo = { version = "0.39", default-features = false, features = ["system", "disk"] }
 jiff = "0.2"

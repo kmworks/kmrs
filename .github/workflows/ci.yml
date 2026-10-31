@@ -41,6 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-libheif
       - uses: Swatinem/rust-cache@v2
         with:
           # registry downloads only; compile caching is sccache's job.
@@ -63,6 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-libheif
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -89,6 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-libheif
       - uses: Swatinem/rust-cache@v2
         with:
           cache-targets: "false"
@@ -126,6 +129,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-libheif
       - uses: Swatinem/rust-cache@v2
         with:
           cache-targets: "false"

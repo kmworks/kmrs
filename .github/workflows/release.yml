@@ -64,7 +64,8 @@ jobs:
             target: aarch64-apple-darwin
             builder: cargo
             heapprof: true
-          - os: macos-latest
+          # x86_64 links native libraries, and this is the last Intel runner image
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             builder: cargo
             heapprof: true
@@ -93,6 +94,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - uses: ./.github/actions/setup-libheif
+        with:
+          target: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
           # registry downloads only; compile caching is sccache's job

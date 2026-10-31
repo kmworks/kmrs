@@ -11,7 +11,7 @@ use image::{ImageFormat, ImageReader, Rgb, RgbImage};
 use std::io::Cursor;
 use std::sync::Once;
 
-/// Media types `decode` can read: `ImageIO.getReaderMIMETypes`, minus AVIF.
+/// Media types `decode` can read: the page formats among `ImageIO.getReaderMIMETypes`.
 const READABLE_MEDIA_TYPES: &[&str] = &[
     detect::IMAGE_JPEG,
     detect::IMAGE_PNG,
@@ -23,6 +23,7 @@ const READABLE_MEDIA_TYPES: &[&str] = &[
     detect::IMAGE_JP2,
     detect::IMAGE_HEIF,
     detect::IMAGE_HEIC,
+    detect::IMAGE_AVIF,
 ];
 
 /// `image` keeps decoding hooks in a process-wide table, so this only has to run once.
@@ -265,8 +266,8 @@ mod tests {
         assert_eq!(detect::detect_media_type(&bytes), detect::IMAGE_PNG);
     }
 
-    fn hooked_format_pages() -> [(&'static str, Vec<u8>); 3] {
-        ["page.jxl", "page.jp2", "page.heic"].map(|name| {
+    fn hooked_format_pages() -> [(&'static str, Vec<u8>); 4] {
+        ["page.jxl", "page.jp2", "page.heic", "page.avif"].map(|name| {
             (
                 name,
                 std::fs::read(fixtures().join("images").join(name)).unwrap(),
@@ -311,9 +312,28 @@ mod tests {
     }
 
     #[test]
-    fn avif_stays_unreadable() {
-        assert!(!can_read(detect::IMAGE_AVIF));
-        assert!(!can_convert(detect::IMAGE_AVIF, ImageType::Jpeg));
+    fn avif_container_rotation_is_applied() {
+        let bytes = std::fs::read(fixtures().join("images/page-rotated.avif")).unwrap();
+        assert_eq!(get_dimension(&bytes), Some((60, 40)));
+        let converted = convert(&bytes, ImageType::Png).unwrap();
+        assert_eq!(get_dimension(&converted), Some((60, 40)));
+    }
+
+    #[test]
+    fn avif_grids_are_composed() {
+        let bytes = std::fs::read(fixtures().join("images/page-grid.avif")).unwrap();
+        assert_eq!(get_dimension(&bytes), Some((128, 192)));
+        let converted = convert(&bytes, ImageType::Png).unwrap();
+        assert_eq!(get_dimension(&converted), Some((128, 192)));
+    }
+
+    #[test]
+    fn avif_with_a_mif1_major_brand_still_decodes() {
+        let mut bytes = std::fs::read(fixtures().join("images/page.avif")).unwrap();
+        bytes[8..12].copy_from_slice(b"mif1");
+        assert_eq!(detect::detect_media_type(&bytes), detect::IMAGE_HEIF);
+        assert_eq!(get_dimension(&bytes), Some((40, 60)));
+        assert!(convert(&bytes, ImageType::Png).is_ok());
     }
 
     #[test]
