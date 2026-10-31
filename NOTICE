@@ -12,3 +12,12 @@ opencc-jieba-rs (https://github.com/laisuk/opencc-jieba-rs),
 Copyright (c) 2025 laisuk@yahoo.com, licensed under the MIT License;
 the underlying OpenCC dictionary data (https://github.com/BYVoid/OpenCC)
 is licensed under the Apache License 2.0.
+
+Release binaries statically link libheif (https://github.com/strukturag/libheif)
+and libde265 (https://github.com/strukturag/libde265), licensed under the
+GNU Lesser General Public License version 3, and dav1d
+(https://code.videolan.org/videolan/dav1d), licensed under the BSD 2-Clause
+License. License texts and copyright notices are in the licenses directory.
+Their sources, with the patches applied, are published with each static-* release of
+https://github.com/kmworks/libheif-sys. To use modified versions of these
+libraries, rebuild kmrs from source, setting LIBHEIF_STATIC_DIR to link yours.
