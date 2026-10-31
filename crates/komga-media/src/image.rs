@@ -5,12 +5,13 @@
 
 use crate::detect;
 use crate::error::{MediaError, Result};
+use crate::heif;
 pub use image::DynamicImage;
 use image::{ImageFormat, ImageReader, Rgb, RgbImage};
 use std::io::Cursor;
 use std::sync::Once;
 
-/// Media types `decode` can read: `ImageIO.getReaderMIMETypes`, minus the HEIF family.
+/// Media types `decode` can read: `ImageIO.getReaderMIMETypes`, minus AVIF.
 const READABLE_MEDIA_TYPES: &[&str] = &[
     detect::IMAGE_JPEG,
     detect::IMAGE_PNG,
@@ -20,6 +21,8 @@ const READABLE_MEDIA_TYPES: &[&str] = &[
     detect::IMAGE_BMP,
     detect::IMAGE_JXL,
     detect::IMAGE_JP2,
+    detect::IMAGE_HEIF,
+    detect::IMAGE_HEIC,
 ];
 
 /// `image` keeps decoding hooks in a process-wide table, so this only has to run once.
@@ -28,6 +31,7 @@ fn register_decoders() {
     REGISTER.call_once(|| {
         jxl_image_rs_integration::register_image_decoding_hook();
         hayro_jpeg2000::integration::register_decoding_hook();
+        heif::register_hook();
     });
 }
 
@@ -36,7 +40,7 @@ fn reader(bytes: &[u8]) -> std::io::Result<ImageReader<Cursor<&[u8]>>> {
     ImageReader::new(Cursor::new(bytes)).with_guessed_format()
 }
 
-/// `image::load_from_memory` with the JXL and JPEG 2000 decoders available.
+/// `image::load_from_memory` with the JXL, JPEG 2000 and HEIF decoders available.
 pub fn load_from_memory(bytes: &[u8]) -> image::ImageResult<DynamicImage> {
     register_decoders();
     image::load_from_memory(bytes)
@@ -261,8 +265,8 @@ mod tests {
         assert_eq!(detect::detect_media_type(&bytes), detect::IMAGE_PNG);
     }
 
-    fn jxl_and_jp2_pages() -> [(&'static str, Vec<u8>); 2] {
-        ["page.jxl", "page.jp2"].map(|name| {
+    fn hooked_format_pages() -> [(&'static str, Vec<u8>); 3] {
+        ["page.jxl", "page.jp2", "page.heic"].map(|name| {
             (
                 name,
                 std::fs::read(fixtures().join("images").join(name)).unwrap(),
@@ -271,15 +275,15 @@ mod tests {
     }
 
     #[test]
-    fn jxl_and_jp2_report_dimensions() {
-        for (name, bytes) in jxl_and_jp2_pages() {
+    fn hooked_formats_report_dimensions() {
+        for (name, bytes) in hooked_format_pages() {
             assert_eq!(get_dimension(&bytes), Some((40, 60)), "{name}");
         }
     }
 
     #[test]
-    fn jxl_and_jp2_convert_to_both_output_formats() {
-        for (name, bytes) in jxl_and_jp2_pages() {
+    fn hooked_formats_convert_to_both_output_formats() {
+        for (name, bytes) in hooked_format_pages() {
             let media_type = detect::detect_media_type(&bytes);
             for format in [ImageType::Jpeg, ImageType::Png] {
                 assert!(can_convert(&media_type, format), "{name}");
@@ -291,27 +295,25 @@ mod tests {
     }
 
     #[test]
-    fn jxl_and_jp2_resize_for_thumbnails() {
-        for (name, bytes) in jxl_and_jp2_pages() {
+    fn hooked_formats_resize_for_thumbnails() {
+        for (name, bytes) in hooked_format_pages() {
             let resized = resize(&bytes, ImageType::Jpeg, 30).unwrap();
             assert_eq!(get_dimension(&resized), Some((20, 30)), "{name}");
         }
     }
 
     #[test]
-    fn jxl_and_jp2_truncated_input_is_an_error() {
-        for (name, bytes) in jxl_and_jp2_pages() {
+    fn hooked_formats_truncated_input_is_an_error() {
+        for (name, bytes) in hooked_format_pages() {
             let truncated = &bytes[..bytes.len() / 2];
             assert!(convert(truncated, ImageType::Png).is_err(), "{name}");
         }
     }
 
     #[test]
-    fn heif_family_stays_unreadable() {
-        for media_type in [detect::IMAGE_HEIF, detect::IMAGE_HEIC, detect::IMAGE_AVIF] {
-            assert!(!can_read(media_type), "{media_type}");
-            assert!(!can_convert(media_type, ImageType::Jpeg), "{media_type}");
-        }
+    fn avif_stays_unreadable() {
+        assert!(!can_read(detect::IMAGE_AVIF));
+        assert!(!can_convert(detect::IMAGE_AVIF, ImageType::Jpeg));
     }
 
     #[test]
