@@ -89,9 +89,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: ./.github/actions/setup-libheif
-        with:
-          target: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
           # registry downloads only; compile caching is sccache's job
@@ -128,6 +125,7 @@ jobs:
           mkdir -p "$stage" dist
           cp "target/${{ matrix.target }}/release/kmrs" "$stage/"
           cp LICENSE NOTICE README.md "$stage/"
+          cp -R licenses "$stage/"
           tar -czf "dist/${stage}.tar.gz" "$stage"
       - name: Package (windows)
         if: runner.os == 'Windows'
@@ -137,6 +135,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $stage, dist | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\kmrs.exe" $stage
           Copy-Item LICENSE, NOTICE, README.md $stage
+          Copy-Item -Recurse licenses $stage
           Compress-Archive -Path $stage -DestinationPath "dist\${stage}.zip"
       - uses: actions/upload-artifact@v7
         with:

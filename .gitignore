@@ -1,6 +1,5 @@
 /target
 /dist
-/.libheif-static
 **/*.rs.bk
 *.sqlite
 *.sqlite-wal

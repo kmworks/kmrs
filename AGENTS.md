@@ -5,7 +5,8 @@ Rules for working in this repository. They apply to humans and agents alike.
 ## Layout
 
 - Rust workspace: `crates/komga-core` (shared primitives), `crates/komga-db` (SQLite, DAOs, migrations), `crates/komga-media` (analyzers, metadata readers), `crates/komga-search` (tantivy), `crates/komga-server` (HTTP API, config, services). `xtask/` holds dev tasks.
-- HEIF, HEIC and AVIF decoding links libheif, so `cargo build` needs it: locally a system package (`brew install libheif`, `apt install libheif-dev`), in CI and releases the static archives from [kmworks/libheif-static](https://github.com/kmworks/libheif-static), pinned in `.github/libheif-static/`.
+- HEIF, HEIC and AVIF decoding links static libheif, libde265 and dav1d through [kmworks/libheif-static](https://github.com/kmworks/libheif-static), a `[patch.crates-io]` replacement for `libheif-sys` whose build script downloads them, so a first build needs network access or `LIBHEIF_STATIC_DIR`.
+- `licenses/`: license texts for those libraries, shipped with every release; update them with the libraries.
 - `webui/`: the kmweb React web UI (Vite + pnpm), embedded into the binary at build time (rust-embed over `webui/dist`, placeholder page when absent) and served at `/`, version-locked to the server. Its own `webui/AGENTS.md` applies inside.
 - User documentation lives in the kmworks/website repo (`docs/server/`), served at kmworks.date/server.
 - `examples/config.toml`: the canonical all-keys configuration reference.
