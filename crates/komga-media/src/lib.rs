@@ -5,6 +5,7 @@ pub mod container;
 pub mod detect;
 pub mod error;
 pub mod hash;
+mod heif;
 pub mod image;
 pub mod kepubify;
 pub(crate) mod lru;
