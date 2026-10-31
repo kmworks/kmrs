@@ -10,6 +10,8 @@ anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 image.workspace = true
+jxl-image-rs-integration.workspace = true
+hayro-jpeg2000.workspace = true
 zip = { workspace = true, features = ["bzip2", "deflate64", "lzma", "xz"] }
 pdfium-render.workspace = true
 roxmltree.workspace = true
@@ -24,5 +26,6 @@ serde.workspace = true
 serde_json.workspace = true
 regex = "1"
 time.workspace = true
-rxing = "0.9.3"
+# Without the `image` feature: rxing pins an exact `image` release; pages are decoded here anyway.
+rxing = { version = "0.9.3", default-features = false, features = ["decoders", "encoding_rs", "oned"] }
 tempfile = "3"

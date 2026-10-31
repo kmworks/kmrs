@@ -58,7 +58,10 @@ libc = "0.2"
 uuid = { version = "1", features = ["v4"] }
 regex = "1"
 form_urlencoded = "1"
-image = "0.25"
+image = "0.25.9"
+# Pure Rust decoders for the formats `image` lacks, wired in through its decoding hooks.
+jxl-image-rs-integration = "0.8"
+hayro-jpeg2000 = { version = "0.4", features = ["image"] }
 moka = { version = "0.12", features = ["future", "sync"] }
 sysinfo = { version = "0.39", default-features = false, features = ["system", "disk"] }
 jiff = "0.2"
