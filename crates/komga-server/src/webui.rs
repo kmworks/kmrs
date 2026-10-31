@@ -207,6 +207,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn anonymous_401_carries_spring_error_body() {
+        let app = crate::build_router(test_state());
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v2/users/me")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["status"], 401);
+        assert_eq!(body["error"], "Unauthorized");
+        assert_eq!(body["message"], "Unauthorized");
+        assert_eq!(body["path"], "/api/v2/users/me");
+        assert!(body["timestamp"].is_string());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v2/users/me")
+                    .header("X-Requested-With", "XMLHttpRequest")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(response.headers().get(header::CONTENT_TYPE).is_none());
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(bytes.is_empty());
+    }
+
+    #[tokio::test]
     async fn xhr_401_has_no_basic_challenge() {
         let app = crate::build_router(test_state());
 
