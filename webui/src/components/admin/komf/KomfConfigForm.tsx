@@ -115,7 +115,8 @@ export function KomfConfigForm({ config, libraries }: { config: KomfConfig; libr
     if (id === tab) return
     const next = new URLSearchParams(searchParams)
     next.set('tab', id)
-    setSearchParams(next)
+    // a tab switch is view state, not navigation: replace so history.back leaves the page
+    setSearchParams(next, { replace: true })
   }
 
   const tabErrors: Record<KomfTabId, boolean> = {
