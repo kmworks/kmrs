@@ -27,9 +27,14 @@ runs:
         archive="libheif-static-$target.tar.gz"
         mkdir -p .libheif-static
         curl -fsSL --retry 3 -o ".libheif-static/$archive" \
-          "https://github.com/kmworks/libheif-static/releases/download/$(cat "$pin/VERSION")/$archive"
-        grep " $archive\$" "$pin/SHA256SUMS" > .libheif-static/expected
-        (cd .libheif-static && shasum -a 256 -c expected)
+          "https://github.com/kmworks/libheif-static/releases/download/$(tr -d '\r' < "$pin/VERSION")/$archive"
+        # Windows checkouts may carry CRLF
+        tr -d '\r' < "$pin/SHA256SUMS" | grep " $archive\$" > .libheif-static/expected
+        if command -v sha256sum > /dev/null; then
+          (cd .libheif-static && sha256sum -c expected)
+        else
+          (cd .libheif-static && shasum -a 256 -c expected)
+        fi
         tar -xzf ".libheif-static/$archive" -C .libheif-static
 
         root="$PWD/.libheif-static/libheif-static-$target"
