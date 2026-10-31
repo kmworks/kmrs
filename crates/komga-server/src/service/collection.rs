@@ -257,7 +257,7 @@ pub(crate) fn create_mosaic(images: &[Vec<u8>], max_edge: u32) -> komga_db::Resu
     ];
     let mut decoded = Vec::new();
     for bytes in images.iter().take(4) {
-        decoded.push(image::load_from_memory(bytes).map_err(|e| {
+        decoded.push(komga_media::image::load_from_memory(bytes).map_err(|e| {
             komga_db::Error::EnumValue(format!("could not decode mosaic image: {e}"))
         })?);
     }

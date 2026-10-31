@@ -285,17 +285,6 @@ fn get_divina_entry(book_path: &Path, media: &Media, file_name: &str) -> Result<
     }
 }
 
-/// Image media types decodable by the `image` crate: komga's JXL/HEIF/JPEG2000 readers have no
-/// equivalent yet (plan §7-4), so conversion from those formats fails like an unsupported reader.
-const READABLE_IMAGE_TYPES: &[&str] = &[
-    detect::IMAGE_JPEG,
-    detect::IMAGE_PNG,
-    detect::IMAGE_GIF,
-    detect::IMAGE_WEBP,
-    detect::IMAGE_TIFF,
-    detect::IMAGE_BMP,
-];
-
 /// `BookLifecycle.getBookPage`: container extraction plus optional resize/convert.
 pub fn get_book_page(
     book_path: &Path,
@@ -329,7 +318,7 @@ pub fn get_book_page(
             "Convert page #{number} of book {book_name} from {page_media_type} to {}",
             convert_to.media_type()
         );
-        if !READABLE_IMAGE_TYPES.contains(&page_media_type) {
+        if !image::can_read(page_media_type) {
             return Err(MediaError::Conversion(format!(
                 "{msg}: unsupported read format {page_media_type}"
             )));
