@@ -6,6 +6,7 @@ import { useReaderSettings, type ScaleType } from '@/lib/store/readerSettings'
 import { buildSpreads, isLandscape, measureWhenKnown, slotAspectRatio, type SpreadPage } from '@/lib/utils/spreads'
 import { cn } from '@/lib/utils/cn'
 import { useWindowKeys } from './keys'
+import { PageImage } from './PageImage'
 import { usePinchZoom } from './usePinchZoom'
 
 interface PagedReaderProps {
@@ -27,19 +28,34 @@ function spreadCurrentPage(spread: SpreadPage[]): number {
   return spread.length === 2 && !spread[1].blank ? spread[1].number : spread[0].number
 }
 
-function imgClass(scale: ScaleType, double: boolean): string {
+/**
+ * Slot geometry lives on the wrapper div now (PageImage centers its spinner on it), so every
+ * mode needs one definite axis for the aspect-ratio fallback to resolve against: WIDTH modes
+ * take it from the width classes, the rest anchor on viewport height or measured pixels.
+ */
+function slotClass(scale: ScaleType, double: boolean, measured: boolean): string {
   switch (scale) {
     case 'WIDTH':
       return cn('self-start', double ? 'w-1/2' : 'w-full')
     case 'WIDTH_SHRINK_ONLY':
-      return cn('self-start', double ? 'max-w-1/2' : 'max-w-full')
+      return cn('self-start', measured ? (double ? 'max-w-1/2' : 'max-w-full') : double ? 'w-1/2' : 'w-full')
     case 'HEIGHT':
-      return 'h-dvh w-auto'
+      return 'h-dvh'
     case 'ORIGINAL':
-      return 'h-auto w-auto max-w-none'
+      return measured ? 'shrink-0' : 'h-dvh'
     default:
-      return cn('max-h-dvh object-contain', double ? 'max-w-1/2' : 'max-w-full')
+      return cn(!measured && 'h-dvh', double ? 'max-w-1/2' : 'max-w-full')
   }
+}
+
+function slotStyle(scale: ScaleType, double: boolean, p: SpreadPage): CSSProperties {
+  const measured = p.width && p.height
+  if (scale === 'ORIGINAL' && measured) return { width: p.width, height: p.height }
+  if (scale === 'WIDTH_SHRINK_ONLY' && measured)
+    return { width: `min(${double ? '50%' : '100%'}, ${p.width}px)`, aspectRatio: slotAspectRatio(p) }
+  // capped at the natural height so a page smaller than the viewport is not upscaled
+  if (scale === 'SCREEN' && measured) return { height: `min(100dvh, ${p.height}px)`, aspectRatio: slotAspectRatio(p) }
+  return { aspectRatio: slotAspectRatio(p) }
 }
 
 /**
@@ -304,7 +320,7 @@ export function PagedReader({
                   className={cn(
                     'm-auto flex justify-center',
                     flip && !vertical && 'flex-row-reverse',
-                    hugContent ? 'w-max min-w-full' : 'w-full',
+                    hugContent ? 'w-max min-w-full shrink-0' : 'w-full',
                     scrollable ? 'items-start' : 'items-center',
                   )}
                 >
@@ -315,45 +331,38 @@ export function PagedReader({
                       // object-position swaps halves on the same element, so no image reload
                       const side = (flip ? ['right', 'left'] : ['left', 'right'])[splitHalf]
                       return (
-                        <div
+                        <PageImage
                           key={p.number}
+                          src={p.url}
+                          alt={t('pageAlt', { page: p.number })}
                           className="shrink-0 overflow-hidden"
                           style={splitBoxStyle(scale, p.width, p.height)}
-                        >
-                          <img
-                            src={p.url}
-                            alt={t('pageAlt', { page: p.number })}
-                            draggable={false}
-                            className="block h-full w-full object-cover"
-                            style={{ objectPosition: `${side} center` }}
-                            onLoad={(e) =>
-                              onMeasure(p.number, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)
-                            }
-                          />
-                        </div>
+                          imgClassName="block h-full w-full object-cover"
+                          imgStyle={{ objectPosition: `${side} center` }}
+                          onMeasure={(w, h) => onMeasure(p.number, w, h)}
+                        />
                       )
                     }
-                    const cls = imgClass(scale, double)
+                    const measured = !!(p.width && p.height)
+                    const cls = slotClass(scale, double, measured)
                     // every slot keeps an aspect-ratio box (real dims once measured, a 2:3
                     // fallback before) so an unloaded page holds its own half instead of
                     // collapsing and letting the loaded mate sit in the spread's middle
-                    const dim = { aspectRatio: slotAspectRatio(p) }
-                    return near || p.blank ? (
-                      <img
-                        key={p.number || `blank-${j}`}
+                    const dim = slotStyle(scale, double, p)
+                    if (!near && !p.blank) return <div key={p.number} aria-hidden className={cls} style={dim} />
+                    if (p.blank)
+                      return (
+                        <img key={`blank-${j}`} src={p.url} alt="" draggable={false} className={cls} style={dim} />
+                      )
+                    return (
+                      <PageImage
+                        key={p.number}
                         src={p.url}
-                        alt={p.blank ? '' : t('pageAlt', { page: p.number })}
-                        draggable={false}
+                        alt={t('pageAlt', { page: p.number })}
                         className={cls}
                         style={dim}
-                        onLoad={
-                          p.blank
-                            ? undefined
-                            : (e) => onMeasure(p.number, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)
-                        }
+                        onMeasure={(w, h) => onMeasure(p.number, w, h)}
                       />
-                    ) : (
-                      <div key={p.number} aria-hidden className={cls} style={dim} />
                     )
                   })}
                 </div>
