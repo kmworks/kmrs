@@ -1,5 +1,6 @@
 import { CircleNotch } from '@phosphor-icons/react'
 import { useState, type CSSProperties, type HTMLAttributes } from 'react'
+import { useReaderSettings } from '@/lib/store/readerSettings'
 import { cn } from '@/lib/utils/cn'
 
 interface PageImageProps extends HTMLAttributes<HTMLDivElement> {
@@ -30,12 +31,16 @@ export function PageImage({
   ...rest
 }: PageImageProps) {
   const [loaded, setLoaded] = useState(false)
+  const background = useReaderSettings((s) => s.background)
   return (
     <div className={cn('relative', className)} style={style} {...rest}>
       {load && !loaded && (
         <CircleNotch
           aria-hidden
-          className="absolute top-[min(50%,50dvh)] left-1/2 size-8 -translate-x-1/2 -translate-y-1/2 animate-spin text-white/60 mix-blend-difference"
+          className={cn(
+            'absolute top-[min(50%,50dvh)] left-1/2 size-8 -translate-x-1/2 -translate-y-1/2 animate-spin',
+            background === 'WHITE' ? 'text-black/50' : 'text-white/60',
+          )}
         />
       )}
       {load && (

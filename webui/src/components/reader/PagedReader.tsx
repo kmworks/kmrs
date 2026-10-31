@@ -44,7 +44,7 @@ function slotClass(scale: ScaleType, double: boolean, measured: boolean): string
     case 'ORIGINAL':
       return measured ? 'shrink-0' : 'h-dvh'
     default:
-      return cn('h-dvh', double ? 'max-w-1/2' : 'max-w-full')
+      return cn(!measured && 'h-dvh', double ? 'max-w-1/2' : 'max-w-full')
   }
 }
 
@@ -53,6 +53,8 @@ function slotStyle(scale: ScaleType, double: boolean, p: SpreadPage): CSSPropert
   if (scale === 'ORIGINAL' && measured) return { width: p.width, height: p.height }
   if (scale === 'WIDTH_SHRINK_ONLY' && measured)
     return { width: `min(${double ? '50%' : '100%'}, ${p.width}px)`, aspectRatio: slotAspectRatio(p) }
+  // capped at the natural height so a page smaller than the viewport is not upscaled
+  if (scale === 'SCREEN' && measured) return { height: `min(100dvh, ${p.height}px)`, aspectRatio: slotAspectRatio(p) }
   return { aspectRatio: slotAspectRatio(p) }
 }
 
@@ -318,7 +320,7 @@ export function PagedReader({
                   className={cn(
                     'm-auto flex justify-center',
                     flip && !vertical && 'flex-row-reverse',
-                    hugContent ? 'w-max min-w-full' : 'w-full',
+                    hugContent ? 'w-max min-w-full shrink-0' : 'w-full',
                     scrollable ? 'items-start' : 'items-center',
                   )}
                 >
