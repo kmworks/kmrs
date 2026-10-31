@@ -17,7 +17,6 @@ runs:
         case "$target" in
           x86_64-unknown-linux-gnu) triplet=x64-linux ;;
           aarch64-unknown-linux-gnu) triplet=arm64-linux ;;
-          x86_64-apple-darwin) triplet=x64-osx ;;
           aarch64-apple-darwin) triplet=arm64-osx ;;
           x86_64-pc-windows-msvc) triplet=x64-windows-static-md ;;
           *) echo "no libheif archive for $target" >&2; exit 1 ;;
@@ -44,8 +43,4 @@ runs:
         else
           echo "PKG_CONFIG_PATH=$root/installed/$triplet/lib/pkgconfig" >> "$GITHUB_ENV"
           echo "SYSTEM_DEPS_LIBHEIF_LINK=static" >> "$GITHUB_ENV"
-        fi
-        # libheif's CPU feature checks need compiler-rt, which rustc does not link
-        if [ "$target" = x86_64-apple-darwin ]; then
-          echo "RUSTFLAGS=-C link-arg=$(clang -print-resource-dir)/lib/darwin/libclang_rt.osx.a" >> "$GITHUB_ENV"
         fi

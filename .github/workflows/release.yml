@@ -64,11 +64,6 @@ jobs:
             target: aarch64-apple-darwin
             builder: cargo
             heapprof: true
-          # x86_64 links native libraries, and this is the last Intel runner image
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            builder: cargo
-            heapprof: true
           # jemalloc has no MSVC support; the feature is inert here
           - os: windows-latest
             target: x86_64-pc-windows-msvc
