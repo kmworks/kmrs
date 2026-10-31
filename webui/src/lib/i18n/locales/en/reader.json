@@ -125,6 +125,7 @@
     "bookNotFoundBody": "It may have been deleted, or you do not have access to it.",
     "loadBookFailed": "Failed to load book",
     "loadPagesFailed": "Failed to load pages",
+    "pageFailed": "Failed to load this page",
     "noPages": "No pages",
     "backToBook": "Back to book",
     "network": "Could not reach the server. Check your connection and try again.",

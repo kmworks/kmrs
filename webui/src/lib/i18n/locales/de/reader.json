@@ -125,6 +125,7 @@
     "bookNotFoundBody": "Es wurde möglicherweise gelöscht, oder du hast keinen Zugriff darauf.",
     "loadBookFailed": "Das Buch konnte nicht geladen werden",
     "loadPagesFailed": "Die Seiten konnten nicht geladen werden",
+    "pageFailed": "Diese Seite konnte nicht geladen werden",
     "noPages": "Keine Seiten",
     "backToBook": "Zurück zum Buch",
     "network": "Der Server ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",

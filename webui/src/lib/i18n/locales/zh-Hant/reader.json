@@ -125,6 +125,7 @@
     "bookNotFoundBody": "它可能已被刪除，或你沒有存取權限。",
     "loadBookFailed": "書籍載入失敗",
     "loadPagesFailed": "頁面載入失敗",
+    "pageFailed": "此頁面載入失敗",
     "noPages": "沒有頁面",
     "backToBook": "返回書籍",
     "network": "無法連線到伺服器。請檢查你的連線後重試。",
