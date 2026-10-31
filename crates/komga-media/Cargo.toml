@@ -13,6 +13,8 @@ image.workspace = true
 jxl-image-rs-integration.workspace = true
 hayro-jpeg2000.workspace = true
 libheif-rs.workspace = true
+# Only for its `prebuilt` feature; `libheif-rs` is the API.
+libheif-sys.workspace = true
 zip = { workspace = true, features = ["bzip2", "deflate64", "lzma", "xz"] }
 pdfium-render.workspace = true
 roxmltree.workspace = true

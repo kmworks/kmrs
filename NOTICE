@@ -18,6 +18,6 @@ and libde265 (https://github.com/strukturag/libde265), licensed under the
 GNU Lesser General Public License version 3, and dav1d
 (https://code.videolan.org/videolan/dav1d), licensed under the BSD 2-Clause
 License. License texts and copyright notices are in the licenses directory.
-Their sources, with the patches applied, are published with each release of
-https://github.com/kmworks/libheif-static. To use modified versions of these
+Their sources, with the patches applied, are published with each static-* release of
+https://github.com/kmworks/libheif-sys. To use modified versions of these
 libraries, rebuild kmrs from source, setting LIBHEIF_STATIC_DIR to link yours.

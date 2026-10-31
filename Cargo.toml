@@ -63,6 +63,7 @@ image = "0.25.9"
 jxl-image-rs-integration = "0.8"
 hayro-jpeg2000 = { version = "0.4", features = ["image"] }
 libheif-rs = { version = "3", default-features = false, features = ["v1_17"] }
+libheif-sys = { version = "5.3", features = ["prebuilt"] }
 moka = { version = "0.12", features = ["future", "sync"] }
 sysinfo = { version = "0.39", default-features = false, features = ["system", "disk"] }
 jiff = "0.2"
@@ -91,6 +92,6 @@ inherits = "release"
 debug = 1
 strip = "debuginfo"
 
-# Links prebuilt static libheif, libde265 and dav1d instead of a system libheif.
+# Fork adding the `prebuilt` feature: static libheif, libde265 and dav1d, so no system libheif.
 [patch.crates-io]
-libheif-sys = { git = "https://github.com/kmworks/libheif-static", rev = "4efdb7c024baa1f94b7451a7c663f5161c4d13b8" }
+libheif-sys = { git = "https://github.com/kmworks/libheif-sys", rev = "9693ee6d66cfaf48604cc43c6ce70278c66c6997" }
