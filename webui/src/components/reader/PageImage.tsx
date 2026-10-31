@@ -23,8 +23,9 @@ interface PageImageProps extends HTMLAttributes<HTMLDivElement> {
  * when the cache already has the image, since window slides remount loaded slots.
  *
  * The first load error is retried automatically once; if that also fails the slot keeps its
- * box and shows a retry button. The placeholder stops click/pointer propagation because both
- * readers turn pages from container-level click regions.
+ * box and shows a retry button. Only the button stops click/pointer propagation: both readers
+ * turn pages from container-level click regions, and the rest of a failed slot must keep
+ * turning pages so an unreadable page can be skipped.
  */
 export function PageImage({
   src,
@@ -58,20 +59,20 @@ export function PageImage({
         <div
           role="alert"
           className={cn('flex h-full w-full flex-col items-center justify-center gap-2', hintColor)}
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
-          onPointerCancel={(e) => e.stopPropagation()}
         >
           <ImageBroken aria-hidden className="size-8" />
           <span className="text-sm">{t('error.pageFailed')}</span>
           <Button
             variant="primary"
             size="sm"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation()
               setLoaded(false)
               setState((s) => (s !== null ? imageRetried(s) : s))
             }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onPointerCancel={(e) => e.stopPropagation()}
           >
             {t('common:action.retry')}
           </Button>
