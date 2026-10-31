@@ -271,12 +271,14 @@ export function useBrowseFilters(scope?: string, disabledKeys: readonly GroupKey
     return parsed
   }, [effectiveParams, disabledKeys])
 
+  // filter state is view state, not navigation: replace the entry so the back button returns
+  // to the previous page instead of replaying earlier filter states of this page
   const update = useCallback(
-    (mutate: (params: URLSearchParams) => void, replace = false) => {
+    (mutate: (params: URLSearchParams) => void) => {
       const next = new URLSearchParams(effectiveParams)
       mutate(next)
       if (scope) setFilters(scope, extractFilterParams(next))
-      setSearchParams(next, { replace })
+      setSearchParams(next, { replace: true })
     },
     [effectiveParams, scope, setFilters, setSearchParams],
   )
@@ -377,14 +379,11 @@ export function useBrowseFilters(scope?: string, disabledKeys: readonly GroupKey
   )
 
   const setQ = useCallback(
-    (q: string, replace = true) =>
-      update(
-        (p) => {
-          if (q.trim()) p.set('q', q)
-          else p.delete('q')
-        },
-        replace,
-      ),
+    (q: string) =>
+      update((p) => {
+        if (q.trim()) p.set('q', q)
+        else p.delete('q')
+      }),
     [update],
   )
 

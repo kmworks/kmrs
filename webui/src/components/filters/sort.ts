@@ -49,7 +49,8 @@ export function useSortState(scope: string, fallback: SortState) {
       setSortPref(scope, serializeSort(next))
       const params = new URLSearchParams(searchParams)
       params.set('sort', serializeSort(next))
-      setSearchParams(params)
+      // same-page view state: replace, or the back button replays earlier sort states
+      setSearchParams(params, { replace: true })
     },
     [scope, searchParams, setSearchParams, setSortPref],
   )
