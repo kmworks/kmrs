@@ -1120,15 +1120,17 @@ mod tests {
         assert_eq!(body["last"], true);
     }
 
-    /// v3 errors are RFC 9457 ProblemDetail, not the v1/v2 Spring error body.
+    /// The security entry point runs outside the controller advice, so a v3 401 is
+    /// the Spring error body rather than an RFC 9457 ProblemDetail.
     #[tokio::test]
-    async fn v3_error_is_problem_detail() {
+    async fn v3_unauthorized_is_spring_error_body() {
         let app = app();
         let response = app
             .get_response("/api/v3/notable-entities", "k-missing")
             .await;
         assert_eq!(response.0, StatusCode::UNAUTHORIZED);
-        // the security entry point is outside the controller advice: empty body stays
-        assert!(response.2.is_empty());
+        let body: serde_json::Value = serde_json::from_slice(&response.2).unwrap();
+        assert_eq!(body["error"], "Unauthorized");
+        assert!(body.get("title").is_none());
     }
 }

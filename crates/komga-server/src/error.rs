@@ -1,6 +1,7 @@
 //! API error shapes, aligned with Spring Boot (`include-message: always`) and komga's `ErrorHandlingControllerAdvice`:
 //! - business errors: `{timestamp,status,error,message,path}`.
 //! - bean validation failures: 400 `{violations:[{fieldName,message}]}`.
+//! - unauthenticated: 401 `{timestamp,status,error,message,path}` with a Basic challenge.
 //! - `EntityNotFoundException`: 404 empty body.
 //! - `CodedException`: 400, message is `ERR_xxxx`.
 
@@ -13,7 +14,7 @@ use serde::Serialize;
 #[derive(Debug)]
 #[allow(dead_code)] // variants like NotFoundEmpty are used by endpoints in M3
 pub enum ApiError {
-    /// 401 empty body + `WWW-Authenticate: Basic realm="Realm"`
+    /// 401 Spring default error JSON + `WWW-Authenticate: Basic realm="Realm"`
     Unauthorized,
     /// 404 empty body (EntityNotFoundException semantics)
     NotFoundEmpty,
@@ -111,6 +112,38 @@ struct ErrorBody {
     path: String,
 }
 
+/// Response extension marking a 401 from Spring's `BasicAuthenticationEntryPoint`
+/// equivalent, as opposed to a controller-level 401 that owns its body.
+#[derive(Clone, Copy)]
+pub struct BasicChallenge;
+
+fn unauthorized_response() -> Response {
+    let status = StatusCode::UNAUTHORIZED;
+    let reason = reason_phrase(status);
+    let body = ErrorBody {
+        timestamp: now_timestamp(),
+        status: status.as_u16(),
+        error: reason.clone(),
+        message: reason,
+        path: String::new(), // filled in with the request path by error_path_middleware
+    };
+    let mut response = (
+        status,
+        [(
+            axum::http::header::WWW_AUTHENTICATE,
+            "Basic realm=\"Realm\"",
+        )],
+        Json(body),
+    )
+        .into_response();
+    response.headers_mut().insert(
+        crate::http::error_path::ERROR_MARKER,
+        axum::http::HeaderValue::from_static("1"),
+    );
+    response.extensions_mut().insert(BasicChallenge);
+    response
+}
+
 /// RFC 9457 ProblemDetail error for the `/api/v3` prefix (komga 1.29
 /// `ApiV3ErrorHandlingControllerAdvice`): controller exceptions under v3 serialize as
 /// `application/problem+json`; the security-level 401/empty-404 stay as-is (the advice only
@@ -152,14 +185,7 @@ struct V3Violation {
 impl IntoResponse for V3Error {
     fn into_response(self) -> Response {
         match self.error {
-            ApiError::Unauthorized => (
-                StatusCode::UNAUTHORIZED,
-                [(
-                    axum::http::header::WWW_AUTHENTICATE,
-                    "Basic realm=\"Realm\"",
-                )],
-            )
-                .into_response(),
+            ApiError::Unauthorized => unauthorized_response(),
             ApiError::NotFoundEmpty => StatusCode::NOT_FOUND.into_response(),
             ApiError::Status { status, message } => {
                 problem_response(status, message, self.path, None)
@@ -260,14 +286,7 @@ fn now_timestamp() -> String {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {
-            ApiError::Unauthorized => (
-                StatusCode::UNAUTHORIZED,
-                [(
-                    axum::http::header::WWW_AUTHENTICATE,
-                    "Basic realm=\"Realm\"",
-                )],
-            )
-                .into_response(),
+            ApiError::Unauthorized => unauthorized_response(),
             ApiError::NotFoundEmpty => StatusCode::NOT_FOUND.into_response(),
             ApiError::Status { status, message } => {
                 let body = ErrorBody {
