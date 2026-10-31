@@ -16,7 +16,9 @@ export function BrowseTabs({ tab }: { tab: Tab }) {
       <SegmentedControl<Tab>
         options={TABS.map((value) => ({ value, label: t(`tabs.${value}`) }))}
         value={tab}
-        onChange={(next) => navigate(`/libraries/${libraryId}/${next}`)}
+        // a tab switch re-views the same library, it isn't a navigation step: replace, or
+        // history.back replays tab states instead of leaving the library
+        onChange={(next) => navigate(`/libraries/${libraryId}/${next}`, { replace: true })}
       />
     </div>
   )
