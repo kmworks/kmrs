@@ -3,6 +3,7 @@
 //! Byte-level output differs from ImageIO (different JPEG encoder); komga already accepts that
 //! deviation for thumbnails and page hashing (see project plan §7-1).
 
+use crate::avif;
 use crate::detect;
 use crate::error::{MediaError, Result};
 use crate::heif;
@@ -11,7 +12,7 @@ use image::{ImageFormat, ImageReader, Rgb, RgbImage};
 use std::io::Cursor;
 use std::sync::Once;
 
-/// Media types `decode` can read: `ImageIO.getReaderMIMETypes`, minus AVIF.
+/// Media types `decode` can read: the page formats among `ImageIO.getReaderMIMETypes`.
 const READABLE_MEDIA_TYPES: &[&str] = &[
     detect::IMAGE_JPEG,
     detect::IMAGE_PNG,
@@ -23,6 +24,7 @@ const READABLE_MEDIA_TYPES: &[&str] = &[
     detect::IMAGE_JP2,
     detect::IMAGE_HEIF,
     detect::IMAGE_HEIC,
+    detect::IMAGE_AVIF,
 ];
 
 /// `image` keeps decoding hooks in a process-wide table, so this only has to run once.
@@ -32,6 +34,7 @@ fn register_decoders() {
         jxl_image_rs_integration::register_image_decoding_hook();
         hayro_jpeg2000::integration::register_decoding_hook();
         heif::register_hook();
+        avif::register_hook();
     });
 }
 
@@ -40,7 +43,7 @@ fn reader(bytes: &[u8]) -> std::io::Result<ImageReader<Cursor<&[u8]>>> {
     ImageReader::new(Cursor::new(bytes)).with_guessed_format()
 }
 
-/// `image::load_from_memory` with the JXL, JPEG 2000 and HEIF decoders available.
+/// `image::load_from_memory` with the JXL, JPEG 2000, HEIF and AVIF decoders available.
 pub fn load_from_memory(bytes: &[u8]) -> image::ImageResult<DynamicImage> {
     register_decoders();
     image::load_from_memory(bytes)
@@ -265,8 +268,8 @@ mod tests {
         assert_eq!(detect::detect_media_type(&bytes), detect::IMAGE_PNG);
     }
 
-    fn hooked_format_pages() -> [(&'static str, Vec<u8>); 3] {
-        ["page.jxl", "page.jp2", "page.heic"].map(|name| {
+    fn hooked_format_pages() -> [(&'static str, Vec<u8>); 4] {
+        ["page.jxl", "page.jp2", "page.heic", "page.avif"].map(|name| {
             (
                 name,
                 std::fs::read(fixtures().join("images").join(name)).unwrap(),
@@ -311,9 +314,12 @@ mod tests {
     }
 
     #[test]
-    fn avif_stays_unreadable() {
-        assert!(!can_read(detect::IMAGE_AVIF));
-        assert!(!can_convert(detect::IMAGE_AVIF, ImageType::Jpeg));
+    fn avif_with_a_mif1_major_brand_still_decodes() {
+        let mut bytes = std::fs::read(fixtures().join("images/page.avif")).unwrap();
+        bytes[8..12].copy_from_slice(b"mif1");
+        assert_eq!(detect::detect_media_type(&bytes), detect::IMAGE_HEIF);
+        assert_eq!(get_dimension(&bytes), Some((40, 60)));
+        assert!(convert(&bytes, ImageType::Png).is_ok());
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! Media pipeline: type sniffing, archive/EPUB/PDF extraction, hashing, thumbnails, metadata.
 
 pub mod analyzer;
+mod avif;
 pub mod container;
 pub mod detect;
 pub mod error;

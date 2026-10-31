@@ -13,6 +13,8 @@ image.workspace = true
 jxl-image-rs-integration.workspace = true
 hayro-jpeg2000.workspace = true
 heic-rs.workspace = true
+re_rav1d.workspace = true
+avif-parse.workspace = true
 zip = { workspace = true, features = ["bzip2", "deflate64", "lzma", "xz"] }
 pdfium-render.workspace = true
 roxmltree.workspace = true

@@ -1,13 +1,15 @@
 //! HEIF/HEIC pages through `image`'s decoding hooks, next to the JXL and JPEG 2000 ones.
 
+use crate::avif::{self, AvifDecoder};
 use heic_rs::{DecodeOptions, PixelLayout};
 use image::error::{DecodingError, ImageFormatHint};
-use image::hooks::{register_decoding_hook, register_format_detection_hook, GenericReader};
+use image::hooks::{register_decoding_hook, register_format_detection_hook};
 use image::{ColorType, ImageDecoder, ImageError, ImageResult};
 use std::fmt::Display;
 use std::io::Read;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
+const FORMAT: &str = "HEIF";
 const EXTENSION: &str = "heic";
 
 /// The `ftyp` brands `detect::detect_media_type` reports as HEIF or HEIC.
@@ -30,7 +32,18 @@ static SIGNATURE_MASK: [u8; 12] = [0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf
 pub(crate) fn register_hook() {
     if register_decoding_hook(
         EXTENSION.into(),
-        Box::new(|reader| Ok(Box::new(HeifDecoder::new(reader)?))),
+        Box::new(|mut reader| {
+            let mut bytes = Vec::new();
+            reader
+                .read_to_end(&mut bytes)
+                .map_err(ImageError::IoError)?;
+            if avif::has_avif_brand(&bytes) {
+                // `avif-parse` only accepts `avif` in the major brand slot.
+                bytes[8..12].copy_from_slice(b"avif");
+                return Ok(Box::new(AvifDecoder::new(&bytes)?));
+            }
+            Ok(Box::new(HeifDecoder::new(bytes)?))
+        }),
     ) {
         for signature in &SIGNATURES {
             register_format_detection_hook(EXTENSION.into(), signature, Some(&SIGNATURE_MASK));
@@ -46,12 +59,8 @@ struct HeifDecoder {
 }
 
 impl HeifDecoder {
-    fn new(mut reader: GenericReader<'_>) -> ImageResult<Self> {
-        let mut bytes = Vec::new();
-        reader
-            .read_to_end(&mut bytes)
-            .map_err(ImageError::IoError)?;
-        let info = guarded(|| heic_rs::probe(&bytes))?;
+    fn new(bytes: Vec<u8>) -> ImageResult<Self> {
+        let info = guarded(FORMAT, || heic_rs::probe(&bytes))?;
         let layout = match (info.has_alpha, info.bit_depth > 8) {
             (false, false) => PixelLayout::Rgb8,
             (true, false) => PixelLayout::Rgba8,
@@ -86,9 +95,12 @@ impl ImageDecoder for HeifDecoder {
             .with_layout(self.layout)
             .with_alpha(self.layout.has_alpha())
             .with_transforms(true);
-        let decoded = guarded(|| heic_rs::decode(&self.bytes, &options))?;
+        let decoded = guarded(FORMAT, || heic_rs::decode(&self.bytes, &options))?;
         if decoded.data.len() != buf.len() {
-            return Err(decoding_error("decoded size differs from the container's"));
+            return Err(decoding_error(
+                FORMAT,
+                "decoded size differs from the container's",
+            ));
         }
         buf.copy_from_slice(&decoded.data);
         Ok(())
@@ -99,16 +111,19 @@ impl ImageDecoder for HeifDecoder {
     }
 }
 
-/// `heic-rs` is pinned and young: a panic on a malformed page must fail that page, not its worker.
-fn guarded<T>(decode: impl FnOnce() -> heic_rs::Result<T>) -> ImageResult<T> {
+/// These decoders are young: a panic on a malformed page must fail that page, not its worker.
+pub(crate) fn guarded<T, E: Display>(
+    format: &str,
+    decode: impl FnOnce() -> Result<T, E>,
+) -> ImageResult<T> {
     catch_unwind(AssertUnwindSafe(decode))
-        .map_err(|_| decoding_error("decoder panicked"))?
-        .map_err(decoding_error)
+        .map_err(|_| decoding_error(format, "decoder panicked"))?
+        .map_err(|e| decoding_error(format, e))
 }
 
-fn decoding_error(error: impl Display) -> ImageError {
+pub(crate) fn decoding_error(format: &str, error: impl Display) -> ImageError {
     ImageError::Decoding(DecodingError::new(
-        ImageFormatHint::Name("HEIF".to_string()),
+        ImageFormatHint::Name(format.to_string()),
         error.to_string(),
     ))
 }
@@ -119,7 +134,8 @@ mod tests {
 
     #[test]
     fn panic_becomes_a_decoding_error() {
-        let result: ImageResult<()> = guarded(|| panic!("malformed"));
+        let result: ImageResult<()> =
+            guarded(FORMAT, || -> Result<(), &str> { panic!("malformed") });
         assert!(matches!(result, Err(ImageError::Decoding(_))));
     }
 }

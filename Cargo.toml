@@ -64,6 +64,9 @@ jxl-image-rs-integration = "0.8"
 hayro-jpeg2000 = { version = "0.4", features = ["image"] }
 # Pinned exactly: a young single-maintainer decoder parsing untrusted files.
 heic-rs = "=0.1.4"
+# rav1d with a safe Rust API. No `asm`: nasm-free builds, and no hand-written assembly on untrusted files.
+re_rav1d = { version = "=0.1.3", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+avif-parse = "2.1"
 moka = { version = "0.12", features = ["future", "sync"] }
 sysinfo = { version = "0.39", default-features = false, features = ["system", "disk"] }
 jiff = "0.2"
