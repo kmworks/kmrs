@@ -125,6 +125,7 @@
     "bookNotFoundBody": "它可能已被删除，或者你没有访问权限。",
     "loadBookFailed": "加载书籍失败",
     "loadPagesFailed": "加载页面失败",
+    "pageFailed": "此页面加载失败",
     "noPages": "没有页面",
     "backToBook": "返回书籍页面",
     "network": "无法连接服务器，请检查网络后重试。",

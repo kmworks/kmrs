@@ -125,6 +125,7 @@
     "bookNotFoundBody": "Potrebbe essere stato eliminato, oppure non hai accesso.",
     "loadBookFailed": "Caricamento del libro non riuscito",
     "loadPagesFailed": "Caricamento delle pagine non riuscito",
+    "pageFailed": "Impossibile caricare questa pagina",
     "noPages": "Nessuna pagina",
     "backToBook": "Torna al libro",
     "network": "Impossibile raggiungere il server. Controlla la connessione e riprova.",

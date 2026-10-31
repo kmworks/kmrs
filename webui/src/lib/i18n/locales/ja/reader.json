@@ -125,6 +125,7 @@
     "bookNotFoundBody": "削除されたか、アクセス権がない可能性があります。",
     "loadBookFailed": "本の読み込みに失敗しました",
     "loadPagesFailed": "ページの読み込みに失敗しました",
+    "pageFailed": "このページの読み込みに失敗しました",
     "noPages": "ページがありません",
     "backToBook": "本に戻る",
     "network": "サーバーに接続できませんでした。接続を確認して再試行してください。",
