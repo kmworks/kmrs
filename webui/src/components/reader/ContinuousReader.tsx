@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useReaderSettings } from '@/lib/store/readerSettings'
 import { slotAspectRatio, type SpreadPage } from '@/lib/utils/spreads'
 import { useWindowKeys } from './keys'
+import { PageImage } from './PageImage'
 import { usePinchZoom } from './usePinchZoom'
 
 interface ContinuousReaderProps {
@@ -165,10 +166,14 @@ export function ContinuousReader({
           {pages.map((p, i) => {
             const load = i === 0 || seen[i] || Math.abs(i + 1 - page) <= 2
             return (
-              <div
+              <PageImage
                 key={p.number}
                 data-page={p.number}
+                src={p.url}
+                alt={t('pageAlt', { page: p.number })}
+                load={load}
                 className="mx-auto"
+                imgClassName="block h-auto w-full"
                 style={{
                   width: scale === 'WIDTH' ? `${100 - padding * 2}%` : (p.width ?? '100%'),
                   marginTop: i === 0 ? 0 : margin,
@@ -176,17 +181,8 @@ export function ContinuousReader({
                   // below do not shift when it arrives
                   aspectRatio: slotAspectRatio(p),
                 }}
-              >
-                {load && (
-                  <img
-                    src={p.url}
-                    alt={t('pageAlt', { page: p.number })}
-                    draggable={false}
-                    className="block h-auto w-full"
-                    onLoad={(e) => onMeasure(p.number, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
-                  />
-                )}
-              </div>
+                onMeasure={(w, h) => onMeasure(p.number, w, h)}
+              />
             )
           })}
         </div>
