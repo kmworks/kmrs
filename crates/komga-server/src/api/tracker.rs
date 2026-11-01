@@ -275,11 +275,10 @@ async fn tracker_ledger(
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct SearchQuery {
     name: String,
     nsfw: Option<bool>,
-    title_language: Option<String>,
+    language: Option<String>,
 }
 
 async fn tracker_search(
@@ -296,7 +295,7 @@ async fn tracker_search(
             &auth.0.user.id,
             &query.name,
             query.nsfw.unwrap_or(true),
-            query.title_language.as_deref(),
+            query.language.as_deref(),
         )
         .await
         .map_err(tracker_error)?;
@@ -785,7 +784,7 @@ mod tests {
         struct StubTracker {
             users: StdMutex<HashSet<String>>,
             updates: StdMutex<Vec<(String, String, TrackUpdate)>>,
-            title_languages: StdMutex<Vec<Option<String>>>,
+            languages: StdMutex<Vec<Option<String>>>,
         }
 
         #[async_trait::async_trait]
@@ -803,12 +802,12 @@ mod tests {
                 user_id: &str,
                 query: &str,
                 _nsfw: bool,
-                title_language: Option<&str>,
+                language: Option<&str>,
             ) -> Result<Vec<TrackSearchItem>, TrackerError> {
-                self.title_languages
+                self.languages
                     .lock()
                     .unwrap()
-                    .push(title_language.map(ToOwned::to_owned));
+                    .push(language.map(ToOwned::to_owned));
                 Ok(vec![TrackSearchItem {
                     id: user_id.to_string(),
                     title: query.to_string(),
@@ -867,19 +866,19 @@ mod tests {
             let (app, _, stub) = user_app_with_stub();
             let (_, body) = app
                 .get_json(
-                    "/api/v1/trackers/anilist/search?name=%5Bcomic%5D%5BTitle%5D%5BAuthor%5D&titleLanguage=zh-Hant",
+                    "/api/v1/trackers/anilist/search?name=%5Bcomic%5D%5BTitle%5D%5BAuthor%5D&language=zh-Hant",
                     "k-user",
                 )
                 .await;
             assert_eq!(body[0]["title"], "[comic][Title][Author]");
             assert_eq!(
-                stub.title_languages.lock().unwrap().as_slice(),
+                stub.languages.lock().unwrap().as_slice(),
                 &[Some("zh-Hant".to_string())]
             );
 
             app.get_json("/api/v1/trackers/anilist/search?name=Series", "k-user")
                 .await;
-            assert_eq!(stub.title_languages.lock().unwrap().as_slice()[1], None);
+            assert_eq!(stub.languages.lock().unwrap().as_slice()[1], None);
         }
 
         #[tokio::test]

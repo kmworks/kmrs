@@ -157,7 +157,7 @@ function BindDialog({
   onBound: (link: TrackerLinkRef) => void
 }) {
   const { t, i18n } = useTranslation('trackers')
-  const titleLanguage = i18n.resolvedLanguage ?? i18n.language
+  const language = i18n.resolvedLanguage ?? i18n.language
   const queryClient = useQueryClient()
   const available = PROVIDERS.filter((p) => !existingProviders.includes(p))
   // remount-on-open (key at the call site) makes these initial values per-open
@@ -170,8 +170,8 @@ function BindDialog({
   )
 
   const searchQuery = useQuery({
-    queryKey: ['trackers', 'search', provider, query, titleLanguage],
-    queryFn: () => trackersApi.search(provider!, { name: query, titleLanguage }),
+    queryKey: ['trackers', 'search', provider, query, language],
+    queryFn: () => trackersApi.search(provider!, { name: query, language }),
     enabled: open && !!provider && query.trim().length > 0,
     retry: false,
   })
@@ -180,8 +180,8 @@ function BindDialog({
   // search box exactly like a pasted link: one direct, clickable candidate
   const suggestedUrl = provider ? suggestedUrls[provider] : undefined
   const suggestQuery = useQuery({
-    queryKey: ['trackers', 'search', provider, suggestedUrl, titleLanguage],
-    queryFn: () => trackersApi.search(provider!, { name: suggestedUrl!, titleLanguage }),
+    queryKey: ['trackers', 'search', provider, suggestedUrl, language],
+    queryFn: () => trackersApi.search(provider!, { name: suggestedUrl!, language }),
     enabled: open && !!provider && !!suggestedUrl,
     retry: false,
   })
