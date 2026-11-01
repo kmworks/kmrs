@@ -30,7 +30,7 @@ import { IconButton } from '@/components/ui/IconButton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Slider } from '@/components/ui/Slider'
 import { Switch } from '@/components/ui/Switch'
-import { OptionTiles, Row, RowGroup, Section } from '@/components/reader/panel'
+import { FieldGroup, OptionTiles, Row, RowGroup, Section, SliderField } from '@/components/reader/panel'
 import { cn } from '@/lib/utils/cn'
 
 const SCALE_LABEL_KEYS: Record<ScaleType, string> = {
@@ -279,12 +279,8 @@ export function SettingsPanel({
 
               {webtoon && (
                 <Section title={t('common:readingDirection.webtoon')}>
-                  <div className="space-y-4 rounded-xl bg-raised p-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[13px] text-ink">
-                        <span>{t('panel.sidePadding')}</span>
-                        <span className="font-mono text-xs text-ink-3">{continuousPadding}%</span>
-                      </div>
+                  <FieldGroup>
+                    <SliderField label={t('panel.sidePadding')} value={`${continuousPadding}%`}>
                       <Slider
                         value={continuousPadding}
                         onValueChange={(v) => update({ continuousPadding: v })}
@@ -293,12 +289,8 @@ export function SettingsPanel({
                         step={5}
                         label={t('panel.sidePadding')}
                       />
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[13px] text-ink">
-                        <span>{t('panel.pageGap')}</span>
-                        <span className="font-mono text-xs text-ink-3">{continuousMargin}px</span>
-                      </div>
+                    </SliderField>
+                    <SliderField label={t('panel.pageGap')} value={`${continuousMargin}px`}>
                       <Slider
                         value={continuousMargin}
                         onValueChange={(v) => update({ continuousMargin: v })}
@@ -307,8 +299,8 @@ export function SettingsPanel({
                         step={5}
                         label={t('panel.pageGap')}
                       />
-                    </div>
-                  </div>
+                    </SliderField>
+                  </FieldGroup>
                 </Section>
               )}
             </div>
