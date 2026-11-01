@@ -862,7 +862,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn search_passes_query_and_title_language_through_unchanged() {
+        async fn search_passes_query_and_language_through_unchanged() {
             let (app, _, stub) = user_app_with_stub();
             let (_, body) = app
                 .get_json(

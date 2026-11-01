@@ -403,7 +403,7 @@ impl TrackerService for AniListTracker {
         user_id: &str,
         query: &str,
         nsfw: bool,
-        _title_language: Option<&str>,
+        _language: Option<&str>,
     ) -> Result<Vec<TrackSearchItem>, TrackerError> {
         if let Some(id) = Self::manga_url_id(query) {
             let data = self

@@ -362,15 +362,12 @@ impl MangaBakaTracker {
         &self,
         series: &Series,
         tracked: bool,
-        title_language: Option<&str>,
+        language: Option<&str>,
     ) -> TrackSearchItem {
         let title = if series.titles.is_empty() {
             series.title.clone()
         } else {
-            primary_title(
-                &series.titles,
-                title_language.unwrap_or(DEFAULT_TITLE_LANGUAGE),
-            )
+            primary_title(&series.titles, language.unwrap_or(DEFAULT_TITLE_LANGUAGE))
         };
         let media_type = match series.series_type.as_deref() {
             Some("novel") => Some(TrackMediaType::Novel),
@@ -460,7 +457,7 @@ impl TrackerService for MangaBakaTracker {
         user_id: &str,
         query: &str,
         nsfw: bool,
-        title_language: Option<&str>,
+        language: Option<&str>,
     ) -> Result<Vec<TrackSearchItem>, TrackerError> {
         let series = if let Some(id) = Self::series_url_id(query) {
             vec![self.detail(id).await?]
@@ -485,7 +482,7 @@ impl TrackerService for MangaBakaTracker {
         let tracked = self.tracked_ids(user_id, &ids).await?;
         Ok(series
             .iter()
-            .map(|series| self.search_item(series, tracked.contains(&series.id), title_language))
+            .map(|series| self.search_item(series, tracked.contains(&series.id), language))
             .collect())
     }
 
@@ -705,7 +702,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn public_search_uses_batch_tracking_and_title_language() {
+    async fn public_search_uses_batch_tracking_and_language() {
         let (origin, mock) = serve(|request| match request.path.as_str() {
             "/v1/series/search" => (StatusCode::OK, json!({"data": [series(7), series(8)]})),
             "/v1/my/library/batch" => (StatusCode::OK, json!({"data": [{"series_id": 7}]})),
