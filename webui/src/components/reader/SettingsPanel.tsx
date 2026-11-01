@@ -10,6 +10,7 @@ import {
   ArrowsVertical,
   BookOpen,
   BookOpenText,
+  CircleHalf,
   CornersOut,
   File,
   FrameCorners,
@@ -18,7 +19,7 @@ import {
 } from '@phosphor-icons/react'
 import type { ReadingDirection } from '@/lib/api/types'
 import {
-  READER_BACKGROUND_SWATCHES,
+  READER_BACKGROUNDS,
   useReaderSettings,
   type ContinuousScaleType,
   type PageTransition,
@@ -322,11 +323,14 @@ export function SettingsPanel({
                           title={t(BACKGROUND_LABEL_KEYS[value])}
                           onClick={() => update({ background: value })}
                           className={cn(
-                            'size-6 cursor-pointer rounded-full border border-line-strong',
+                            'size-6 cursor-pointer rounded-full text-ink-2',
+                            value !== 'AUTO' && 'border border-line-strong',
                             background === value && 'ring-2 ring-accent ring-offset-2 ring-offset-raised',
                           )}
-                          style={{ background: READER_BACKGROUND_SWATCHES[value] }}
-                        />
+                          style={value === 'AUTO' ? undefined : { background: READER_BACKGROUNDS[value] }}
+                        >
+                          {value === 'AUTO' && <CircleHalf aria-hidden weight="fill" className="size-full" />}
+                        </button>
                       ))}
                     </div>
                   </Row>

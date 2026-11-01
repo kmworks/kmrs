@@ -1,6 +1,7 @@
+import { CircleHalf } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import {
-  READER_BACKGROUND_SWATCHES,
+  READER_BACKGROUNDS,
   useReaderSettings,
   type ReaderBackground,
   type ScaleType,
@@ -13,7 +14,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Section, SettingRow } from './Section'
 
 const directions: ReadingDirection[] = ['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT', 'VERTICAL', 'WEBTOON']
-const backgrounds = Object.keys(READER_BACKGROUND_SWATCHES) as ReaderBackground[]
+const backgrounds: ReaderBackground[] = ['AUTO', 'BLACK', 'GRAY', 'WHITE']
 
 export function ReaderSection() {
   const { t } = useTranslation('account')
@@ -69,12 +70,15 @@ export function ReaderSection() {
                 aria-label={t('reader.backgroundLabel', { color: t(`reader.backgrounds.${bg.toLowerCase()}`) })}
                 aria-pressed={background === bg}
                 onClick={() => update({ background: bg })}
-                style={{ background: READER_BACKGROUND_SWATCHES[bg] }}
+                style={bg === 'AUTO' ? undefined : { background: READER_BACKGROUNDS[bg] }}
                 className={cn(
-                  'size-7 cursor-pointer rounded-full border border-line-strong transition-transform active:scale-95',
+                  'size-7 cursor-pointer rounded-full text-ink-2 transition-transform active:scale-95',
+                  bg !== 'AUTO' && 'border border-line-strong',
                   background === bg && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
                 )}
-              />
+              >
+                {bg === 'AUTO' && <CircleHalf aria-hidden weight="fill" className="size-full" />}
+              </button>
             ))}
           </div>
         </SettingRow>

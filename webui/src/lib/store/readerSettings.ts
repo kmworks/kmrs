@@ -53,11 +53,6 @@ export const READER_BACKGROUNDS: Record<ResolvedReaderBackground, string> = {
   WHITE: '#f5f4f0',
 }
 
-export const READER_BACKGROUND_SWATCHES: Record<ReaderBackground, string> = {
-  ...READER_BACKGROUNDS,
-  AUTO: `linear-gradient(135deg, ${READER_BACKGROUNDS.BLACK} 50%, ${READER_BACKGROUNDS.WHITE} 50%)`,
-}
-
 export const useReaderSettings = create<ReaderSettingsState>()(
   persist(
     (set) => ({
