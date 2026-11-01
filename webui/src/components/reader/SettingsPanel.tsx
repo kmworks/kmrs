@@ -93,9 +93,9 @@ const TAP_ZONE_LABEL_KEYS: Record<TapZoneLayout, string> = {
 }
 
 const TAP_ACTION_CLASSES: Record<TapAction, string> = {
-  previous: 'fill-ink-3',
-  next: 'fill-ink-2',
-  menu: 'fill-overlay',
+  previous: 'fill-[#a4706f]',
+  next: 'fill-[#6f9a80]',
+  menu: 'fill-[#6f86a8]',
 }
 
 /** Samples the real tap resolver, so a preview can never drift from what a tap does. */
