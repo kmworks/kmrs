@@ -1,5 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { READER_BACKGROUNDS, useReaderSettings, type ReaderBackground, type ScaleType } from '@/lib/store/readerSettings'
+import {
+  READER_BACKGROUND_SWATCHES,
+  useReaderSettings,
+  type ReaderBackground,
+  type ScaleType,
+} from '@/lib/store/readerSettings'
 import type { ReadingDirection } from '@/lib/api/types'
 import type { PagedReaderLayout } from '@/lib/utils/spreads'
 import { readingDirectionLabel } from '@/lib/utils/format'
@@ -8,7 +13,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Section, SettingRow } from './Section'
 
 const directions: ReadingDirection[] = ['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT', 'VERTICAL', 'WEBTOON']
-const backgrounds = Object.keys(READER_BACKGROUNDS) as ReaderBackground[]
+const backgrounds = Object.keys(READER_BACKGROUND_SWATCHES) as ReaderBackground[]
 
 export function ReaderSection() {
   const { t } = useTranslation('account')
@@ -64,7 +69,7 @@ export function ReaderSection() {
                 aria-label={t('reader.backgroundLabel', { color: t(`reader.backgrounds.${bg.toLowerCase()}`) })}
                 aria-pressed={background === bg}
                 onClick={() => update({ background: bg })}
-                style={{ backgroundColor: READER_BACKGROUNDS[bg] }}
+                style={{ background: READER_BACKGROUND_SWATCHES[bg] }}
                 className={cn(
                   'size-7 cursor-pointer rounded-full border border-line-strong transition-transform active:scale-95',
                   background === bg && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
