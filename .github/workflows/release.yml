@@ -1,11 +1,13 @@
 name: Release
 
-# Every main commit publishes the rolling main image and an immutable
-# main-<sha> image. A new workspace version also produces the full release:
-# `gh release create` creates its tag at the triggering commit.
+# Publishes a GitHub release whenever the workspace version in Cargo.toml is
+# bumped on main: the version job computes v<version>, skips if that release
+# already exists, otherwise the matrix builds and the release job publishes.
+# `gh release create` creates the tag itself, pointing at the triggering commit.
 on:
   push:
     branches: [main]
+    paths: [Cargo.toml, .github/workflows/release.yml]
   workflow_dispatch:
 
 permissions:
@@ -24,7 +26,6 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       major: ${{ steps.v.outputs.major }}
       skip: ${{ steps.v.outputs.skip }}
-      release: ${{ steps.v.outputs.skip == 'false' }}
     steps:
       - uses: actions/checkout@v7
       - id: v
@@ -44,7 +45,7 @@ jobs:
 
   build:
     needs: [version, webui]
-    if: needs.version.outputs.release == 'true'
+    if: needs.version.outputs.skip != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -55,23 +56,19 @@ jobs:
             target: x86_64-unknown-linux-gnu
             builder: cross
             heapprof: true
-            release: true
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             builder: cross
             heapprof: true
-            release: false
           - os: macos-latest
             target: aarch64-apple-darwin
             builder: cargo
             heapprof: true
-            release: false
           # jemalloc has no MSVC support; the feature is inert here
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             builder: cargo
             heapprof: false
-            release: false
     runs-on: ${{ matrix.os }}
     env:
       KMRS_OAUTH_ANILIST_CLIENT_ID: ${{ secrets.KMRS_OAUTH_ANILIST_CLIENT_ID }}
@@ -121,7 +118,7 @@ jobs:
           CARGO_INCREMENTAL: "0"
           CARGO_PROFILE_RELEASE_STRIP: ${{ matrix.heapprof && 'debuginfo' || 'symbols' }}
       - name: Package (unix)
-        if: matrix.release && runner.os != 'Windows'
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           stage="kmrs_${{ needs.version.outputs.version }}_${{ matrix.target }}"
@@ -131,7 +128,7 @@ jobs:
           cp -R licenses "$stage/"
           tar -czf "dist/${stage}.tar.gz" "$stage"
       - name: Package (windows)
-        if: matrix.release && runner.os == 'Windows'
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $stage = "kmrs_${{ needs.version.outputs.version }}_${{ matrix.target }}"
@@ -146,6 +143,8 @@ jobs:
           path: dist/*
 
   webui:
+    needs: version
+    if: needs.version.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -155,65 +154,21 @@ jobs:
           name: webui-dist
           path: webui/dist
 
-  build-docker:
-    needs: webui
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            target: x86_64-unknown-linux-gnu
-          - arch: arm64
-            target: aarch64-unknown-linux-gnu
-    runs-on: ubuntu-latest
-    env:
-      KMRS_OAUTH_ANILIST_CLIENT_ID: ${{ secrets.KMRS_OAUTH_ANILIST_CLIENT_ID }}
-      KMRS_OAUTH_ANILIST_CLIENT_SECRET: ${{ secrets.KMRS_OAUTH_ANILIST_CLIENT_SECRET }}
-      KMRS_OAUTH_MAL_CLIENT_ID: ${{ secrets.KMRS_OAUTH_MAL_CLIENT_ID }}
-      KMRS_OAUTH_MAL_CLIENT_SECRET: ${{ secrets.KMRS_OAUTH_MAL_CLIENT_SECRET }}
-      KMRS_OAUTH_BANGUMI_CLIENT_ID: ${{ secrets.KMRS_OAUTH_BANGUMI_CLIENT_ID }}
-      KMRS_OAUTH_BANGUMI_CLIENT_SECRET: ${{ secrets.KMRS_OAUTH_BANGUMI_CLIENT_SECRET }}
-      KMRS_OAUTH_MANGABAKA_CLIENT_ID: ${{ secrets.KMRS_OAUTH_MANGABAKA_CLIENT_ID }}
-      KMRS_OAUTH_MANGABAKA_CLIENT_SECRET: ${{ secrets.KMRS_OAUTH_MANGABAKA_CLIENT_SECRET }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
-        with:
-          name: webui-dist
-          path: webui/dist
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-targets: "false"
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cross
-      - run: cross build --release --target ${{ matrix.target }} -p komga-server --features profiling
-        env:
-          LZMA_API_STATIC: "1"
-          CARGO_PROFILE_RELEASE_STRIP: "debuginfo"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: docker-${{ matrix.arch }}
-          path: target/${{ matrix.target }}/release/kmrs
-          if-no-files-found: error
-
   docker:
-    needs: [version, build-docker]
+    needs: [version, build]
+    if: needs.version.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
-          pattern: docker-*
+          pattern: "*-unknown-linux-gnu"
           path: artifacts
       - name: Stage binaries
         run: |
           mkdir -p dist/amd64 dist/arm64
-          cp artifacts/docker-amd64/kmrs dist/amd64/kmrs
-          cp artifacts/docker-arm64/kmrs dist/arm64/kmrs
+          tar -xzf artifacts/kmrs-x86_64-unknown-linux-gnu/*.tar.gz -C dist/amd64 --strip-components=1 --wildcards '*/kmrs'
+          tar -xzf artifacts/kmrs-aarch64-unknown-linux-gnu/*.tar.gz -C dist/arm64 --strip-components=1 --wildcards '*/kmrs'
           ls -l dist/amd64 dist/arm64
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
@@ -232,11 +187,9 @@ jobs:
             ghcr.io/${{ github.repository }}
             everpcpc/kmrs
           tags: |
-            type=raw,value=latest,enable=${{ needs.version.outputs.release == 'true' }}
-            type=raw,value=${{ needs.version.outputs.version }},enable=${{ needs.version.outputs.release == 'true' }}
-            type=raw,value=${{ needs.version.outputs.major }}.x,enable=${{ needs.version.outputs.release == 'true' }}
-            type=raw,value=main
-            type=sha,prefix=main-
+            type=raw,value=latest
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=raw,value=${{ needs.version.outputs.major }}.x
       - name: Smoke test (amd64)
         # the shipped artifact gets no other runtime validation; a glibc or
         # packaging regression must fail here, before anything is pushed
@@ -268,8 +221,8 @@ jobs:
   release:
     # after docker: if the image smoke test fails, no release is created, so
     # the skip-guard does not block a fixed re-run
-    needs: [version, build, build-docker, docker]
-    if: needs.version.outputs.release == 'true'
+    needs: [version, build, docker]
+    if: needs.version.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
