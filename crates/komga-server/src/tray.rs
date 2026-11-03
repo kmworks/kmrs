@@ -221,6 +221,7 @@ fn run(
 
     TRAY_ICON.with(|slot| *slot.borrow_mut() = Some(tray.clone()));
 
+    let refresh_update = update.clone();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| match event.id.0.as_str() {
         "open" => open_in_browser(port),
         "logs" => {
@@ -264,7 +265,7 @@ fn run(
         _ => {}
     }));
     TrayIconEvent::set_event_handler(Some(move |event: TrayIconEvent| {
-        refresh_update_item(&update);
+        refresh_update_item(&refresh_update);
         if let TrayIconEvent::Click {
             button: MouseButton::Left,
             button_state: MouseButtonState::Up,
