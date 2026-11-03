@@ -140,6 +140,7 @@ jobs:
             "${{ needs.version.outputs.version }}" \
             dist \
             aarch64
+          ditto -c -k --keepParent dist/KMServer.app dist/KMServer.zip
       - name: Package (unix)
         if: matrix.os != 'windows-latest' && matrix.os != 'macos-latest'
         shell: bash
@@ -160,6 +161,26 @@ jobs:
           Copy-Item LICENSE, NOTICE, README.md $stage
           Copy-Item -Recurse licenses $stage
           Compress-Archive -Path $stage -DestinationPath "dist\${stage}.zip"
+          Copy-Item "target\${{ matrix.target }}\release\kmrs.exe" packaging/windows/kmrs.exe
+          Copy-Item crates/komga-server/resources/windows/kmrs.ico packaging/windows/kmrs.ico
+          choco install nsis --no-progress -y
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) { throw "makensis not found at $makensis" }
+          & $makensis /DVERSION=${{ needs.version.outputs.version }} /DOUTFILE="$PWD\dist\KMServer_x64-setup.exe" packaging\windows\installer.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item packaging\windows\kmrs.exe, packaging\windows\kmrs.ico
+      - name: Write update checksums
+        if: matrix.os == 'macos-latest' || matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = macos-latest ]; then
+            assets=(KMServer.zip)
+          else
+            assets=(KMServer_x64-setup.exe)
+          fi
+          for asset in "${assets[@]}"; do
+            sha256sum "dist/$asset"
+          done > dist/SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
           name: kmrs-${{ matrix.target }}
