@@ -13,7 +13,6 @@ use objc2::MainThreadMarker;
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSEvent, NSEventModifierFlags, NSEventType,
 };
-use objc2_core_graphics::CGSessionCopyCurrentDictionary;
 use objc2_foundation::{ns_string, NSActivityOptions, NSPoint, NSProcessInfo};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
@@ -47,7 +46,7 @@ where
     let Some(mtm) = MainThreadMarker::new() else {
         return server();
     };
-    if CGSessionCopyCurrentDictionary().is_none() {
+    if !session_has_graphic_access() {
         return server();
     }
 
@@ -80,6 +79,24 @@ where
         Ok(result) => result,
         Err(panic) => std::panic::resume_unwind(panic),
     }
+}
+
+#[link(name = "Security", kind = "framework")]
+unsafe extern "C" {
+    fn SessionGetInfo(session: u32, session_id: *mut u32, attributes: *mut u32) -> i32;
+}
+
+/// Whether this process may draw on a display. An SSH login, or a launchd job
+/// outside a GUI login, lacks it even while the same user is logged in at the
+/// console, where an AppKit status item would otherwise still show up.
+fn session_has_graphic_access() -> bool {
+    const CALLER_SECURITY_SESSION: u32 = u32::MAX;
+    const SESSION_HAS_GRAPHIC_ACCESS: u32 = 0x0010;
+    let mut session_id = 0;
+    let mut attributes = 0;
+    let status =
+        unsafe { SessionGetInfo(CALLER_SECURITY_SESSION, &mut session_id, &mut attributes) };
+    status == 0 && attributes & SESSION_HAS_GRAPHIC_ACCESS != 0
 }
 
 struct StopAppOnDrop;

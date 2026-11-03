@@ -108,7 +108,6 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
     "NSProcessInfo",
     "NSString",
 ] }
-objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGSession"] }
 dispatch2 = { version = "0.3", default-features = false, features = ["std"] }
 
 [dev-dependencies]
