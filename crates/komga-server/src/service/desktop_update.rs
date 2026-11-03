@@ -71,6 +71,10 @@ impl DesktopUpdate {
         self.state.lock().unwrap().status = status;
     }
 
+    pub fn set_failed(&self, error: String) {
+        self.set(Status::Failed(error));
+    }
+
     pub fn download_verified(&self, directory: &Path) -> Result<DownloadedUpdate, String> {
         let asset = {
             let mut state = self.state.lock().unwrap();

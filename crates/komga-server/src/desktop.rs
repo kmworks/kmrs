@@ -1,7 +1,9 @@
 //! Desktop installation boundaries: only an installed app or per-user Windows
 //! installation can hand a verified update to its platform helper.
 
-use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
+use std::path::Path;
+use std::path::PathBuf;
 
 use crate::service::desktop_update::DesktopUpdate;
 
@@ -52,6 +54,7 @@ pub fn start_update(
     shutdown: tokio::sync::watch::Sender<bool>,
 ) {
     if let Err(e) = install_macos(&update, &app, &config_dir, port, &shutdown) {
+        update.set_failed(e.clone());
         tracing::error!("macOS update failed: {e}");
     }
 }
@@ -145,6 +148,7 @@ pub fn start_update(
     shutdown: tokio::sync::watch::Sender<bool>,
 ) {
     if let Err(e) = install_windows(&update, &shutdown) {
+        update.set_failed(e.clone());
         tracing::error!("Windows update failed: {e}");
     }
 }
@@ -166,7 +170,7 @@ fn install_windows(
     let result = std::process::Command::new(&downloaded.path)
         .arg("/S")
         .arg(format!("/UPDATEPID={}", std::process::id()))
-        .arg(format!("/RELAUNCH={}", exe))
+        .arg(format!("/RELAUNCH={}", exe.display()))
         .spawn();
     match result {
         Ok(_) => {
