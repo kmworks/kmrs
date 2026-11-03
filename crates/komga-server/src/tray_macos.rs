@@ -19,8 +19,8 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 const MENU_BAR_ICON_PNG: &[u8] = include_bytes!("../resources/windows/tray-icon.png");
 
-/// Set once the main thread runs NSApplication; without it there is no menu bar to
-/// add an item to (no GUI session, e.g. SSH or a LaunchDaemon).
+/// Set while the main thread is handed to NSApplication; unset, there is no event
+/// loop to own a menu bar item (no graphic access, e.g. SSH or a LaunchDaemon).
 static APP_RUNNING: AtomicBool = AtomicBool::new(false);
 
 thread_local! {
