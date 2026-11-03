@@ -16,7 +16,7 @@ use objc2_app_kit::{
 use objc2_foundation::{ns_string, NSActivityOptions, NSBundle, NSPoint, NSProcessInfo, NSURL};
 use objc2_service_management::{SMAppService, SMAppServiceStatus};
 use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
-use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
+use tray_icon::{Icon, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
 const MENU_BAR_ICON_PNG: &[u8] = include_bytes!("../resources/windows/tray-icon.png");
 
@@ -225,6 +225,11 @@ fn build(
         AUTOSTART_ITEM.with(|slot| *slot.borrow_mut() = Some(item));
     }
     let config_dir = paths.config_dir;
+    TrayIconEvent::set_event_handler(Some(|event: TrayIconEvent| {
+        if matches!(event, TrayIconEvent::Click { .. }) {
+            refresh_autostart_item();
+        }
+    }));
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| match event.id.0.as_str() {
         "open" => open_in_browser(port),
         "config" => open(config_dir.as_os_str()),
@@ -253,11 +258,7 @@ fn build(
                     }
                 }
             }
-            AUTOSTART_ITEM.with(|slot| {
-                if let Some(item) = slot.borrow().as_ref() {
-                    item.set_checked(autostart_enabled());
-                }
-            });
+            refresh_autostart_item();
         }
         "quit" => {
             let _ = shutdown.send(true);
@@ -300,6 +301,14 @@ fn app_bundle_path() -> Option<PathBuf> {
 
 fn autostart_enabled() -> bool {
     (unsafe { SMAppService::mainAppService().status() }) == SMAppServiceStatus::Enabled
+}
+
+fn refresh_autostart_item() {
+    AUTOSTART_ITEM.with(|slot| {
+        if let Some(item) = slot.borrow().as_ref() {
+            item.set_checked(autostart_enabled());
+        }
+    });
 }
 
 fn open_login_settings() {
