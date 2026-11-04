@@ -18,9 +18,12 @@ function Stop-TestServer {
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 function Wait-Installer {
-  param([string]$Path, [string]$Arguments, [string]$Stage)
+  param([string]$Path, [string]$Arguments, [string]$Stage, [System.Diagnostics.Process]$StopProcess)
   Write-Output "Starting $Stage"
   $process = Start-Process $Path -ArgumentList $Arguments -PassThru
+  if ($null -ne $StopProcess) {
+    Stop-Process -Id $StopProcess.Id
+  }
   if (-not $process.WaitForExit(90000)) {
     Get-CimInstance Win32_Process |
       Where-Object { $_.ExecutablePath -eq $Path -or $_.ExecutablePath -eq $exe } |
@@ -60,7 +63,7 @@ try {
   Wait-Health -Process $old
   if ($old.HasExited) { throw "initial server exited with $($old.ExitCode)" }
   Write-Output 'Initial server is healthy'
-  Wait-Installer "$root\setup.exe" "/S /UPDATEPID=$($old.Id) /CONFIGDIR=`"$config`" /INSTALLDIR=`"$install`"" 'Update installation'
+  Wait-Installer "$root\setup.exe" "/S /UPDATEPID=$($old.Id) /CONFIGDIR=`"$config`" /INSTALLDIR=`"$install`"" 'Update installation' -StopProcess $old
   for ($i = 0; $i -lt 60; $i++) {
     $new = Get-CimInstance Win32_Process -Filter "Name = 'kmrs.exe'" |
       Where-Object { $_.ExecutablePath -eq $exe -and $_.ProcessId -ne $old.Id }
@@ -76,7 +79,7 @@ try {
   Wait-Health -Process $failed
   Move-Item "$install\pdfium.dll" "$root\previous-pdfium.dll"
   New-Item -ItemType Directory "$install\pdfium.dll" | Out-Null
-  Wait-Installer "$root\setup.exe" "/S /UPDATEPID=$($failed.Id) /CONFIGDIR=`"$config`" /INSTALLDIR=`"$install`"" 'Failed-update recovery'
+  Wait-Installer "$root\setup.exe" "/S /UPDATEPID=$($failed.Id) /CONFIGDIR=`"$config`" /INSTALLDIR=`"$install`"" 'Failed-update recovery' -StopProcess $failed
   if (Test-Path "$install\pdfium.dll" -PathType Container) { throw 'installer did not reach the injected file-write failure' }
   Wait-Health -Process $failed
   $restored = Get-CimInstance Win32_Process -Filter "Name = 'kmrs.exe'" |
