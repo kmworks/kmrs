@@ -413,6 +413,11 @@ fn build(
                                 .map_err(|e| e.to_string())
                         };
                         remove_login_config();
+                        // launchd stops the login item's server along with the
+                        // login item, so that server starts again on its own
+                        if result.is_ok() && launched_by_login_agent() {
+                            relaunch_after_exit(&config_dir);
+                        }
                         result
                     };
                     if let Err(e) = result {
@@ -498,6 +503,35 @@ fn save_login_config(config_dir: &Path) -> std::io::Result<()> {
 fn remove_login_config() {
     if let Some(path) = login_config_path() {
         let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Opens the app again with the same data directory once this process has
+/// exited, giving up if it is still running after a minute. The waiting script
+/// runs in its own process group, which launchd's cleanup of the login item's
+/// process group does not reach.
+fn relaunch_after_exit(config_dir: &Path) {
+    use std::os::unix::process::CommandExt;
+    let Some(app) = crate::desktop::app_bundle_path() else {
+        return;
+    };
+    let script = format!(
+        "nohup /bin/sh -c 'waited=0; \
+         while kill -0 {pid} 2>/dev/null && [ $waited -lt 60 ]; do \
+         sleep 1; waited=$((waited + 1)); done; \
+         kill -0 {pid} 2>/dev/null || exec /usr/bin/open -n \"$0\" --args --config-dir \"$1\"' \
+         {app} {dir} </dev/null >/dev/null 2>&1 &",
+        pid = std::process::id(),
+        app = crate::desktop::shell_arg(&app),
+        dir = crate::desktop::shell_arg(config_dir),
+    );
+    let started = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(script)
+        .process_group(0)
+        .status();
+    if !started.is_ok_and(|status| status.success()) {
+        tracing::warn!("could not schedule the restart after leaving the login item");
     }
 }
 

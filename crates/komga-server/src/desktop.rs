@@ -158,7 +158,7 @@ fn unpack_app(archive: &Path, directory: &Path) -> Result<(), String> {
 }
 
 #[cfg(target_os = "macos")]
-fn shell_arg(path: &Path) -> String {
+pub(crate) fn shell_arg(path: &Path) -> String {
     let text = path.to_string_lossy();
     format!("'{}'", text.replace('\'', "'\\''"))
 }

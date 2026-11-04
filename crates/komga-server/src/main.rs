@@ -397,8 +397,25 @@ pub fn build_router(state: AppState) -> axum::Router {
 }
 
 async fn shutdown_signal(mut shutdown_rx: tokio::sync::watch::Receiver<bool>) {
+    // launchd stops a login item with SIGTERM: at logout, and when Open at Login
+    // is turned off while the login item runs the server
+    #[cfg(target_os = "macos")]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(e) => {
+                tracing::warn!("SIGTERM handler unavailable: {e}");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+    #[cfg(not(target_os = "macos"))]
+    let terminate = std::future::pending::<()>();
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {},
+        _ = terminate => {},
         _ = shutdown_rx.changed() => {},
     }
     tracing::info!("shutting down");
