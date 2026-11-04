@@ -87,14 +87,12 @@ fn install_macos(
         include_bytes!("../resources/macos/update-helper.sh"),
     )
     .map_err(|e| format!("write update helper: {e}"))?;
-    let log = config_dir.join("logs/update.log");
     let script = format!(
-        "nohup /bin/sh {} {} {} {} {} {} {} </dev/null >/dev/null 2>&1 &",
+        "nohup /bin/sh {} {} {} {} {} {} </dev/null >/dev/null 2>&1 &",
         shell_arg(&helper),
         shell_arg(Path::new(&std::process::id().to_string())),
         shell_arg(app),
-        shell_arg(&staged),
-        shell_arg(&log),
+        shell_arg(work.path()),
         shell_arg(config_dir),
         port,
     );
@@ -106,7 +104,8 @@ fn install_macos(
     if !status.success() {
         return Err(format!("update helper failed to start: {status}"));
     }
-    // Keep staging files until the detached helper has moved them into place.
+    update.installing();
+    // The detached helper owns the staging files from this point.
     std::mem::forget(work);
     let _ = shutdown.send(true);
     Ok(())
@@ -188,12 +187,12 @@ fn install_windows(
     let result = std::process::Command::new(&downloaded.path)
         .arg("/S")
         .arg(format!("/UPDATEPID={}", std::process::id()))
-        .arg(format!(r#"/RELAUNCH="{}""#, exe.display()))
         .arg(format!(r#"/INSTALLDIR="{}""#, install_dir.display()))
         .arg(format!(r#"/CONFIGDIR="{}""#, config_dir.display()))
         .spawn();
     match result {
         Ok(_) => {
+            update.installing();
             let _ = shutdown.send(true);
             Ok(())
         }

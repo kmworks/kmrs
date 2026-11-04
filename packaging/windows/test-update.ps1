@@ -18,7 +18,9 @@ function Stop-TestServer {
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 function Wait-Health {
+  param([System.Diagnostics.Process]$Process)
   for ($i = 0; $i -lt 60; $i++) {
+    if ($Process.HasExited) { throw "KMServer exited with $($Process.ExitCode)" }
     try {
       $response = Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:25600/actuator/health' -TimeoutSec 1
       if ($response.Content -match '"status"\s*:\s*"UP"') { return }
@@ -31,9 +33,10 @@ try {
   $installer = Start-Process "$root\setup.exe" -ArgumentList '/S', "/D=$install" -PassThru -Wait
   if ($installer.ExitCode -ne 0) { throw "initial installer exited with $($installer.ExitCode)" }
   if (-not (Test-Path $exe)) { throw 'initial install failed' }
-  $old = Start-Process $exe -ArgumentList '--config-dir', $config -PassThru
-  Wait-Health
-  $update = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($old.Id)", "/RELAUNCH=$exe", "/CONFIGDIR=$config", "/INSTALLDIR=$install" -PassThru -Wait
+  $old = Start-Process $exe -ArgumentList '--config-dir', "`"$config`"" -PassThru
+  Wait-Health -Process $old
+  if ($old.HasExited) { throw "initial server exited with $($old.ExitCode)" }
+  $update = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($old.Id)", "/CONFIGDIR=`"$config`"", "/INSTALLDIR=`"$install`"" -PassThru -Wait
   if ($update.ExitCode -ne 0) { throw "update installer exited with $($update.ExitCode)" }
   for ($i = 0; $i -lt 60; $i++) {
     $new = Get-CimInstance Win32_Process -Filter "Name = 'kmrs.exe'" |
@@ -43,22 +46,28 @@ try {
   }
   if (-not $new) { throw 'updated server did not restart' }
   if ($new.CommandLine -notlike "*--config-dir*") { throw 'custom config-dir was lost' }
-  Wait-Health
+  Wait-Health -Process $new
   Write-Output 'Windows install, custom-path update, config preservation, and restart passed'
   Stop-TestServer
-  $failed = Start-Process $exe -ArgumentList '--config-dir', $config -PassThru
-  Wait-Health
-  Remove-Item "$source\pdfium.dll"
-  New-Item -ItemType Directory "$source\pdfium.dll" | Out-Null
-  $recovery = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($failed.Id)", "/RELAUNCH=$exe", "/CONFIGDIR=$config", "/INSTALLDIR=$install" -PassThru -Wait
+  $failed = Start-Process $exe -ArgumentList '--config-dir', "`"$config`"" -PassThru
+  Wait-Health -Process $failed
+  Move-Item "$install\pdfium.dll" "$root\previous-pdfium.dll"
+  New-Item -ItemType Directory "$install\pdfium.dll" | Out-Null
+  $recovery = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($failed.Id)", "/CONFIGDIR=`"$config`"", "/INSTALLDIR=`"$install`"" -PassThru -Wait
   if ($recovery.ExitCode -ne 0) { throw "recovery installer exited with $($recovery.ExitCode)" }
-  Wait-Health
+  if (Test-Path "$install\pdfium.dll" -PathType Container) { throw 'installer did not reach the injected file-write failure' }
+  Wait-Health -Process $failed
   $restored = Get-CimInstance Win32_Process -Filter "Name = 'kmrs.exe'" |
     Where-Object { $_.ExecutablePath -eq $exe -and $_.ProcessId -ne $failed.Id }
   if (-not $restored) { throw 'previous server did not restart after a failed update' }
   if ($restored.CommandLine -notlike "*--config-dir*") { throw 'config-dir was lost during rollback' }
+  Wait-Health -Process $restored
   if (-not (Test-Path "$install\pdfium.dll" -PathType Leaf)) { throw 'previous PDFium was not restored' }
   Write-Output 'Windows failed update restored the previous server and configuration'
+} catch {
+  Get-ChildItem "$config\logs" -ErrorAction SilentlyContinue |
+    ForEach-Object { Write-Output "--- $($_.FullName)"; Get-Content $_.FullName -Tail 80 }
+  throw
 } finally {
   Stop-TestServer
   Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue

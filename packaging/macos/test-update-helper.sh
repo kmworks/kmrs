@@ -3,11 +3,15 @@
 set -euo pipefail
 
 ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
+OLD_MODE="${OLD_MODE:-old}"
+STAGED_MODE="${STAGED_MODE:-new}"
+HELPER_SCRIPT="${HELPER_SCRIPT:-$ROOT/crates/komga-server/resources/macos/update-helper.sh}"
 WORK="$(mktemp -d)"
 APP="$WORK/KMServer.app"
-STAGED="$WORK/staged"
+UPDATE_DIR="$WORK/update"
+STAGED="$UPDATE_DIR/staged"
 CONFIG="$WORK/config"
-PORT=28793
+PORT="${TEST_PORT:-28793}"
 OLD_PID=
 NEW_PID=
 
@@ -36,6 +40,9 @@ import sys
 
 mode, _, config_dir = sys.argv[1:]
 root = pathlib.Path(os.environ["TEST_WORK"])
+if mode == "restore-fail":
+    (root / "restored-start").write_text("yes")
+    sys.exit(1)
 if mode == "fail":
     (root / "failed-start").write_text("yes")
     sys.exit(1)
@@ -64,7 +71,10 @@ EOF
 	chmod +x "$app/Contents/MacOS/kmrs"
 }
 write_app "$APP" old
-write_app "$STAGED/KMServer.app" "${STAGED_MODE:-new}"
+write_app "$STAGED/KMServer.app" "$STAGED_MODE"
+if [ "$OLD_MODE" = restore-fail ]; then
+	write_app "$STAGED/KMServer.app" fail
+fi
 export TEST_WORK="$WORK" TEST_PORT="$PORT"
 export PATH="$WORK/tools:$PATH"
 
@@ -76,15 +86,29 @@ for _ in $(seq 1 30); do
 done
 kill "$OLD_PID"
 wait "$OLD_PID" || true
-sh "$ROOT/crates/komga-server/resources/macos/update-helper.sh" \
-	"$OLD_PID" "$APP" "$STAGED" "$CONFIG/logs/update.log" "$CONFIG" "$PORT"
+HELPER_FAILED=0
+if [ "$OLD_MODE" = restore-fail ]; then
+	write_app "$APP" restore-fail
+fi
+sh "$HELPER_SCRIPT" \
+	"$OLD_PID" "$APP" "$UPDATE_DIR" "$CONFIG" "$PORT" || HELPER_FAILED=$?
+[ ! -e "$UPDATE_DIR" ]
 
-if [ "${STAGED_MODE:-new}" = fail ]; then
+if [ "$OLD_MODE" = restore-fail ]; then
+	[ "$HELPER_FAILED" -ne 0 ]
+	[ -f "$WORK/restored-start" ]
+	printf 'helper failed recovery test passed\n'
+	exit 0
+fi
+[ "$HELPER_FAILED" -eq 0 ]
+
+if [ "$STAGED_MODE" = fail ]; then
 	for _ in $(seq 1 50); do
 		[ -f "$WORK/old-pid" ] && break
 		sleep .1
 	done
 	[ -f "$WORK/old-pid" ]
+	kill -0 "$(cat "$WORK/old-pid")"
 	[ "$(cat "$WORK/old-config")" = "$CONFIG" ]
 	curl -fsS "http://127.0.0.1:$PORT/actuator/health" >/dev/null
 	NEW_PID="$(cat "$WORK/old-pid")"
@@ -99,4 +123,4 @@ else
 	NEW_PID="$(cat "$WORK/new-pid")"
 fi
 [ ! -e "$APP.update-backup" ]
-printf 'helper %s test passed\n' "${STAGED_MODE:-new}"
+printf 'helper %s test passed\n' "$STAGED_MODE"

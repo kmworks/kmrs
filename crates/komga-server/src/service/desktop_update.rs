@@ -72,13 +72,17 @@ impl DesktopUpdate {
     }
 
     pub fn set_failed(&self, error: String) {
+        self.set(Status::Failed(error));
+    }
+
+    pub fn installing(&self) {
         let mut state = self.state.lock().unwrap();
-        if !matches!(state.status, Status::Installing(_)) {
-            state.status = Status::Failed(error);
+        if let Status::Downloading(version) = &state.status {
+            state.status = Status::Installing(version.clone());
         }
     }
 
-    pub fn begin_download(&self) -> Result<Asset, String> {
+    fn begin_download(&self) -> Result<Asset, String> {
         let mut state = self.state.lock().unwrap();
         if !matches!(state.status, Status::Available(_)) {
             return Err("no checked update is ready".into());
@@ -98,10 +102,7 @@ impl DesktopUpdate {
         };
         let path = directory.join(&asset.name);
         match self.runtime.block_on(download_asset(&asset, &path)) {
-            Ok(()) => {
-                self.set(Status::Installing(asset.version.clone()));
-                Ok(DownloadedUpdate { path })
-            }
+            Ok(()) => Ok(DownloadedUpdate { path }),
             Err(e) => {
                 self.set(Status::Failed(e.clone()));
                 Err(e)
@@ -153,6 +154,7 @@ async fn latest_asset() -> Result<Option<Asset>, String> {
     let client = super::update_check::github_client();
     let release: Release = client
         .get(RELEASES_URL)
+        .timeout(Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -181,6 +183,7 @@ async fn latest_asset() -> Result<Option<Asset>, String> {
         .ok_or("release has no SHA256SUMS")?;
     let text = client
         .get(&sums.browser_download_url)
+        .timeout(Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -273,7 +276,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn second_download_does_not_overwrite_installing_status() {
+    async fn second_download_cannot_interrupt_an_active_installation() {
         let update = DesktopUpdate::new(tokio::runtime::Handle::current());
         update.state.lock().unwrap().selected = Some(Asset {
             version: "99.0.0".into(),
@@ -283,10 +286,27 @@ mod tests {
         });
         update.set(Status::Available("99.0.0".into()));
         update.begin_download().unwrap();
-        update.set(Status::Installing("99.0.0".into()));
+        update.installing();
         assert!(update.begin_download().is_err());
-        update.set_failed("second request failed".into());
         assert_eq!(update.status(), Status::Installing("99.0.0".into()));
+    }
+
+    #[tokio::test]
+    async fn preparation_failure_leaves_update_retryable() {
+        let update = DesktopUpdate::new(tokio::runtime::Handle::current());
+        update.state.lock().unwrap().selected = Some(Asset {
+            version: "99.0.0".into(),
+            name: "KMServer.zip".into(),
+            url: "https://example.invalid/KMServer.zip".into(),
+            sha256: [0; 32],
+        });
+        update.set(Status::Available("99.0.0".into()));
+        update.begin_download().unwrap();
+        update.set_failed("signature verification failed".into());
+        assert_eq!(
+            update.status(),
+            Status::Failed("signature verification failed".into())
+        );
     }
 
     #[test]

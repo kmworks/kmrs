@@ -5,12 +5,25 @@ set -eu
 
 old_pid="$1"
 app="$2"
-staged="$3"
-log="$4"
-config_dir="$5"
-port="$6"
+update_dir="$3"
+config_dir="$4"
+port="$5"
+staged="$update_dir/staged/KMServer.app"
+log="$config_dir/logs/update.log"
 backup="${app}.update-backup"
 work="${app}.update-work"
+new_pid=
+
+cleanup() {
+	status=$?
+	if [ "$status" -ne 0 ]; then
+		printf 'Update failed\n'
+	fi
+	rm -rf "$update_dir"
+	trap - EXIT
+	exit "$status"
+}
+trap cleanup EXIT
 
 launch_and_check() {
 	"$app/Contents/MacOS/kmrs" --config-dir "$config_dir" &
@@ -22,7 +35,12 @@ launch_and_check() {
 			return 1
 		}
 		if curl -fsS "http://127.0.0.1:$port/actuator/health" 2>/dev/null | grep -q '"status"[[:space:]]*:[[:space:]]*"UP"'; then
-			return 0
+			sleep 1
+			if kill -0 "$new_pid" 2>/dev/null; then
+				return 0
+			fi
+			wait "$new_pid" || true
+			return 1
 		fi
 		sleep 1
 		waited=$((waited + 1))
@@ -33,21 +51,26 @@ launch_and_check() {
 }
 
 restore_running_app() {
-	if [ -n "${new_pid:-}" ]; then
+	if [ -n "$new_pid" ]; then
 		kill "$new_pid" 2>/dev/null || true
 		wait "$new_pid" 2>/dev/null || true
 	fi
 	if [ -d "$backup" ]; then
 		rm -rf "$app"
-		mv "$backup" "$app"
+		mv "$backup" "$app" || return 1
 	fi
-	launch_and_check
+	if launch_and_check; then
+		printf 'Previous installation restored\n'
+		return 0
+	fi
+	printf 'Previous installation could not restart\n'
+	return 1
 }
 
 exec >>"$log" 2>&1
 printf 'Waiting for KMServer pid %s to exit\n' "$old_pid"
 waited=0
-while kill -0 "$old_pid" 2>/dev/null; do
+while kill -0 "$old_pid" 2>/dev/null && ! ps -p "$old_pid" -o stat= | grep -q '^Z'; do
 	sleep 1
 	waited=$((waited + 1))
 	if [ "$waited" -ge 90 ]; then
@@ -61,7 +84,7 @@ done
 	restore_running_app
 	exit 1
 }
-[ -d "$staged/KMServer.app" ] || {
+[ -d "$staged" ] || {
 	restore_running_app
 	exit 1
 }
@@ -73,15 +96,15 @@ done
 	restore_running_app
 	exit 1
 }
-codesign --verify --deep --strict "$staged/KMServer.app" || {
+codesign --verify --deep --strict "$staged" || {
 	restore_running_app
 	exit 1
 }
-spctl --assess --type execute "$staged/KMServer.app" || {
+spctl --assess --type execute "$staged" || {
 	restore_running_app
 	exit 1
 }
-ditto "$staged/KMServer.app" "$work" || {
+ditto "$staged" "$work" || {
 	restore_running_app
 	exit 1
 }

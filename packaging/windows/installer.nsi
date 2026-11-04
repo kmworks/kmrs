@@ -28,7 +28,6 @@ RequestExecutionLevel user
 !insertmacro MUI_LANGUAGE "English"
 
 Var UpdatePid
-Var Relaunch
 Var ConfigDir
 Var BackupDir
 Var UpdateFailed
@@ -44,7 +43,6 @@ Var UpdateFailed
 Function .onInit
 	${GetParameters} $0
 	${GetOptions} $0 "/UPDATEPID=" $UpdatePid
-	${GetOptions} $0 "/RELAUNCH=" $Relaunch
 	${GetOptions} $0 "/CONFIGDIR=" $ConfigDir
 	${GetOptions} $0 "/INSTALLDIR=" $1
 	${If} $1 != ""
@@ -77,25 +75,38 @@ Function .onInit
 FunctionEnd
 
 Function .onInstSuccess
-	${If} $UpdatePid != ""
-		${If} $UpdateFailed != 0
-			RMDir /r "$INSTDIR"
-			Rename "$BackupDir" "$INSTDIR"
-			MessageBox MB_OK|MB_ICONSTOP "The update could not be installed. The previous installation was restored."
-		${Else}
-			RMDir /r "$BackupDir"
+	Call FinishUpdate
+FunctionEnd
+
+Function .onInstFailed
+	StrCpy $UpdateFailed 1
+	Call FinishUpdate
+FunctionEnd
+
+Function FinishUpdate
+	${If} $UpdatePid == ""
+		Return
+	${EndIf}
+	${If} $UpdateFailed != 0
+		RMDir /r "$INSTDIR"
+		ClearErrors
+		Rename "$BackupDir" "$INSTDIR"
+		${If} ${Errors}
+			MessageBox MB_OK|MB_ICONSTOP "The update failed and the previous installation could not be restored. The backup is at $BackupDir."
+			Return
 		${EndIf}
+		MessageBox MB_OK|MB_ICONSTOP "The update could not be installed. The previous installation was restored."
+	${Else}
+		RMDir /r "$BackupDir"
 	${EndIf}
-	${If} $Relaunch != ""
-		Call LaunchServer
-	${EndIf}
+	Call LaunchServer
 FunctionEnd
 
 Function LaunchServer
 	${If} $ConfigDir == ""
-		Exec '"$Relaunch"'
+		Exec '"$INSTDIR\kmrs.exe"'
 	${Else}
-		Exec '"$Relaunch" --config-dir "$ConfigDir"'
+		Exec '"$INSTDIR\kmrs.exe" --config-dir "$ConfigDir"'
 	${EndIf}
 FunctionEnd
 
@@ -139,5 +150,8 @@ Section "Uninstall"
 	Delete "$SMPROGRAMS\KMServer\Uninstall.lnk"
 	RMDir "$SMPROGRAMS\KMServer"
 	DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KMServer"
+	DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "KMServer"
+	; Compatibility with the old startup registration; remove in 0.27.0.
+	DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "KMReader"
 	DeleteRegKey HKCU "Software\KMServer"
 SectionEnd
