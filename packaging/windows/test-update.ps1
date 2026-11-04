@@ -19,23 +19,34 @@ function Stop-TestServer {
 }
 function Wait-Health {
   param([System.Diagnostics.Process]$Process)
-  for ($i = 0; $i -lt 60; $i++) {
-    if ($Process.HasExited) { throw "KMServer exited with $($Process.ExitCode)" }
-    try {
-      $response = Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:25600/actuator/health' -TimeoutSec 1
-      if ($response.Content -match '"status"\s*:\s*"UP"') { return }
-    } catch {}
-    Start-Sleep -Milliseconds 500
+  $handler = [System.Net.Http.HttpClientHandler]::new()
+  $handler.UseProxy = $false
+  $client = [System.Net.Http.HttpClient]::new($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds(1)
+  try {
+    for ($i = 0; $i -lt 60; $i++) {
+      if ($Process.HasExited) { throw "KMServer exited with $($Process.ExitCode)" }
+      try {
+        $response = $client.GetStringAsync('http://127.0.0.1:25600/actuator/health').GetAwaiter().GetResult()
+        if ($response -match '"status"\s*:\s*"UP"') { return }
+      } catch {}
+      Start-Sleep -Milliseconds 500
+    }
+    throw 'KMServer health check failed'
+  } finally {
+    $client.Dispose()
+    $handler.Dispose()
   }
-  throw 'KMServer health check failed'
 }
 try {
   $installer = Start-Process "$root\setup.exe" -ArgumentList '/S', "/D=$install" -PassThru -Wait
   if ($installer.ExitCode -ne 0) { throw "initial installer exited with $($installer.ExitCode)" }
   if (-not (Test-Path $exe)) { throw 'initial install failed' }
+  Write-Output 'Initial installation completed'
   $old = Start-Process $exe -ArgumentList '--config-dir', "`"$config`"" -PassThru
   Wait-Health -Process $old
   if ($old.HasExited) { throw "initial server exited with $($old.ExitCode)" }
+  Write-Output 'Initial server is healthy'
   $update = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($old.Id)", "/CONFIGDIR=`"$config`"", "/INSTALLDIR=`"$install`"" -PassThru -Wait
   if ($update.ExitCode -ne 0) { throw "update installer exited with $($update.ExitCode)" }
   for ($i = 0; $i -lt 60; $i++) {
