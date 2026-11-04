@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 const RELEASES_URL: &str = "https://api.github.com/repos/kmworks/kmrs/releases/latest";
 const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Status {
     #[default]
     Idle,
@@ -72,18 +72,29 @@ impl DesktopUpdate {
     }
 
     pub fn set_failed(&self, error: String) {
-        self.set(Status::Failed(error));
+        let mut state = self.state.lock().unwrap();
+        if !matches!(state.status, Status::Installing(_)) {
+            state.status = Status::Failed(error);
+        }
+    }
+
+    pub fn begin_download(&self) -> Result<Asset, String> {
+        let mut state = self.state.lock().unwrap();
+        if !matches!(state.status, Status::Available(_)) {
+            return Err("no checked update is ready".into());
+        }
+        let asset = state.selected.clone().ok_or("no checked update is ready")?;
+        state.status = Status::Downloading(asset.version.clone());
+        Ok(asset)
     }
 
     pub fn download_verified(&self, directory: &Path) -> Result<DownloadedUpdate, String> {
-        let asset = {
-            let mut state = self.state.lock().unwrap();
-            if !matches!(state.status, Status::Available(_)) {
-                return Err("no checked update is ready".into());
+        let asset = match self.begin_download() {
+            Ok(asset) => asset,
+            Err(e) => {
+                self.set_failed(e.clone());
+                return Err(e);
             }
-            let asset = state.selected.clone().ok_or("no checked update is ready")?;
-            state.status = Status::Downloading(asset.version.clone());
-            asset
         };
         let path = directory.join(&asset.name);
         match self.runtime.block_on(download_asset(&asset, &path)) {
@@ -260,6 +271,23 @@ async fn download_asset(asset: &Asset, path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn second_download_does_not_overwrite_installing_status() {
+        let update = DesktopUpdate::new(tokio::runtime::Handle::current());
+        update.state.lock().unwrap().selected = Some(Asset {
+            version: "99.0.0".into(),
+            name: "KMServer.zip".into(),
+            url: "https://example.invalid/KMServer.zip".into(),
+            sha256: [0; 32],
+        });
+        update.set(Status::Available("99.0.0".into()));
+        update.begin_download().unwrap();
+        update.set(Status::Installing("99.0.0".into()));
+        assert!(update.begin_download().is_err());
+        update.set_failed("second request failed".into());
+        assert_eq!(update.status(), Status::Installing("99.0.0".into()));
+    }
 
     #[test]
     fn checksum_selects_the_named_asset() {

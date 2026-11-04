@@ -29,11 +29,28 @@ RequestExecutionLevel user
 
 Var UpdatePid
 Var Relaunch
+Var ConfigDir
+Var BackupDir
+Var UpdateFailed
+
+!macro RequireFile source
+	ClearErrors
+	File "${source}"
+	${If} ${Errors}
+		StrCpy $UpdateFailed 1
+	${EndIf}
+!macroend
 
 Function .onInit
 	${GetParameters} $0
 	${GetOptions} $0 "/UPDATEPID=" $UpdatePid
 	${GetOptions} $0 "/RELAUNCH=" $Relaunch
+	${GetOptions} $0 "/CONFIGDIR=" $ConfigDir
+	${GetOptions} $0 "/INSTALLDIR=" $1
+	${If} $1 != ""
+		StrCpy $INSTDIR $1
+	${EndIf}
+	StrCpy $UpdateFailed 0
 	${If} $UpdatePid != ""
 		System::Call 'kernel32::OpenProcess(i 0x00100000, i 0, i $UpdatePid) p.r1'
 		${If} $1 == 0
@@ -46,23 +63,58 @@ Function .onInit
 			MessageBox MB_OK|MB_ICONSTOP "KMServer did not stop in time. No files were changed."
 			Abort
 		${EndIf}
+		StrCpy $BackupDir "$INSTDIR.update-backup"
+		IfFileExists "$BackupDir\*.*" 0 +2
+		RMDir /r "$BackupDir"
+		ClearErrors
+		Rename "$INSTDIR" "$BackupDir"
+		${If} ${Errors}
+			MessageBox MB_OK|MB_ICONSTOP "The current installation could not be preserved. KMServer was not changed."
+			Abort
+		${EndIf}
+		CreateDirectory "$INSTDIR"
 	${EndIf}
 FunctionEnd
 
 Function .onInstSuccess
+	${If} $UpdatePid != ""
+		${If} $UpdateFailed != 0
+			RMDir /r "$INSTDIR"
+			Rename "$BackupDir" "$INSTDIR"
+			MessageBox MB_OK|MB_ICONSTOP "The update could not be installed. The previous installation was restored."
+		${Else}
+			RMDir /r "$BackupDir"
+		${EndIf}
+	${EndIf}
 	${If} $Relaunch != ""
+		Call LaunchServer
+	${EndIf}
+FunctionEnd
+
+Function LaunchServer
+	${If} $ConfigDir == ""
 		Exec '"$Relaunch"'
+	${Else}
+		Exec '"$Relaunch" --config-dir "$ConfigDir"'
 	${EndIf}
 FunctionEnd
 
 Section "Install"
 	SetOutPath "$INSTDIR"
-	File "kmrs.exe"
-	File "kmrs.ico"
-	File "pdfium.dll"
+	!insertmacro RequireFile "kmrs.exe"
+	!insertmacro RequireFile "kmrs.ico"
+	!insertmacro RequireFile "pdfium.dll"
 	SetOutPath "$INSTDIR\licenses"
+	ClearErrors
 	File /r "PDFium"
+	${If} ${Errors}
+		StrCpy $UpdateFailed 1
+	${EndIf}
 	WriteUninstaller "$INSTDIR\Uninstall.exe"
+	${If} ${Errors}
+		StrCpy $UpdateFailed 1
+	${EndIf}
+	WriteRegStr HKCU "Software\KMServer" "InstallDir" "$INSTDIR"
 
 	CreateDirectory "$SMPROGRAMS\KMServer"
 	CreateShortcut "$SMPROGRAMS\KMServer\KMServer.lnk" "$INSTDIR\kmrs.exe" "" "$INSTDIR\kmrs.ico"
