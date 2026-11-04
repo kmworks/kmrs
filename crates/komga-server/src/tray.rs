@@ -15,8 +15,8 @@ use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
 use windows_sys::Win32::System::Console::FreeConsole;
 use windows_sys::Win32::System::Console::{AttachConsole, GetConsoleWindow, ATTACH_PARENT_PROCESS};
 use windows_sys::Win32::System::Registry::{
-    RegCloseKey, RegDeleteKeyW, RegDeleteValueW, RegGetValueW, RegOpenKeyExW, RegSetValueExW, HKEY,
-    HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, RRF_RT_REG_SZ,
+    RegCloseKey, RegCreateKeyExW, RegDeleteKeyW, RegDeleteValueW, RegGetValueW, RegOpenKeyExW,
+    RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, RRF_RT_REG_SZ,
 };
 use windows_sys::Win32::System::StationsAndDesktops::{
     CloseDesktop, OpenInputDesktop, DESKTOP_READOBJECTS,
@@ -31,6 +31,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../resources/windows/tray-icon.png");
 
 const AUTOSTART_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+#[cfg(test)]
+thread_local! {
+    static AUTOSTART_TEST_SUBKEY: RefCell<Option<String>> = const { RefCell::new(None) };
+}
 const LEGACY_AUTOSTART_VALUE: &str = "KMReader";
 const AUTOSTART_VALUE: &str = "KMServer";
 
@@ -414,11 +418,17 @@ fn set_autostart(enable: bool, config_dir: &std::path::Path) -> Result<(), Strin
 }
 
 unsafe fn open_autostart_key() -> Option<AutostartKey> {
+    #[cfg(test)]
+    let subkey = AUTOSTART_TEST_SUBKEY
+        .with(|key| key.borrow().clone())
+        .unwrap_or_else(|| AUTOSTART_SUBKEY.into());
+    #[cfg(not(test))]
+    let subkey = AUTOSTART_SUBKEY.into();
     let mut hkey: HKEY = std::ptr::null_mut();
     let result = unsafe {
         RegOpenKeyExW(
             HKEY_CURRENT_USER,
-            wide(AUTOSTART_SUBKEY).as_ptr(),
+            wide(&subkey).as_ptr(),
             0,
             KEY_QUERY_VALUE | KEY_SET_VALUE,
             &mut hkey,
@@ -502,7 +512,6 @@ fn autostart_command(config_dir: &std::path::Path) -> Result<Vec<u16>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use windows_sys::Win32::System::Registry::RegCreateKeyExW;
 
     #[test]
     fn legacy_autostart_is_migrated_and_disabled() {
@@ -545,14 +554,14 @@ mod tests {
 
     impl TestAutostartKey {
         fn new() -> Self {
+            let subkey = format!(r"Software\kmrs-tests\{}", std::process::id());
+            AUTOSTART_TEST_SUBKEY.with(|key| *key.borrow_mut() = Some(subkey.clone()));
             unsafe {
-                let parent = open_autostart_key().unwrap();
-                let subkey = wide("kmrs-branding-test");
-                RegDeleteKeyW(parent.0, subkey.as_ptr());
+                RegDeleteKeyW(HKEY_CURRENT_USER, wide(&subkey).as_ptr());
                 let mut key = std::ptr::null_mut();
                 let result = RegCreateKeyExW(
-                    parent.0,
-                    subkey.as_ptr(),
+                    HKEY_CURRENT_USER,
+                    wide(&subkey).as_ptr(),
                     0,
                     std::ptr::null(),
                     0,
@@ -569,12 +578,10 @@ mod tests {
 
     impl Drop for TestAutostartKey {
         fn drop(&mut self) {
+            let subkey = AUTOSTART_TEST_SUBKEY.with(|key| key.borrow_mut().take());
             unsafe {
-                RegDeleteValueW(self.0, wide(AUTOSTART_VALUE).as_ptr());
-                RegDeleteValueW(self.0, wide(LEGACY_AUTOSTART_VALUE).as_ptr());
-                let parent = open_autostart_key().unwrap();
-                RegDeleteKeyW(parent.0, wide("kmrs-branding-test").as_ptr());
                 RegCloseKey(self.0);
+                RegDeleteKeyW(HKEY_CURRENT_USER, wide(&subkey.unwrap()).as_ptr());
             }
         }
     }
