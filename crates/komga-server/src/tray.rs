@@ -15,9 +15,11 @@ use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
 use windows_sys::Win32::System::Console::FreeConsole;
 use windows_sys::Win32::System::Console::{AttachConsole, GetConsoleWindow, ATTACH_PARENT_PROCESS};
 use windows_sys::Win32::System::Registry::{
-    RegCloseKey, RegCreateKeyExW, RegDeleteKeyW, RegDeleteValueW, RegGetValueW, RegOpenKeyExW,
-    RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, RRF_RT_REG_SZ,
+    RegCloseKey, RegDeleteValueW, RegGetValueW, RegOpenKeyExW, RegSetValueExW, HKEY,
+    HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, RRF_RT_REG_SZ,
 };
+#[cfg(test)]
+use windows_sys::Win32::System::Registry::{RegCreateKeyExW, RegDeleteKeyW};
 use windows_sys::Win32::System::StationsAndDesktops::{
     CloseDesktop, OpenInputDesktop, DESKTOP_READOBJECTS,
 };
@@ -423,7 +425,7 @@ unsafe fn open_autostart_key() -> Option<AutostartKey> {
         .with(|key| key.borrow().clone())
         .unwrap_or_else(|| AUTOSTART_SUBKEY.into());
     #[cfg(not(test))]
-    let subkey = AUTOSTART_SUBKEY.into();
+    let subkey: String = AUTOSTART_SUBKEY.into();
     let mut hkey: HKEY = std::ptr::null_mut();
     let result = unsafe {
         RegOpenKeyExW(
