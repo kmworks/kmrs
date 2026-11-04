@@ -17,7 +17,8 @@ use objc2_app_kit::{
     NSAboutPanelOptionCredits, NSAboutPanelOptionVersion, NSAlert, NSAlertSecondButtonReturn,
     NSAlertStyle, NSApplication, NSApplicationActivationPolicy, NSColor, NSEvent,
     NSEventModifierFlags, NSEventType, NSFont, NSFontAttributeName, NSForegroundColorAttributeName,
-    NSLinkAttributeName, NSMutableParagraphStyle, NSParagraphStyleAttributeName, NSTextAlignment,
+    NSLinkAttributeName, NSMenu, NSMenuItem, NSMutableParagraphStyle,
+    NSParagraphStyleAttributeName, NSTextAlignment,
 };
 use objc2_foundation::{
     ns_string, NSActivityOptions, NSDictionary, NSMutableAttributedString, NSPoint, NSProcessInfo,
@@ -73,6 +74,7 @@ where
     let app = NSApplication::sharedApplication(mtm);
     // no Dock icon and no app menu: the menu bar item is the whole UI
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    install_edit_menu(&app, mtm);
 
     // a windowless accessory app is eligible for App Nap, which would throttle
     // timers, CPU and I/O while the server is busy; idle system sleep stays allowed
@@ -602,4 +604,31 @@ fn show_about(port: u16) {
     let objects: [&AnyObject; 4] = [ns_string!("KMServer"), &version, build, &credits];
     let options = NSDictionary::from_slices(&keys, &objects);
     unsafe { app.orderFrontStandardAboutPanelWithOptions(&options) };
+}
+
+/// Key equivalents like Cmd+C are dispatched through the main menu. An accessory
+/// app never shows one, but without it text in its windows (the About credits)
+/// can only be copied through the context menu.
+fn install_edit_menu(app: &NSApplication, mtm: MainThreadMarker) {
+    use objc2::MainThreadOnly;
+    let edit = NSMenu::initWithTitle(NSMenu::alloc(mtm), ns_string!("Edit"));
+    for (title, action, key) in [
+        ("Copy", objc2::sel!(copy:), "c"),
+        ("Select All", objc2::sel!(selectAll:), "a"),
+    ] {
+        let item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &NSString::from_str(title),
+                Some(action),
+                &NSString::from_str(key),
+            )
+        };
+        edit.addItem(&item);
+    }
+    let edit_item = NSMenuItem::new(mtm);
+    edit_item.setSubmenu(Some(&edit));
+    let main = NSMenu::new(mtm);
+    main.addItem(&edit_item);
+    app.setMainMenu(Some(&main));
 }
