@@ -28,11 +28,13 @@ function Wait-Health {
   throw 'KMServer health check failed'
 }
 try {
-  & "$root\setup.exe" /S "/D=$install"
+  $installer = Start-Process "$root\setup.exe" -ArgumentList '/S', "/D=$install" -PassThru -Wait
+  if ($installer.ExitCode -ne 0) { throw "initial installer exited with $($installer.ExitCode)" }
   if (-not (Test-Path $exe)) { throw 'initial install failed' }
   $old = Start-Process $exe -ArgumentList '--config-dir', $config -PassThru
   Wait-Health
-  & "$root\setup.exe" /S "/UPDATEPID=$($old.Id)" "/RELAUNCH=$exe" "/CONFIGDIR=$config" "/INSTALLDIR=$install"
+  $update = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($old.Id)", "/RELAUNCH=$exe", "/CONFIGDIR=$config", "/INSTALLDIR=$install" -PassThru -Wait
+  if ($update.ExitCode -ne 0) { throw "update installer exited with $($update.ExitCode)" }
   for ($i = 0; $i -lt 60; $i++) {
     $new = Get-CimInstance Win32_Process -Filter "Name = 'kmrs.exe'" |
       Where-Object { $_.ExecutablePath -eq $exe -and $_.ProcessId -ne $old.Id }
@@ -48,7 +50,8 @@ try {
   Wait-Health
   Remove-Item "$source\pdfium.dll"
   New-Item -ItemType Directory "$source\pdfium.dll" | Out-Null
-  & "$root\setup.exe" /S "/UPDATEPID=$($failed.Id)" "/RELAUNCH=$exe" "/CONFIGDIR=$config" "/INSTALLDIR=$install"
+  $recovery = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($failed.Id)", "/RELAUNCH=$exe", "/CONFIGDIR=$config", "/INSTALLDIR=$install" -PassThru -Wait
+  if ($recovery.ExitCode -ne 0) { throw "recovery installer exited with $($recovery.ExitCode)" }
   Wait-Health
   $restored = Get-CimInstance Win32_Process -Filter "Name = 'kmrs.exe'" |
     Where-Object { $_.ExecutablePath -eq $exe -and $_.ProcessId -ne $failed.Id }
