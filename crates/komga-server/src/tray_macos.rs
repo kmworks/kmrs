@@ -72,7 +72,7 @@ where
     }
 
     let app = NSApplication::sharedApplication(mtm);
-    // no Dock icon and no app menu: the menu bar item is the whole UI
+    // no Dock icon and no visible app menu: the menu bar item is the whole UI
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
     install_edit_menu(&app, mtm);
 
@@ -485,10 +485,13 @@ fn server_url(port: u16) -> Option<String> {
     lan_ipv4().map(|ip| format!("http://{ip}:{port}"))
 }
 
-/// The IPv4 address of an interface that is up, preferring private addresses on
-/// Ethernet and Wi-Fi interfaces (`en*`) so that VPN and virtual bridge addresses
-/// only win when nothing better exists.
+/// The IPv4 address of an interface that is up. Ethernet and Wi-Fi (`en*`)
+/// outrank VPN tunnels and virtual bridges even when those hold private
+/// addresses: a tunnel address only reaches the server through the tunnel,
+/// which another LAN device does not have. Among `en*` candidates the default
+/// route's interface wins, then private over public, then enumeration order.
 fn lan_ipv4() -> Option<std::net::Ipv4Addr> {
+    let default_interface = default_route_interface();
     let mut best: Option<(u8, std::net::Ipv4Addr)> = None;
     let mut list: *mut libc::ifaddrs = std::ptr::null_mut();
     if unsafe { libc::getifaddrs(&mut list) } != 0 {
@@ -512,11 +515,18 @@ fn lan_ipv4() -> Option<std::net::Ipv4Addr> {
             continue;
         }
         let name = unsafe { std::ffi::CStr::from_ptr(entry.ifa_name) }.to_bytes();
-        let rank = match (ip.is_private(), name.starts_with(b"en")) {
-            (true, true) => 3,
-            (true, false) => 2,
-            (false, true) => 1,
-            (false, false) => 0,
+        let ethernet = name.starts_with(b"en");
+        let rank = match (
+            ethernet,
+            default_interface.as_deref() == Some(name),
+            ip.is_private(),
+        ) {
+            (true, true, true) => 5,
+            (true, true, false) => 4,
+            (true, false, true) => 3,
+            (true, false, false) => 2,
+            (false, _, true) => 1,
+            (false, _, false) => 0,
         };
         if best.is_none_or(|(best_rank, _)| rank > best_rank) {
             best = Some((rank, ip));
@@ -524,6 +534,25 @@ fn lan_ipv4() -> Option<std::net::Ipv4Addr> {
     }
     unsafe { libc::freeifaddrs(list) };
     best.map(|(_, ip)| ip)
+}
+
+/// The interface the default IPv4 route points at, from the route command's
+/// stable output rather than the undocumented route-socket wire format. Runs
+/// only when the About window opens, so a child process is cheap; None when
+/// there is no default route, and VPN-scoped defaults lose to the real one
+/// because the command reports the primary default route.
+fn default_route_interface() -> Option<Vec<u8>> {
+    let output = std::process::Command::new("/sbin/route")
+        .args(["-n", "get", "-inet", "default"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    text.lines()
+        .find_map(|line| line.trim().strip_prefix("interface: "))
+        .map(|name| name.trim().as_bytes().to_vec())
 }
 
 const DOCUMENTATION_URL: &str = "https://kmworks.date/server/";
@@ -551,9 +580,11 @@ fn show_about(port: u16) {
         NSMutableAttributedString::alloc(),
         &NSString::from_str(&text),
     );
-    // NSRange counts UTF-16 units
+    // NSRange counts UTF-16 units; the parts are slices of text, so find cannot miss
     let range_of = |part: &str| {
-        let start = text.find(part).unwrap_or(0);
+        let start = text
+            .find(part)
+            .expect("attribute range outside the credits text");
         NSRange::new(
             text[..start].encode_utf16().count(),
             part.encode_utf16().count(),
@@ -578,7 +609,8 @@ fn show_about(port: u16) {
         if let Some(url) = NSURL::URLWithString(&NSString::from_str(DOCUMENTATION_URL)) {
             credits.addAttribute_value_range(NSLinkAttributeName, &url, range_of("Documentation"));
         }
-        // set the address apart from the link above it
+        // paragraph spacing only takes effect through a paragraph style, so the
+        // first paragraph gets its own style to set the address apart from the link
         let spaced = NSMutableParagraphStyle::new();
         spaced.setAlignment(NSTextAlignment::Center);
         spaced.setParagraphSpacing(6.0);
