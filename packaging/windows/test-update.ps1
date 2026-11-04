@@ -17,8 +17,22 @@ function Stop-TestServer {
     Where-Object ExecutablePath -EQ $exe |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
+function Wait-Installer {
+  param([string]$Path, [string]$Arguments, [string]$Stage)
+  Write-Output "Starting $Stage"
+  $process = Start-Process $Path -ArgumentList $Arguments -PassThru
+  if (-not $process.WaitForExit(90000)) {
+    Get-CimInstance Win32_Process |
+      Where-Object { $_.ExecutablePath -eq $Path -or $_.ExecutablePath -eq $exe } |
+      Select-Object ProcessId, ParentProcessId, ExecutablePath, CommandLine | Format-List
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    throw "$Stage did not finish within 90 seconds"
+  }
+  if ($process.ExitCode -ne 0) { throw "$Stage exited with $($process.ExitCode)" }
+  Write-Output "$Stage completed"
+}
+
 function Wait-Health {
-  param([System.Diagnostics.Process]$Process)
   $handler = [System.Net.Http.HttpClientHandler]::new()
   $handler.UseProxy = $false
   $client = [System.Net.Http.HttpClient]::new($handler)
@@ -39,16 +53,14 @@ function Wait-Health {
   }
 }
 try {
-  $installer = Start-Process "$root\setup.exe" -ArgumentList '/S', "/D=$install" -PassThru -Wait
-  if ($installer.ExitCode -ne 0) { throw "initial installer exited with $($installer.ExitCode)" }
+  Wait-Installer "$root\setup.exe" "/S /D=`"$install`"" 'Initial installation'
   if (-not (Test-Path $exe)) { throw 'initial install failed' }
   Write-Output 'Initial installation completed'
   $old = Start-Process $exe -ArgumentList '--config-dir', "`"$config`"" -PassThru
   Wait-Health -Process $old
   if ($old.HasExited) { throw "initial server exited with $($old.ExitCode)" }
   Write-Output 'Initial server is healthy'
-  $update = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($old.Id)", "/CONFIGDIR=`"$config`"", "/INSTALLDIR=`"$install`"" -PassThru -Wait
-  if ($update.ExitCode -ne 0) { throw "update installer exited with $($update.ExitCode)" }
+  Wait-Installer "$root\setup.exe" "/S /UPDATEPID=$($old.Id) /CONFIGDIR=`"$config`" /INSTALLDIR=`"$install`"" 'Update installation'
   for ($i = 0; $i -lt 60; $i++) {
     $new = Get-CimInstance Win32_Process -Filter "Name = 'kmrs.exe'" |
       Where-Object { $_.ExecutablePath -eq $exe -and $_.ProcessId -ne $old.Id }
@@ -64,8 +76,7 @@ try {
   Wait-Health -Process $failed
   Move-Item "$install\pdfium.dll" "$root\previous-pdfium.dll"
   New-Item -ItemType Directory "$install\pdfium.dll" | Out-Null
-  $recovery = Start-Process "$root\setup.exe" -ArgumentList '/S', "/UPDATEPID=$($failed.Id)", "/CONFIGDIR=`"$config`"", "/INSTALLDIR=`"$install`"" -PassThru -Wait
-  if ($recovery.ExitCode -ne 0) { throw "recovery installer exited with $($recovery.ExitCode)" }
+  Wait-Installer "$root\setup.exe" "/S /UPDATEPID=$($failed.Id) /CONFIGDIR=`"$config`" /INSTALLDIR=`"$install`"" 'Failed-update recovery'
   if (Test-Path "$install\pdfium.dll" -PathType Container) { throw 'installer did not reach the injected file-write failure' }
   Wait-Health -Process $failed
   $restored = Get-CimInstance Win32_Process -Filter "Name = 'kmrs.exe'" |
