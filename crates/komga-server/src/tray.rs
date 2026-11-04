@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
-use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
 #[cfg(not(debug_assertions))]
 use windows_sys::Win32::System::Console::FreeConsole;
 use windows_sys::Win32::System::Console::{AttachConsole, GetConsoleWindow, ATTACH_PARENT_PROCESS};
@@ -354,11 +354,15 @@ fn migrate_legacy_autostart() {
         let Some(hkey) = open_autostart_key() else {
             return;
         };
-        if read_autostart(hkey.0, AUTOSTART_VALUE).is_some() {
+        if read_autostart(hkey.0, AUTOSTART_VALUE)
+            .ok()
+            .flatten()
+            .is_some()
+        {
             RegDeleteValueW(hkey.0, wide(LEGACY_AUTOSTART_VALUE).as_ptr());
             return;
         }
-        let Some(command) = read_autostart(hkey.0, LEGACY_AUTOSTART_VALUE) else {
+        let Ok(Some(command)) = read_autostart(hkey.0, LEGACY_AUTOSTART_VALUE) else {
             return;
         };
         if write_autostart(hkey.0, AUTOSTART_VALUE, &command) == ERROR_SUCCESS {
@@ -372,7 +376,10 @@ fn autostart_enabled() -> bool {
         let Some(hkey) = open_autostart_key() else {
             return false;
         };
-        read_autostart(hkey.0, AUTOSTART_VALUE).is_some()
+        read_autostart(hkey.0, AUTOSTART_VALUE)
+            .ok()
+            .flatten()
+            .is_some()
     }
 }
 
@@ -420,7 +427,7 @@ unsafe fn open_autostart_key() -> Option<AutostartKey> {
     (result == ERROR_SUCCESS).then_some(AutostartKey(hkey))
 }
 
-unsafe fn read_autostart(hkey: HKEY, name: &str) -> Option<Vec<u16>> {
+unsafe fn read_autostart(hkey: HKEY, name: &str) -> Result<Option<Vec<u16>>, u32> {
     let name = wide(name);
     let mut bytes = 0;
     let result = unsafe {
@@ -434,10 +441,11 @@ unsafe fn read_autostart(hkey: HKEY, name: &str) -> Option<Vec<u16>> {
             &mut bytes,
         )
     };
+    if result == ERROR_FILE_NOT_FOUND {
+        return Ok(None);
+    }
     if result != ERROR_SUCCESS {
-        #[cfg(test)]
-        eprintln!("read_autostart {name:?} size: error {result}");
-        return None;
+        return Err(result);
     }
     let mut data = vec![0u16; bytes as usize / size_of::<u16>()];
     let result = unsafe {
@@ -451,9 +459,10 @@ unsafe fn read_autostart(hkey: HKEY, name: &str) -> Option<Vec<u16>> {
             &mut bytes,
         )
     };
-    #[cfg(test)]
-    eprintln!("read_autostart {name:?} data: error {result}, bytes {bytes}");
-    (result == ERROR_SUCCESS).then_some(data)
+    if result != ERROR_SUCCESS {
+        return Err(result);
+    }
+    Ok(Some(data))
 }
 
 unsafe fn write_autostart(hkey: HKEY, name: &str, data: &[u16]) -> u32 {
@@ -501,9 +510,16 @@ mod tests {
                 write_autostart(key.0, LEGACY_AUTOSTART_VALUE, &old),
                 ERROR_SUCCESS
             );
+            assert_eq!(
+                read_autostart(key.0, LEGACY_AUTOSTART_VALUE),
+                Ok(Some(old.clone()))
+            );
             migrate_legacy_autostart();
-            assert_eq!(read_autostart(key.0, AUTOSTART_VALUE), Some(old.clone()));
-            assert_eq!(read_autostart(key.0, LEGACY_AUTOSTART_VALUE), None);
+            assert_eq!(
+                read_autostart(key.0, AUTOSTART_VALUE),
+                Ok(Some(old.clone()))
+            );
+            assert_eq!(read_autostart(key.0, LEGACY_AUTOSTART_VALUE), Ok(None));
             assert!(autostart_enabled());
 
             assert_eq!(write_autostart(key.0, AUTOSTART_VALUE, &new), ERROR_SUCCESS);
@@ -512,12 +528,12 @@ mod tests {
                 ERROR_SUCCESS
             );
             migrate_legacy_autostart();
-            assert_eq!(read_autostart(key.0, AUTOSTART_VALUE), Some(new));
-            assert_eq!(read_autostart(key.0, LEGACY_AUTOSTART_VALUE), None);
+            assert_eq!(read_autostart(key.0, AUTOSTART_VALUE), Ok(Some(new)));
+            assert_eq!(read_autostart(key.0, LEGACY_AUTOSTART_VALUE), Ok(None));
 
             set_autostart(false, std::path::Path::new(".")).unwrap();
             assert!(!autostart_enabled());
-            assert_eq!(read_autostart(key.0, LEGACY_AUTOSTART_VALUE), None);
+            assert_eq!(read_autostart(key.0, LEGACY_AUTOSTART_VALUE), Ok(None));
         }
     }
 
