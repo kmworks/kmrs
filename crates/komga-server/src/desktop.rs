@@ -96,9 +96,12 @@ fn install_macos(
         shell_arg(config_dir),
         port,
     );
+    // nohup only ignores SIGHUP; launchd kills the job's whole process group on exit
+    use std::os::unix::process::CommandExt;
     let status = std::process::Command::new("/bin/sh")
         .arg("-c")
         .arg(script)
+        .process_group(0)
         .status()
         .map_err(|e| format!("start update helper: {e}"))?;
     if !status.success() {
