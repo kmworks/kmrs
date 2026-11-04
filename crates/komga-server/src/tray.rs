@@ -462,6 +462,10 @@ unsafe fn read_autostart(hkey: HKEY, name: &str) -> Result<Option<Vec<u16>>, u32
     if result != ERROR_SUCCESS {
         return Err(result);
     }
+    while data.last() == Some(&0) {
+        data.pop();
+    }
+    data.push(0);
     Ok(Some(data))
 }
 
