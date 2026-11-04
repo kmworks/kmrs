@@ -74,6 +74,9 @@ async fn main() -> anyhow::Result<()> {
 // is driven from whichever thread run_app hands the server to
 #[cfg(target_os = "macos")]
 fn main() -> anyhow::Result<()> {
+    if tray::hand_off_to_login_item() {
+        return Ok(());
+    }
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;

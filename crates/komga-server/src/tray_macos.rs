@@ -60,6 +60,42 @@ pub fn startup_failure_exits_cleanly() -> bool {
     launched_by_login_agent() && !SERVING.load(Ordering::SeqCst)
 }
 
+/// A plain launch from Finder, the Dock or Spotlight while Open at Login is on
+/// starts the login item instead, so launchd restarts that server after a
+/// crash as well. Launches with arguments or from a terminal run as before.
+/// True when the login item took over and this process should exit.
+pub fn hand_off_to_login_item() -> bool {
+    use clap::Parser;
+    if std::env::args_os().len() > 1
+        || crate::desktop::app_bundle_path().is_none()
+        || std::io::stderr().is_terminal()
+        || launched_by_login_agent()
+    {
+        return false;
+    }
+    let Ok(cli) = crate::config::Cli::try_parse() else {
+        return false;
+    };
+    let Some(service) = login_item_service(&crate::config::config_dir(&cli)) else {
+        return false;
+    };
+    std::process::Command::new("/bin/launchctl")
+        .args(["kickstart", &service])
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+/// The login item's launchd service target when Open at Login is on and runs
+/// the server with this data directory, so starting it brings up the same server.
+fn login_item_service(config_dir: &Path) -> Option<String> {
+    if !autostart_enabled() {
+        return None;
+    }
+    let saved = std::fs::read(login_config_path()?).ok()?;
+    (saved == config_dir.as_os_str().as_encoded_bytes())
+        .then(|| format!("gui/{}/{LOGIN_AGENT_LABEL}", unsafe { libc::getuid() }))
+}
+
 thread_local! {
     static LOGIN_SERVICE: RefCell<Option<objc2::rc::Retained<SMAppService>>> = const { RefCell::new(None) };
 }
@@ -395,9 +431,17 @@ fn build(
                 let shutdown = shutdown.clone();
                 let app = crate::desktop::app_bundle_path().unwrap();
                 let config_dir = config_dir.clone();
+                let login_service = login_item_service(&config_dir);
                 std::thread::spawn(move || match update.status() {
                     crate::service::desktop_update::Status::Available(_) => {
-                        crate::desktop::start_update(update, app, config_dir, port, shutdown)
+                        crate::desktop::start_update(
+                            update,
+                            app,
+                            config_dir,
+                            port,
+                            login_service,
+                            shutdown,
+                        )
                     }
                     _ => {
                         let _ = update.start_check();
