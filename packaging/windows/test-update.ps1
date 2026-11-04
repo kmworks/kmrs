@@ -53,7 +53,7 @@ function Wait-Health {
   }
 }
 try {
-  Wait-Installer "$root\setup.exe" "/S /D=`"$install`"" 'Initial installation'
+  Wait-Installer "$root\setup.exe" "/S /D=$install" 'Initial installation'
   if (-not (Test-Path $exe)) { throw 'initial install failed' }
   Write-Output 'Initial installation completed'
   $old = Start-Process $exe -ArgumentList '--config-dir', "`"$config`"" -PassThru
