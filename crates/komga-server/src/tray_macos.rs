@@ -45,6 +45,12 @@ pub fn mark_serving() {
     SERVING.store(true, Ordering::SeqCst);
 }
 
+/// Whether the listener came up: after it, an error ends the server rather
+/// than a launch, so the startup alert no longer applies.
+pub fn serving() -> bool {
+    SERVING.load(Ordering::SeqCst)
+}
+
 /// Whether launchd started this process as the login item. launchd sets
 /// `XPC_SERVICE_NAME` to the job label, but child processes inherit it, so the
 /// parent must be launchd as well (`login-agent.sh` execs the server).

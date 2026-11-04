@@ -77,9 +77,22 @@ fn main() -> anyhow::Result<()> {
     if tray::hand_off_to_login_item() {
         return Ok(());
     }
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .build()?;
+        .build()
+    {
+        Ok(runtime) => runtime,
+        // a failed runtime build is a startup error too: under the login item
+        // it must not relaunch into the same resource exhaustion every 30s
+        Err(e) => {
+            let error = anyhow::Error::new(e).context("build the async runtime");
+            tray::show_startup_error(&error);
+            if tray::startup_failure_exits_cleanly() {
+                std::process::exit(0);
+            }
+            return Err(error);
+        }
+    };
     // under the login item a panic before the listener is up is a startup error
     // like any other; elsewhere, and once serving, it keeps unwinding so the
     // process exits as crashed
@@ -95,7 +108,11 @@ fn main() -> anyhow::Result<()> {
         Err(panic) => std::panic::resume_unwind(panic),
     };
     if let Err(e) = &result {
-        tray::show_startup_error(e);
+        // a failure after serving is a crash for launchd to restart: a modal
+        // alert would hold the process down until someone dismisses it
+        if !tray::serving() {
+            tray::show_startup_error(e);
+        }
         // after the modal alert returns, so the process stays up while it shows
         if tray::startup_failure_exits_cleanly() {
             std::process::exit(0);
