@@ -435,6 +435,8 @@ unsafe fn read_autostart(hkey: HKEY, name: &str) -> Option<Vec<u16>> {
         )
     };
     if result != ERROR_SUCCESS {
+        #[cfg(test)]
+        eprintln!("read_autostart {name:?} size: error {result}");
         return None;
     }
     let mut data = vec![0u16; bytes as usize / size_of::<u16>()];
@@ -449,6 +451,8 @@ unsafe fn read_autostart(hkey: HKEY, name: &str) -> Option<Vec<u16>> {
             &mut bytes,
         )
     };
+    #[cfg(test)]
+    eprintln!("read_autostart {name:?} data: error {result}, bytes {bytes}");
     (result == ERROR_SUCCESS).then_some(data)
 }
 
