@@ -40,6 +40,19 @@ pub enum ScanRootError {
 
 pub type ScanRootResult<T> = std::result::Result<T, ScanRootError>;
 
+/// `Some(true)` when a library root has at least one visible (not dot-prefixed)
+/// entry, `Some(false)` when it has none, `None` when it cannot be listed (missing,
+/// not a folder, no permission). A mount point with nothing mounted on it is an
+/// empty folder, and scanning it as a library without content would trash every
+/// series. Dot-prefixed entries do not count: scans skip them, and file browsers
+/// leave them behind (`.DS_Store`).
+fn root_has_visible_entry(root: &Path) -> Option<bool> {
+    let mut entries = std::fs::read_dir(root).ok()?;
+    Some(entries.any(|entry| {
+        entry.is_ok_and(|entry| !entry.file_name().to_string_lossy().starts_with('.'))
+    }))
+}
+
 pub fn scan_root_folder(
     state: &AppState,
     library: &Library,
@@ -55,7 +68,18 @@ pub fn scan_root_folder(
         scan_epub: library.scan_epub,
         directory_exclusions: library.scan_directory_exclusions.iter().cloned().collect(),
     };
-    let scan_result = match Scanner::new().scan_root_folder(&root, &options) {
+    // checked here, not in the scanner: imports scan folders too, and an empty one
+    // must keep listing no books there
+    let scanned = if root_has_visible_entry(&root) == Some(false) {
+        // the folder can be read, so the plain "not accessible" message would mislead
+        Err(ScanError::DirectoryNotFound(format!(
+            "{} (no visible entries)",
+            root.to_string_lossy()
+        )))
+    } else {
+        Scanner::new().scan_root_folder(&root, &options)
+    };
+    let scan_result = match scanned {
         Ok(result) => result,
         Err(e) => {
             // the library root is not accessible: mark it unavailable, then fail the scan
@@ -1524,6 +1548,8 @@ mod tests {
         let state = test_state();
         let tmp = tempfile::tempdir().unwrap();
         let root = scan_root(&tmp);
+        // a non-book file keeps the root from looking like an empty mount point
+        write_file(&root, "notes.txt", b"");
         write_file(&root.join("s1"), "v01.cbz", b"content-bytes");
         write_file(&root.join("s1"), "v02.cbz", b"other-content");
         let lib = library(&state.db, "lib1", &root);
@@ -1703,6 +1729,8 @@ mod tests {
         let state = test_state();
         let tmp = tempfile::tempdir().unwrap();
         let root = scan_root(&tmp);
+        // a non-book file keeps the root from looking like an empty mount point
+        write_file(&root, "notes.txt", b"");
         write_file(&root.join("s1"), "v01.cbz", b"content-bytes");
         let lib = library(&state.db, "lib1", &root);
         scan(&state, &lib);
@@ -1743,6 +1771,8 @@ mod tests {
         let state = test_state();
         let tmp = tempfile::tempdir().unwrap();
         let root = scan_root(&tmp);
+        // a non-book file keeps the root from looking like an empty mount point
+        write_file(&root, "notes.txt", b"");
         write_file(&root.join("s1"), "v01.cbz", b"aaa");
         write_file(&root.join("s1"), "v02.cbz", b"bbbb");
         // a second series keeps default metadata, to pin the follow-new-name branch
@@ -1857,6 +1887,8 @@ mod tests {
         let state = test_state();
         let tmp = tempfile::tempdir().unwrap();
         let root = scan_root(&tmp);
+        // a non-book file keeps the root from looking like an empty mount point
+        write_file(&root, "notes.txt", b"");
         write_file(&root.join("s1"), "v01.cbz", b"one");
         let lib = library(&state.db, "lib1", &root);
         scan(&state, &lib);
@@ -2032,8 +2064,8 @@ mod tests {
         let mut rx = state.events.subscribe();
         let err = scan_root_folder(&state, &lib, false).unwrap_err();
         assert!(matches!(
-            err,
-            ScanRootError::Scan(ScanError::DirectoryNotFound(_))
+            &err,
+            ScanRootError::Scan(ScanError::DirectoryNotFound(path)) if !path.ends_with("(no visible entries)")
         ));
         let lib_after = LibraryDao::new(state.db.clone())
             .find_by_id("lib1")
@@ -2052,6 +2084,68 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(lib_recovered.unavailable_date.is_none());
+    }
+
+    #[test]
+    fn root_counts_only_visible_entries() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = scan_root(&tmp);
+        assert_eq!(root_has_visible_entry(&root.join("missing")), None);
+        assert_eq!(root_has_visible_entry(&root), Some(false));
+        write_file(&root, ".DS_Store", b"");
+        assert_eq!(root_has_visible_entry(&root), Some(false));
+        write_file(&root, "notes.txt", b"");
+        assert_eq!(root_has_visible_entry(&root), Some(true));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_root_keeps_the_scanner_message() {
+        use std::os::unix::fs::PermissionsExt;
+        let state = test_state();
+        let tmp = tempfile::tempdir().unwrap();
+        let root = scan_root(&tmp);
+        let lib = library(&state.db, "lib1", &root);
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o000)).unwrap();
+        // the superuser can list any folder, so the case cannot be set up there
+        let listable = std::fs::read_dir(&root).is_ok();
+        let result = (!listable).then(|| scan_root_folder(&state, &lib, false));
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let Some(result) = result else {
+            return;
+        };
+        assert!(matches!(
+            result,
+            Err(ScanRootError::Scan(ScanError::DirectoryNotFound(path))) if !path.ends_with("(no visible entries)")
+        ));
+    }
+
+    #[test]
+    fn empty_root_marks_the_library_unavailable_and_keeps_its_series() {
+        let state = test_state();
+        let tmp = tempfile::tempdir().unwrap();
+        let root = scan_root(&tmp);
+        write_file(&root.join("Series A"), "v01.cbz", b"one");
+        let lib = library(&state.db, "lib1", &root);
+        scan(&state, &lib);
+
+        // a mount point with nothing mounted: the folder exists but shows no entries,
+        // or only hidden ones that scans ignore anyway
+        std::fs::remove_dir_all(root.join("Series A")).unwrap();
+        write_file(&root, ".DS_Store", b"");
+        let err = scan_root_folder(&state, &lib, false).unwrap_err();
+        assert!(matches!(
+            &err,
+            ScanRootError::Scan(ScanError::DirectoryNotFound(path)) if path.ends_with("(no visible entries)")
+        ));
+
+        let lib_after = LibraryDao::new(state.db.clone())
+            .find_by_id("lib1")
+            .unwrap()
+            .unwrap();
+        assert!(lib_after.unavailable_date.is_some());
+        assert!(all_series(&state).iter().all(|s| s.deleted_date.is_none()));
+        assert!(all_books(&state).iter().all(|b| b.deleted_date.is_none()));
     }
 
     #[test]
