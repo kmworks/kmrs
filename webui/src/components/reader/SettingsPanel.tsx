@@ -47,6 +47,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Slider } from '@/components/ui/Slider'
 import { Switch } from '@/components/ui/Switch'
 import { Chip, FieldGroup, OptionTiles, Row, RowGroup, Section, SliderField } from '@/components/reader/panel'
+import { useEffectiveControls, useEffectiveSettings } from '@/components/reader/effectiveSettings'
 import { cn } from '@/lib/utils/cn'
 import { tapAction, type TapAction } from './tapZones'
 
@@ -223,21 +224,26 @@ export function SettingsPanel({
   onAlwaysFullscreenChange,
   onClose,
 }: SettingsPanelProps) {
-  const scale = useReaderSettings((s) => s.scale)
-  const pageLayout = useReaderSettings((s) => s.pageLayout)
-  const splitWide = useReaderSettings((s) => s.splitWide)
+  // overridable settings resolve through the effective context and write back
+  // as per-book overrides; the rest stays global and writes the store directly
+  const {
+    scale,
+    pageLayout,
+    splitWide,
+    tapZones,
+    stretchSmall,
+    animations,
+    pageTransition,
+    background,
+    filters,
+  } = useEffectiveSettings()
+  const { overriddenKeys, update, resetOverrides } = useEffectiveControls()
   const continuousScale = useReaderSettings((s) => s.continuousScale)
   const continuousPadding = useReaderSettings((s) => s.continuousPadding)
   const continuousMargin = useReaderSettings((s) => s.continuousMargin)
   const swipe = useReaderSettings((s) => s.swipe)
-  const tapZones = useReaderSettings((s) => s.tapZones)
-  const stretchSmall = useReaderSettings((s) => s.stretchSmall)
-  const animations = useReaderSettings((s) => s.animations)
-  const pageTransition = useReaderSettings((s) => s.pageTransition)
   const alwaysFullscreen = useReaderSettings((s) => s.alwaysFullscreen)
-  const background = useReaderSettings((s) => s.background)
-  const filters = useReaderSettings((s) => s.filters)
-  const update = useReaderSettings((s) => s.update)
+  const updateGlobal = useReaderSettings((s) => s.update)
   const reduceMotion = useReducedMotion()
   const closeRef = useRef<HTMLButtonElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
@@ -331,6 +337,14 @@ export function SettingsPanel({
                 </div>
 
                 <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
+              {overriddenKeys.length > 0 && (
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-raised px-3 py-2">
+                  <span className="text-[13px] text-ink-2">{t('panel.customized')}</span>
+                  <Button size="sm" onClick={resetOverrides}>
+                    {t('panel.resetOverrides')}
+                  </Button>
+                </div>
+              )}
               <Section title={t('panel.direction')}>
                 <OptionTiles options={directionOptions} value={direction} onChange={onDirectionChange} perRow={4} />
               </Section>
@@ -340,7 +354,7 @@ export function SettingsPanel({
                   <OptionTiles
                     options={continuousScaleOptions}
                     value={continuousScale}
-                    onChange={(v) => update({ continuousScale: v })}
+                    onChange={(v) => updateGlobal({ continuousScale: v })}
                     perRow={2}
                   />
                 ) : (
@@ -442,7 +456,7 @@ export function SettingsPanel({
                     </div>
                   </Row>
                   <Row label={t('panel.swipe')}>
-                    <Switch checked={swipe} onCheckedChange={(v) => update({ swipe: v })} label={t('panel.swipe')} />
+                    <Switch checked={swipe} onCheckedChange={(v) => updateGlobal({ swipe: v })} label={t('panel.swipe')} />
                   </Row>
                   <Row label={t('panel.animations')}>
                     <Switch
@@ -588,7 +602,7 @@ export function SettingsPanel({
                         <SliderField label={t('panel.sidePadding')} value={`${continuousPadding}%`}>
                           <Slider
                             value={continuousPadding}
-                            onValueChange={(v) => update({ continuousPadding: v })}
+                            onValueChange={(v) => updateGlobal({ continuousPadding: v })}
                             min={0}
                             max={40}
                             step={5}
@@ -598,7 +612,7 @@ export function SettingsPanel({
                         <SliderField label={t('panel.pageGap')} value={`${continuousMargin}px`}>
                           <Slider
                             value={continuousMargin}
-                            onValueChange={(v) => update({ continuousMargin: v })}
+                            onValueChange={(v) => updateGlobal({ continuousMargin: v })}
                             min={0}
                             max={15}
                             step={5}

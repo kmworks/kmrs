@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { useReaderSettings } from '@/lib/store/readerSettings'
+import { useEffectiveSettings } from '@/components/reader/effectiveSettings'
 import { slotAspectRatio, type SpreadPage } from '@/lib/utils/spreads'
 import { useWindowKeys } from './keys'
 import { PageImage } from './PageImage'
@@ -29,7 +30,7 @@ export function ContinuousReader({
   const scale = useReaderSettings((s) => s.continuousScale)
   const padding = useReaderSettings((s) => s.continuousPadding)
   const margin = useReaderSettings((s) => s.continuousMargin)
-  const animations = useReaderSettings((s) => s.animations)
+  const animations = useEffectiveSettings().animations
   const reduceMotion = useReducedMotion()
   const { t } = useTranslation('reader')
 

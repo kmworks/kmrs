@@ -1,9 +1,9 @@
-import { useMemo, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ReadingDirection } from '@/lib/api/types'
 import { useUiStore } from '@/lib/store/ui'
-import { buildFilterString, DEFAULT_FILTERS, type ReaderFilters } from '@/lib/utils/readerFilters'
+import { DEFAULT_FILTERS, type ReaderFilters } from '@/lib/utils/readerFilters'
 import type { PagedReaderLayout } from '@/lib/utils/spreads'
 
 export type ScaleType = 'SCREEN' | 'WIDTH' | 'WIDTH_SHRINK_ONLY' | 'HEIGHT' | 'ORIGINAL'
@@ -15,7 +15,7 @@ export type TapZoneLayout = 'STANDARD' | 'REVERSED' | 'EDGE' | 'KINDLE' | 'OFF'
 export type EpubTheme = 'DAY' | 'SEPIA' | 'NIGHT'
 export type EpubFontFamily = 'Original' | `server:${string}` | `local:${string}`
 
-interface ReaderSettings {
+export interface ReaderSettings {
   scale: ScaleType
   pageLayout: PagedReaderLayout
   /** split wide pages into two half-page turns in single-page layout */
@@ -87,23 +87,20 @@ export const useReaderSettings = create<ReaderSettingsState>()(
 
 const systemLight = window.matchMedia('(prefers-color-scheme: light)')
 
-/** The background to paint: AUTO resolves against the app theme and tracks it live. */
-export function useReaderBackground(): ResolvedReaderBackground {
-  const background = useReaderSettings((s) => s.background)
-  const theme = useUiStore((s) => s.theme)
-  const prefersLight = useSyncExternalStore(
+function usePrefersLight(): boolean {
+  return useSyncExternalStore(
     (onChange) => {
       systemLight.addEventListener('change', onChange)
       return () => systemLight.removeEventListener('change', onChange)
     },
     () => systemLight.matches,
   )
-  if (background !== 'AUTO') return background
-  return (theme === 'system' ? prefersLight : theme === 'light') ? 'WHITE' : 'BLACK'
 }
 
-/** CSS `filter` value applied to page images; recomputed only when the filters object changes. */
-export function usePageFilter(): string {
-  const filters = useReaderSettings((s) => s.filters)
-  return useMemo(() => buildFilterString(filters), [filters])
+/** Resolve AUTO against the app theme and track both live. */
+export function useResolvedBackground(background: ReaderBackground): ResolvedReaderBackground {
+  const theme = useUiStore((s) => s.theme)
+  const prefersLight = usePrefersLight()
+  if (background !== 'AUTO') return background
+  return (theme === 'system' ? prefersLight : theme === 'light') ? 'WHITE' : 'BLACK'
 }

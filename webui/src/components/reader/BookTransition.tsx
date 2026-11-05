@@ -1,7 +1,7 @@
 import { X } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import type { BookDto } from '@/lib/api/types'
-import { useReaderBackground } from '@/lib/store/readerSettings'
+import { useEffectiveBackground } from '@/components/reader/effectiveSettings'
 import { cn } from '@/lib/utils/cn'
 import { urls } from '@/lib/utils/urls'
 
@@ -51,7 +51,7 @@ function BookSection({
  */
 export function BookTransition({ direction, book, target, flip, onLeave }: BookTransitionProps) {
   const { t } = useTranslation('reader')
-  const light = useReaderBackground() === 'WHITE'
+  const light = useEffectiveBackground() === 'WHITE'
   const muted = light ? 'text-black/55' : 'text-white/55'
   const next = direction === 'next'
 
