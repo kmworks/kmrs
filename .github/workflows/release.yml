@@ -298,7 +298,7 @@ jobs:
           path: artifacts
       - name: Write update checksums
         working-directory: artifacts
-        run: sha256sum KMServer.zip KMServer_x64-setup.exe > SHA256SUMS
+        run: sha256sum * > SHA256SUMS
       - run: gh release create "$TAG" --title "$TAG" --generate-notes --target "$GITHUB_SHA" artifacts/*
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
