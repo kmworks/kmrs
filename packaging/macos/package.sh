@@ -4,7 +4,7 @@
 # Usage: package.sh <binary> <version> <outdir> [arch]
 #
 # Requires a keychain containing a Developer ID Application identity:
-#   SIGNING_KEYCHAIN            path to the keychain
+#   SIGNING_KEYCHAIN            keychain name or path
 #   SIGNING_IDENTITIES          identities JSON from import-codesign-certs
 #   APPLE_API_KEY               PEM-encoded App Store Connect private key
 #   APPLE_API_KEY_ID            App Store Connect key id
