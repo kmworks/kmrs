@@ -53,6 +53,42 @@ fn root_has_visible_entry(root: &Path) -> Option<bool> {
     }))
 }
 
+/// Whether a library root holds something to scan.
+fn root_available(root: &Path) -> bool {
+    root_has_visible_entry(root) == Some(true)
+}
+
+/// Clears the unavailable flag of libraries whose root holds something again. A scan
+/// stops before touching anything while the root is unavailable, so nothing needs
+/// repairing: the regular schedule picks up changes on disk, and a library with
+/// periodic scans disabled is not scanned behind the user's back.
+pub fn recover_unavailable_libraries(state: &AppState) -> Result<()> {
+    let dao = LibraryDao::new(state.db.clone());
+    for library in dao.find_all()? {
+        if library.unavailable_date.is_none()
+            || !root_available(Path::new(&komga_core::dto::url_to_file_path(&library.root)))
+        {
+            continue;
+        }
+        // re-read before writing: listing a slow root may have raced a settings change,
+        // and a new root gets its own rescan
+        let Some(current) = dao.find_by_id(&library.id)? else {
+            continue;
+        };
+        if current.unavailable_date.is_none() || current.root != library.root {
+            continue;
+        }
+        tracing::info!("Library {} is available again", current.name);
+        let updated = Library {
+            unavailable_date: None,
+            ..current
+        };
+        dao.update(&updated)?;
+        let _ = state.events.send(DomainEvent::LibraryUpdated(updated));
+    }
+    Ok(())
+}
+
 pub fn scan_root_folder(
     state: &AppState,
     library: &Library,
@@ -2146,6 +2182,46 @@ mod tests {
         assert!(lib_after.unavailable_date.is_some());
         assert!(all_series(&state).iter().all(|s| s.deleted_date.is_none()));
         assert!(all_books(&state).iter().all(|b| b.deleted_date.is_none()));
+    }
+
+    #[test]
+    fn recovered_root_clears_the_unavailable_flag_without_a_scan() {
+        let state = test_state();
+        let tmp = tempfile::tempdir().unwrap();
+        let root = scan_root(&tmp);
+        write_file(&root.join("Series A"), "v01.cbz", b"one");
+        let lib = library(&state.db, "lib1", &root);
+        scan(&state, &lib);
+        std::fs::remove_dir_all(root.join("Series A")).unwrap();
+        scan_root_folder(&state, &lib, false).unwrap_err();
+        let unavailable = |state: &AppState| {
+            LibraryDao::new(state.db.clone())
+                .find_by_id("lib1")
+                .unwrap()
+                .unwrap()
+                .unavailable_date
+                .is_some()
+        };
+        assert!(unavailable(&state));
+
+        // still empty: the flag stays
+        recover_unavailable_libraries(&state).unwrap();
+        assert!(unavailable(&state));
+
+        // the drive is back: the flag clears, clients hear about it, and nothing is scanned
+        write_file(&root.join("Series A"), "v01.cbz", b"one");
+        let queued = || {
+            komga_db::dao::tasks::TasksDao::new(state.tasks_db.clone())
+                .count()
+                .unwrap()
+        };
+        let queued_before = queued();
+        let mut rx = state.events.subscribe();
+        recover_unavailable_libraries(&state).unwrap();
+        assert!(!unavailable(&state));
+        assert!(std::iter::from_fn(|| rx.try_recv().ok())
+            .any(|e| matches!(e, DomainEvent::LibraryUpdated(_))));
+        assert_eq!(queued(), queued_before);
     }
 
     #[test]
