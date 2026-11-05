@@ -105,8 +105,13 @@ pub fn scan_root_folder(
         directory_exclusions: library.scan_directory_exclusions.iter().cloned().collect(),
     };
     // checked here, not in the scanner: imports scan folders too, and an empty one
-    // must keep listing no books there
-    let scanned = if root_has_visible_entry(&root) == Some(false) {
+    // must keep listing no books there. Only a library with series left to trash is at
+    // risk; a new library on an empty folder is simply empty.
+    let scanned = if root_has_visible_entry(&root) == Some(false)
+        && !SeriesDao::new(state.db.clone())
+            .find_all_not_deleted_by_library_id_and_url_not_in(&library.id, &[])?
+            .is_empty()
+    {
         // the folder can be read, so the plain "not accessible" message would mislead
         Err(ScanError::DirectoryNotFound(format!(
             "{} (no visible entries)",
@@ -2182,6 +2187,23 @@ mod tests {
         assert!(lib_after.unavailable_date.is_some());
         assert!(all_series(&state).iter().all(|s| s.deleted_date.is_none()));
         assert!(all_books(&state).iter().all(|b| b.deleted_date.is_none()));
+    }
+
+    #[test]
+    fn new_library_on_an_empty_folder_stays_available() {
+        let state = test_state();
+        let tmp = tempfile::tempdir().unwrap();
+        let root = scan_root(&tmp);
+        write_file(&root, ".DS_Store", b"");
+        let lib = library(&state.db, "lib1", &root);
+
+        // nothing to trash yet, so an empty folder is just an empty library
+        scan_root_folder(&state, &lib, false).unwrap();
+        let lib_after = LibraryDao::new(state.db.clone())
+            .find_by_id("lib1")
+            .unwrap()
+            .unwrap();
+        assert!(lib_after.unavailable_date.is_none());
     }
 
     #[test]
