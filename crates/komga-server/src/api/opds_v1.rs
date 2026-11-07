@@ -2386,14 +2386,18 @@ mod tests {
         )
         .expect("read png fixture");
         let file_size = png_bytes.len() as i64;
+        // a generated thumbnail would be re-extracted from the (missing) book file
+        let dir = tempfile::tempdir().unwrap();
+        let sidecar_path = dir.path().join("cover.png");
+        std::fs::write(&sidecar_path, &png_bytes).unwrap();
         ThumbnailBookDao::new(state.db.clone())
             .insert(&ThumbnailBook {
                 id: String::new(),
                 book_id: "b1".into(),
-                thumbnail: Some(png_bytes),
-                url: None,
+                thumbnail: None,
+                url: Some(format!("file:{}", sidecar_path.display())),
                 selected: true,
-                type_: ThumbnailType::Generated,
+                type_: ThumbnailType::Sidecar,
                 media_type: "image/png".into(),
                 file_size,
                 dimension: komga_core::model::thumbnail::Dimension {
