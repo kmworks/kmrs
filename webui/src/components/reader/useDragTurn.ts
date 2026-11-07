@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 const AXIS_LOCK_PX = 8
 /** turn threshold for a release-only swipe (the modes the drag cannot follow) */
 const SWIPE_MIN_PX = 48
-/** a followed drag turns past half the viewport, or on a fast enough flick */
+/** a followed drag turns past its commit distance (see COMMIT_MAX_PX), or on a fast enough flick */
 const FLICK_PX_PER_MS = 0.5
 const FLICK_MIN_PX = 24
 /** caps the commit distance so large desktop windows keep the drag a short flick-like gesture */
