@@ -85,6 +85,15 @@ export function useDragTurn(options: DragTurnOptions) {
     el.style.transform = `translate${opts.current.vertical ? 'Y' : 'X'}(calc(${pct}% + ${px}px))`
   }
 
+  /** feeds the trailing velocity window; the release samples too, so a pause before lifting reads as no flick */
+  const sample = (pos: number, t: number) => {
+    const s = state.current
+    s.trail.push({ p: pos, t })
+    while (s.trail.length > 2 && t - s.trail[0].t > VELOCITY_WINDOW_MS) s.trail.shift()
+    const oldest = s.trail[0]
+    s.velocity = t > oldest.t ? (pos - oldest.p) / (t - oldest.t) : 0
+  }
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const s = state.current
     const o = opts.current
@@ -125,10 +134,7 @@ export function useDragTurn(options: DragTurnOptions) {
     }
     // velocity is the trailing window of the raw position: the followed offset is
     // clamped, so measuring it would decay to zero while the drag sits at a boundary
-    s.trail.push({ p: pos, t: e.timeStamp })
-    while (s.trail.length > 2 && e.timeStamp - s.trail[0].t > VELOCITY_WINDOW_MS) s.trail.shift()
-    const oldest = s.trail[0]
-    s.velocity = e.timeStamp > oldest.t ? (pos - oldest.p) / (e.timeStamp - oldest.t) : 0
+    sample(pos, e.timeStamp)
     if (s.status !== 'drag') return
     const room = (fwd: boolean) => (fwd ? Math.min(1, o.spreadCount - o.resting) : Math.min(1, o.resting + 1))
     const slots = (d * forwardSign()) / s.size
@@ -156,6 +162,9 @@ export function useDragTurn(options: DragTurnOptions) {
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     const s = state.current
     const o = opts.current
+    if (s.status === 'pending' || s.status === 'release' || s.status === 'drag') {
+      sample(o.vertical ? e.clientY : e.clientX, e.timeStamp)
+    }
     if (s.status === 'pending' || s.status === 'release') {
       s.status = 'idle'
       if (o.gestureConsumed()) return
@@ -190,6 +199,16 @@ export function useDragTurn(options: DragTurnOptions) {
       return
     }
     const forward = Math.sign(turn) === forwardSign()
+    // the projection can point away from the drag: past a transition page there is no slot
+    // to land on, and a split half swap stays in its slot, so the track must not slide
+    if ((forward ? o.spreadCount - o.resting : o.resting + 1) <= 0) {
+      settle(o.resting, null, false)
+      return
+    }
+    if (!(forward ? o.followForward : o.followBackward)) {
+      settle(o.resting, forward ? o.onNext : o.onPrevious, false)
+      return
+    }
     const target = o.resting + (forward ? 1 : -1)
     // a pull landing past either end skips the transition page's rest and leaves the book
     if (target === -1 || target === o.spreadCount) {
