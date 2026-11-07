@@ -327,6 +327,8 @@ export function PagedReader({
   const touchAction =
     !zoomed && swipe && followDrag ? (vertical ? 'pan-x' : 'pan-y') : pinchTouchAction
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // a touch that moved fires no click, so a flag left by the last drag must not eat this tap
+    if (e.isPrimary) swipedRef.current = false
     pinchPointerDown(e)
     drag.onPointerDown(e)
   }

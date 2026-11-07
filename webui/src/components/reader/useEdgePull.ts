@@ -6,6 +6,8 @@ const PULL_THRESHOLD = 160
 const RUBBER_MAX = 240
 /** wheel inertia must go quiet at the edge this long before wheeling may pull */
 const WHEEL_ARM_QUIET_MS = 250
+/** a wheel pull has no release, so the strip retracts once the wheel stops short of the threshold */
+const WHEEL_RETRACT_MS = 600
 /** hint strip height; the slide-in is capped at it */
 const BAR_PX = 56
 
@@ -32,9 +34,16 @@ interface Edge {
   wheelArmed: boolean
   firing: boolean
   timer: number | undefined
+  retractTimer: number | undefined
 }
 
-const freshEdge = (): Edge => ({ raw: 0, wheelArmed: false, firing: false, timer: undefined })
+const freshEdge = (): Edge => ({
+  raw: 0,
+  wheelArmed: false,
+  firing: false,
+  timer: undefined,
+  retractTimer: undefined,
+})
 
 /**
  * Pull past the scroll edge to leave the book, for the continuous reader. At the top/bottom
@@ -55,6 +64,15 @@ export function useEdgePull(options: EdgePullOptions) {
   const [armed, setArmed] = useState<PullDirection | null>(null)
   const edges = useRef<Record<PullDirection, Edge>>({ previous: freshEdge(), next: freshEdge() })
   const suppressClick = useRef(false)
+  useEffect(
+    () => () => {
+      for (const e of Object.values(edges.current)) {
+        window.clearTimeout(e.timer)
+        window.clearTimeout(e.retractTimer)
+      }
+    },
+    [],
+  )
 
   const write = (dir: PullDirection, offset: number, snapping: boolean) => {
     const el = opts.current.bar(dir)
@@ -81,6 +99,8 @@ export function useEdgePull(options: EdgePullOptions) {
     e.firing = true
     window.clearTimeout(e.timer)
     e.timer = undefined
+    window.clearTimeout(e.retractTimer)
+    e.retractTimer = undefined
     suppressClick.current = true
     opts.current.onLeave(dir)
   }
@@ -90,6 +110,8 @@ export function useEdgePull(options: EdgePullOptions) {
     const e = edges.current[dir]
     window.clearTimeout(e.timer)
     e.timer = undefined
+    window.clearTimeout(e.retractTimer)
+    e.retractTimer = undefined
     e.wheelArmed = false
     e.firing = false
     if (e.raw > 0) {
@@ -114,6 +136,21 @@ export function useEdgePull(options: EdgePullOptions) {
     resetEdge('next', false)
   }, [options.enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** after a wheel step, retract a pull the wheel left short; the wheel stays armed */
+  const scheduleRetract = (dir: PullDirection) => {
+    const e = edges.current[dir]
+    window.clearTimeout(e.retractTimer)
+    e.retractTimer = undefined
+    if (e.firing || e.raw === 0) return
+    e.retractTimer = window.setTimeout(() => {
+      e.retractTimer = undefined
+      if (e.firing || e.raw === 0) return
+      e.raw = 0
+      write(dir, 0, true)
+      setArmed((prev) => (prev === dir ? null : prev))
+    }, WHEEL_RETRACT_MS)
+  }
+
   const feedWheelDir = (dir: PullDirection, d: number, atEdge: boolean) => {
     const e = edges.current[dir]
     if (e.firing) return
@@ -133,10 +170,12 @@ export function useEdgePull(options: EdgePullOptions) {
     if (!e.wheelArmed) return
     add(dir, d)
     if (e.raw >= PULL_THRESHOLD) fire(dir)
+    else scheduleRetract(dir)
   }
 
   const onWheel = (ev: React.WheelEvent<HTMLDivElement>) => {
-    if (!opts.current.enabled) return
+    // ctrl+wheel is a trackpad pinch, not a pull
+    if (!opts.current.enabled || ev.ctrlKey) return
     const el = opts.current.scroller()
     if (!el) return
     const normalize = (d: number) =>
@@ -144,11 +183,15 @@ export function useEdgePull(options: EdgePullOptions) {
     const max = el.scrollHeight - el.clientHeight
     if (ev.deltaY > 0) {
       // a reverse wheel first shrinks an ongoing opposite pull instead of starting a new one
-      if (edges.current.previous.raw > 0) add('previous', -normalize(ev.deltaY))
-      else feedWheelDir('next', normalize(ev.deltaY), el.scrollTop >= max - 1)
+      if (edges.current.previous.raw > 0) {
+        add('previous', -normalize(ev.deltaY))
+        scheduleRetract('previous')
+      } else feedWheelDir('next', normalize(ev.deltaY), el.scrollTop >= max - 1)
     } else if (ev.deltaY < 0) {
-      if (edges.current.next.raw > 0) add('next', normalize(ev.deltaY))
-      else feedWheelDir('previous', normalize(-ev.deltaY), el.scrollTop <= 1)
+      if (edges.current.next.raw > 0) {
+        add('next', normalize(ev.deltaY))
+        scheduleRetract('next')
+      } else feedWheelDir('previous', normalize(-ev.deltaY), el.scrollTop <= 1)
     }
   }
 
@@ -161,6 +204,8 @@ export function useEdgePull(options: EdgePullOptions) {
     const atBottom = () => el.scrollTop >= el.scrollHeight - el.clientHeight - 1
 
     const onStart = (e: TouchEvent) => {
+      // a touch that moved fires no click, so a flag left by the last pull must not eat this tap
+      if (e.touches.length === 1) suppressClick.current = false
       tracking =
         e.touches.length === 1 && opts.current.enabled && !opts.current.gestureConsumed()
       if (tracking) lastY = e.touches[0].clientY
