@@ -133,6 +133,10 @@ pub fn router() -> Router<AppState> {
             routing::get(download_book_file_wildcard),
         )
         .route(
+            "/opds/v2/books/{bookId}/pages/{pageNumber}/raw",
+            routing::get(get_book_page_raw_by_number),
+        )
+        .route(
             "/opds/v2/books/{bookId}/progression",
             routing::get(get_book_progression).put(update_book_progression),
         )
@@ -3336,19 +3340,26 @@ mod tests {
         seed_user(&db, "admin@example.org", "pw", true);
         let app = test_router(state.clone());
 
-        let (status, _, body) = call(
-            &app,
-            "GET",
+        // the OPDS v2 PDF manifest links the same handler (CommonBookController)
+        for uri in [
             "/api/v1/books/b1/pages/1/raw",
-            Some(&basic("admin@example.org", "pw")),
-            None,
-        )
-        .await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert_eq!(
-            json(&body)["message"],
-            "400 BAD_REQUEST \"Extractor does not support raw extraction of pages\""
-        );
+            "/opds/v2/books/b1/pages/1/raw",
+        ] {
+            let (status, _, body) = call(
+                &app,
+                "GET",
+                uri,
+                Some(&basic("admin@example.org", "pw")),
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+            assert_eq!(
+                json(&body)["message"],
+                "400 BAD_REQUEST \"Extractor does not support raw extraction of pages\"",
+                "{uri}"
+            );
+        }
     }
 
     // endregion
