@@ -24,6 +24,8 @@ interface DragTurnOptions {
   /** a turn that only swaps a split wide page's half cannot be dragged, so that direction stays release-only */
   followForward: boolean
   followBackward: boolean
+  /** viewport fraction past which a followed drag commits; denser layouts commit earlier */
+  commitRatio: number
   swipe: boolean
   onNext: () => void
   onPrevious: () => void
@@ -166,7 +168,7 @@ export function useDragTurn(options: DragTurnOptions) {
       Math.abs(s.velocity) >= FLICK_PX_PER_MS &&
       Math.abs(s.delta) >= FLICK_MIN_PX &&
       Math.sign(s.velocity) === Math.sign(s.delta)
-    const commit = Math.abs(s.delta) > s.size / 2 || flick
+    const commit = Math.abs(s.delta) > s.size * o.commitRatio || flick
     o.markSwiped()
     if (!commit) {
       settle(o.resting, null, false)
