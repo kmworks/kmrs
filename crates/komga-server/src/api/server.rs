@@ -55,15 +55,8 @@ async fn get_info(
 /// feature that needs setup is listed only once it is set up.
 fn features(state: &AppState) -> Result<Vec<&'static str>, ApiError> {
     // /api/v1/stats/libraries, /api/v1/stats/server, /api/v1/stats/reading/**,
-    // /api/v1/smart-lists/**, /api/v2/users/me/sessions, /api/v2/users/sessions,
-    // and the `readDate` condition on the book search
-    let mut features = vec![
-        "serverStats",
-        "readingStats",
-        "smartLists",
-        "sessions",
-        "readDateSearch",
-    ];
+    // /api/v1/smart-lists/**, /api/v2/users/me/sessions, /api/v2/users/sessions
+    let mut features = vec!["serverStats", "readingStats", "smartLists", "sessions"];
     // /api/v1/komf/** proxies to komf only once the integration is connected
     let komf = KomfIntegrationDao::new(state.kmrs_db.clone()).get()?;
     if komf.is_some_and(|row| row.state == KomfIntegrationState::Connected) {
@@ -203,7 +196,6 @@ mod tests {
                 "readingStats",
                 "smartLists",
                 "sessions",
-                "readDateSearch",
                 "updateCheck"
             ])
         );
