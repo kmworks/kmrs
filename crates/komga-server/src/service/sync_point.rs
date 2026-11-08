@@ -165,6 +165,7 @@ fn add_on_deck(
         &user.id,
         filter.as_ref(),
         &user.restrictions,
+        None,
         &PageRequest {
             page: 0,
             size: 20,

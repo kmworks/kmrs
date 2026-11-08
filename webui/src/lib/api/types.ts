@@ -392,6 +392,8 @@ export interface SettingsDto {
   maxUploadFileSizeBytes?: number
   /** kmrs: the next-book endpoints skip read books. Admin only. */
   skipReadOnNext?: boolean
+  /** kmrs: Keep Reading and On Deck only show series read in the last N days; 0 = off */
+  recentReadingDays?: number
 }
 
 /** Patch semantics: omit = unchanged. */
@@ -404,6 +406,7 @@ export interface SettingsUpdateDto {
   taskPoolSize?: number
   koboProxy?: boolean
   skipReadOnNext?: boolean
+  recentReadingDays?: number
 }
 
 // ---- Admin: filesystem browser ----

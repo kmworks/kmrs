@@ -788,6 +788,7 @@ async fn libraries_recommended(
         &user.id,
         authorized.as_ref(),
         &user.restrictions,
+        None,
         &page_5,
     )?;
 
@@ -1088,6 +1089,7 @@ async fn list_feed(
                 &user.id,
                 authorized.as_ref(),
                 &user.restrictions,
+                None,
                 &page_request,
             )?;
             uri = url_builder(
