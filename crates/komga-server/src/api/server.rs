@@ -32,14 +32,36 @@ struct ServerInfoDto {
     version: String,
     git_branch: String,
     git_commit_id: String,
+    features: &'static [&'static str],
 }
 
-/// No admin gate: the sidebar footer shows the version to every logged-in user.
+/// kmrs-private endpoint groups this build serves, so clients can tell what
+/// exists from one request instead of probing each group for a 404. A name
+/// means the endpoints exist, not that the feature is configured. Names are
+/// only ever added.
+const FEATURES: &[&str] = &[
+    // /api/v1/stats/libraries, /api/v1/stats/server
+    "serverStats",
+    // /api/v1/stats/reading/**
+    "readingStats",
+    // /api/v1/smart-lists/**
+    "smartLists",
+    // /api/v1/komf/**
+    "komf",
+    // /api/v1/trackers/**
+    "trackers",
+    // /api/v1/update-check
+    "updateCheck",
+];
+
+/// No admin gate: the sidebar footer shows the version to every logged-in user,
+/// and clients read `features` before any kmrs-private request.
 async fn get_info(_auth: RequireAuth) -> Json<ServerInfoDto> {
     Json(ServerInfoDto {
         version: env!("CARGO_PKG_VERSION").to_string(),
         git_branch: env!("GIT_BRANCH").to_string(),
         git_commit_id: env!("GIT_COMMIT_ID").to_string(),
+        features: FEATURES,
     })
 }
 
@@ -158,6 +180,17 @@ mod tests {
         assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(body["gitBranch"], env!("GIT_BRANCH"));
         assert_eq!(body["gitCommitId"], env!("GIT_COMMIT_ID"));
+        assert_eq!(
+            body["features"],
+            serde_json::json!([
+                "serverStats",
+                "readingStats",
+                "smartLists",
+                "komf",
+                "trackers",
+                "updateCheck"
+            ])
+        );
 
         let (status, _, _) = call(
             &state,
