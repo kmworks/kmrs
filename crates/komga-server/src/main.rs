@@ -409,6 +409,10 @@ pub fn build_router(state: AppState) -> axum::Router {
             state.clone(),
             auth::auth_middleware,
         ))
+        // outside auth, so 401s get the headers too
+        .layer(axum::middleware::from_fn(
+            http::security_headers::security_headers_middleware,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(http::offload::offload_middleware));
 
