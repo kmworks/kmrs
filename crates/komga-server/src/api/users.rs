@@ -807,9 +807,33 @@ mod tests {
             let stored = state.sessions.get(issued).unwrap().expect("stored");
             assert_eq!(stored.user_id, user_id);
         }
+        // three successes from the same device collapse into one throttled row
         assert_eq!(
-            settled_activity_count(&state, &user_id, "admin@example.com", 3).await,
-            3
+            settled_activity_count(&state, &user_id, "admin@example.com", 1).await,
+            1
+        );
+    }
+
+    /// Successful password logins are recorded once per user and device per window, like
+    /// API keys per key: a client sending Basic on every request doesn't flood the activity,
+    /// while a login from another device is still recorded right away.
+    #[tokio::test]
+    async fn password_activity_is_throttled_per_device() {
+        let (state, _rx) = test_state();
+        let user_id = seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+
+        for agent in ["reader/1", "reader/1", "browser/2"] {
+            let mut request = basic_request("admin@example.com:pass", None);
+            request
+                .headers_mut()
+                .insert("User-Agent", agent.parse().unwrap());
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+        assert_eq!(
+            settled_activity_count(&state, &user_id, "admin@example.com", 2).await,
+            2
         );
     }
 

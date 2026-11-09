@@ -23,12 +23,17 @@ pub use session::{SessionStore, SESSION_COOKIE_NAME, SESSION_HEADER_NAME};
 
 /// One successful API-key activity row per key per window: upstream komga writes a row for
 /// every API-key request, which floods the login-activity view for stateless clients that
-/// send their key on each one. Failures stay per-request — they are the brute-force signal.
+/// send their key on each one. Successful password logins get the same window per user and
+/// device (IP and user agent), for clients that send Basic on every request without the
+/// session. Failures stay per-request — they are the brute-force signal.
 const API_KEY_ACTIVITY_WINDOW: std::time::Duration = std::time::Duration::from_secs(3600);
 
 /// LoginListener's source label for API-key authentications; persisted in
 /// AUTHENTICATION_ACTIVITY, it must stay the Java value.
 pub(crate) const SOURCE_API_KEY: &str = "ApiKey";
+
+/// LoginListener's source label for password (Basic) authentications.
+pub(crate) const SOURCE_PASSWORD: &str = "Password";
 
 pub struct ApiKeyActivityThrottle {
     window: std::time::Duration,
@@ -266,7 +271,7 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                         api_key_comment: None,
                         success: true,
                         error: None,
-                        source: "Password".into(),
+                        source: SOURCE_PASSWORD.into(),
                     };
                     Outcome {
                         // a broken session store must not fail the authentication itself
@@ -298,7 +303,7 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                         api_key_comment: None,
                         success: false,
                         error: Some("Bad credentials".into()),
-                        source: "Password".into(),
+                        source: SOURCE_PASSWORD.into(),
                     }),
                 },
             };
