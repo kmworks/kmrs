@@ -837,6 +837,122 @@ mod tests {
         );
     }
 
+    /// After repeated wrong passwords the account refuses password logins, even the right
+    /// password, with the same 401 and no session. The refusal is recorded in the activity,
+    /// and a device that is already signed in keeps working.
+    #[tokio::test]
+    async fn repeated_wrong_passwords_lock_password_logins() {
+        let (state, _rx) = test_state();
+        let user_id = seed_user(&state, "admin@example.com");
+        let session_id = state.sessions.create(&user_id).unwrap();
+        let app = test_router(state.clone());
+
+        for _ in 0..5 {
+            let response = app
+                .clone()
+                .oneshot(basic_request("admin@example.com:wrong", None))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+        let response = app
+            .clone()
+            .oneshot(basic_request("admin@example.com:pass", None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(response.headers().get("set-cookie").is_none());
+        assert_eq!(state.sessions.all().unwrap().len(), 1);
+
+        assert_eq!(
+            settled_activity_count(&state, &user_id, "admin@example.com", 6).await,
+            6
+        );
+        let (activities, _) = UserDao::new(state.db.clone())
+            .find_activities_by_user(&user_id, "admin@example.com", None, 0)
+            .unwrap();
+        let refused: Vec<_> = activities
+            .iter()
+            .filter(|a| a.error.as_deref() == Some("Too many failed attempts"))
+            .collect();
+        assert_eq!(refused.len(), 1);
+        assert!(!refused[0].success);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v2/users/me")
+                    .header("X-Auth-Token", session_id)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// Concurrent guesses are counted as they start: of twelve sent at once, only the first
+    /// five reach the password check and the rest are refused.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_wrong_passwords_cannot_pass_the_lock() {
+        let (state, _rx) = test_state();
+        let user_id = seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+
+        let attempts: Vec<_> = (0..12)
+            .map(|_| {
+                let app = app.clone();
+                tokio::spawn(async move {
+                    app.oneshot(basic_request("admin@example.com:wrong", None))
+                        .await
+                        .unwrap()
+                        .status()
+                })
+            })
+            .collect();
+        for attempt in attempts {
+            assert_eq!(attempt.await.unwrap(), StatusCode::UNAUTHORIZED);
+        }
+
+        settled_activity_count(&state, &user_id, "admin@example.com", 12).await;
+        let (activities, _) = UserDao::new(state.db.clone())
+            .find_activities_by_user(&user_id, "admin@example.com", None, 0)
+            .unwrap();
+        let checked = activities
+            .iter()
+            .filter(|a| a.error.as_deref() == Some("Bad credentials"))
+            .count();
+        let refused = activities
+            .iter()
+            .filter(|a| a.error.as_deref() == Some("Too many failed attempts"))
+            .count();
+        assert_eq!((checked, refused), (5, 7));
+    }
+
+    /// Unknown emails are never tracked, so guessing accounts cannot grow the throttle.
+    #[tokio::test]
+    async fn wrong_passwords_for_unknown_accounts_are_not_tracked() {
+        let (state, _rx) = test_state();
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+
+        for n in 0..6 {
+            let response = app
+                .clone()
+                .oneshot(basic_request(&format!("nobody{n}@example.com:x"), None))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+        assert_eq!(state.login_throttle.len(), 0);
+        let response = app
+            .oneshot(basic_request("admin@example.com:pass", None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
     /// Clients that log in with Basic alone (KMReader keeps the returned token) still get a
     /// session, and wrong credentials are still rejected without one.
     #[tokio::test]

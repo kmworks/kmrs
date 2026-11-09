@@ -33,6 +33,7 @@ pub struct AppState {
     /// (graceful shutdown waits for them)
     pub shutdown_tx: tokio::sync::watch::Sender<bool>,
     pub api_key_activity_throttle: Arc<crate::auth::ApiKeyActivityThrottle>,
+    pub login_throttle: Arc<crate::auth::login_throttle::LoginThrottle>,
     pub latest_update: crate::service::update_check::LatestUpdate,
 }
 
@@ -102,6 +103,7 @@ pub(crate) fn test_app_state(
         kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
         shutdown_tx,
         api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
+        login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
         latest_update: Default::default(),
     };
     (state, shutdown_rx)

@@ -237,6 +237,7 @@ async fn run() -> anyhow::Result<()> {
         kobo_proxy: service::kobo_proxy::KoboProxy::new(),
         shutdown_tx,
         api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
+        login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
         latest_update: service::update_check::LatestUpdate::default(),
         db,
         task_db,

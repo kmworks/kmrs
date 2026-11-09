@@ -7,6 +7,7 @@
 //! (`ApiKeyActivityThrottle`). `/koreader/**` also accepts the KOReader sync header
 //! `X-Auth-User` (the kosync filter chain's converter).
 
+pub mod login_throttle;
 pub mod remember_me;
 pub mod session;
 
@@ -260,11 +261,43 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                     activity: None,
                 };
             }
-            let verified = user_dao
-                .find_by_email_ignore_case(&email)
-                .ok()
-                .flatten()
-                .filter(|user| bcrypt::verify(&password, &user.password).unwrap_or(false));
+            let account = user_dao.find_by_email_ignore_case(&email).ok().flatten();
+            // counted before bcrypt, so concurrent guesses can't all pass the check
+            let mut lock_started = None;
+            if let Some(account) = &account {
+                match state
+                    .login_throttle
+                    .begin_attempt(&account.id, std::time::Instant::now())
+                {
+                    Some(lock) => lock_started = lock,
+                    // a locked account answers like a wrong password, without running bcrypt
+                    None => {
+                        return Outcome {
+                            auth: None,
+                            new_session_id: None,
+                            activity: Some(ActivityDraft {
+                                user_id: None,
+                                email: Some(email),
+                                api_key_id: None,
+                                api_key_comment: None,
+                                success: false,
+                                error: Some("Too many failed attempts".into()),
+                                source: SOURCE_PASSWORD.into(),
+                            }),
+                        };
+                    }
+                }
+            }
+            let verified =
+                account.filter(|user| bcrypt::verify(&password, &user.password).unwrap_or(false));
+            match (&verified, lock_started) {
+                (Some(user), _) => state.login_throttle.record_success(&user.id),
+                (None, Some(lock)) => tracing::warn!(
+                    "password logins for {email:?} refused for {}s after repeated failures",
+                    lock.as_secs()
+                ),
+                (None, None) => {}
+            }
             return match verified {
                 Some(user) => {
                     let activity = ActivityDraft {
