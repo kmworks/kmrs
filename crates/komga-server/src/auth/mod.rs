@@ -147,7 +147,29 @@ struct Outcome {
     activity: Option<ActivityDraft>,
 }
 
-fn resolve(state: &AppState, parts: &Parts) -> Outcome {
+/// The session's user when it is the one the Basic credentials name, so Basic can skip
+/// re-authentication like Spring's `BasicAuthenticationFilter.authenticationIsRequired`.
+/// The email compares the way the login lookup does (ASCII case-insensitive).
+fn session_matching_basic(
+    state: &AppState,
+    user_dao: &UserDao,
+    session_id: &str,
+    email: &str,
+) -> Option<KomgaUser> {
+    let session = state
+        .sessions
+        .get(session_id)
+        .map_err(|e| tracing::warn!("failed to load session {session_id}: {e}"))
+        .ok()
+        .flatten()?;
+    user_dao
+        .find_by_id(&session.user_id)
+        .ok()
+        .flatten()
+        .filter(|user| user.email.eq_ignore_ascii_case(email))
+}
+
+fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome {
     let headers = &parts.headers;
     let user_dao = UserDao::new(state.db.clone());
 
@@ -213,6 +235,23 @@ fn resolve(state: &AppState, parts: &Parts) -> Outcome {
         .and_then(|v| v.to_str().ok())
     {
         if let Some((email, password)) = parse_basic_authorization(value) {
+            // a client that sends its session back with Basic keeps that session: no new
+            // session, no bcrypt run and no activity row, as for a plain session request
+            if let Some((session_id, user)) = session_id.and_then(|id| {
+                session_matching_basic(state, &user_dao, id, &email)
+                    .map(|user| (id.to_string(), user))
+            }) {
+                return Outcome {
+                    auth: Some(Auth {
+                        user,
+                        source: AuthSource::Session,
+                        api_key_id: None,
+                        session_id: Some(session_id),
+                    }),
+                    new_session_id: None,
+                    activity: None,
+                };
+            }
             let verified = user_dao
                 .find_by_email_ignore_case(&email)
                 .ok()
@@ -385,7 +424,7 @@ pub async fn auth_middleware(
 
     let session_id = session_header.or(session_cookie);
 
-    let mut outcome = resolve(&state, &parts);
+    let mut outcome = resolve(&state, &parts, session_id.as_deref());
     if outcome.auth.is_none() && outcome.activity.is_none() {
         outcome = resolve_session_and_remember(&state, &parts, session_id.clone()).await;
     }
