@@ -21,8 +21,8 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
 /// Per-connection timers. Kotlin schedules heartbeat and the task count globally for all
-/// emitters; per-connection timers behave identically for each subscriber and keep no
-/// shared state. Configurable so tests can speed them up.
+/// emitters; per-connection timers behave identically for each subscriber, and the task
+/// count they send is shared (`SseShared`). Configurable so tests can speed them up.
 #[derive(Debug, Clone, Copy)]
 pub struct SseIntervals {
     pub heartbeat: Duration,
@@ -44,17 +44,19 @@ const PREPARED_EVENTS_CAPACITY: u64 = 1024;
 const PREPARED_EVENTS_TTL: Duration = Duration::from_secs(300);
 
 /// Work done once per server instead of once per connection, like Kotlin's single
-/// `handleSseEvent`: each recorded event is mapped once (its series lookup included),
+/// `handleSseEvent` and task-count schedule: each recorded event is mapped once (its
+/// series lookup included) and the task queue is counted at most once per interval,
 /// however many clients are connected. Concurrent connections asking for the same entry
 /// wait for one computation. Keyed by the recorded event id, so subscription and replay
 /// stay per connection.
 #[derive(Clone)]
 struct SseShared {
     prepared: moka::future::Cache<String, Arc<Option<Outgoing>>>,
+    task_counts: moka::future::Cache<(), Arc<dto::TaskQueueSseDto>>,
 }
 
 impl SseShared {
-    fn new() -> Self {
+    fn new(intervals: SseIntervals) -> Self {
         Self {
             // LRU: every event id is new, and moka's default TinyLFU admission would
             // turn new keys away once the cache is full
@@ -62,6 +64,9 @@ impl SseShared {
                 .max_capacity(PREPARED_EVENTS_CAPACITY)
                 .time_to_live(PREPARED_EVENTS_TTL)
                 .eviction_policy(moka::policy::EvictionPolicy::lru())
+                .build(),
+            task_counts: moka::future::Cache::builder()
+                .time_to_live(intervals.task_status)
                 .build(),
         }
     }
@@ -75,7 +80,7 @@ fn router_with_intervals(intervals: SseIntervals) -> Router<AppState> {
     Router::new()
         .route("/sse/v1/events", get(sse_events))
         .layer(Extension(intervals))
-        .layer(Extension(SseShared::new()))
+        .layer(Extension(SseShared::new(intervals)))
 }
 
 /// Who may receive an event (`emitSse`'s adminOnly/userIdOnly filters).
@@ -184,18 +189,9 @@ async fn sse_events(
                     if !user.is_admin() {
                         continue;
                     }
-                    let counts = {
-                        let db = state.tasks_db.clone();
-                        tokio::task::spawn_blocking(move || TasksDao::new(db).count_by_simple_type())
-                            .await
-                            .map_err(|e| e.to_string())
-                            .and_then(|r| r.map_err(|e| e.to_string()))
-                    };
-                    match counts {
-                        Ok(counts) => {
-                            let total = counts.values().sum();
-                            let dto = dto::TaskQueueSseDto { count: total, count_by_type: counts };
-                            Wire::Snapshot { name: "TaskQueueStatus", data: serde_json::to_string(&dto).unwrap() }
+                    match shared.task_counts.try_get_with((), count_tasks(&state)).await {
+                        Ok(dto) => {
+                            Wire::Snapshot { name: "TaskQueueStatus", data: serde_json::to_string(&*dto).unwrap() }
                         }
                         Err(e) => {
                             tracing::warn!("could not count tasks for SSE: {e}");
@@ -255,6 +251,20 @@ async fn map_recorded_event(
         name: outgoing.name,
         data: outgoing.data.to_string(),
     })
+}
+
+/// `TaskQueueStatus` payload, counted on the tasks database.
+async fn count_tasks(state: &AppState) -> Result<Arc<dto::TaskQueueSseDto>, String> {
+    let db = state.tasks_db.clone();
+    let counts = tokio::task::spawn_blocking(move || TasksDao::new(db).count_by_simple_type())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    let total = counts.values().sum();
+    Ok(Arc::new(dto::TaskQueueSseDto {
+        count: total,
+        count_by_type: counts,
+    }))
 }
 
 /// `handleSseEvent`: maps a domain event to its SSE name/payload and the audience the
@@ -1601,7 +1611,7 @@ mod tests {
         komga_db::dao::book::BookDao::new(state.db.clone())
             .insert(&sample_book("b1", "s1", "l1"))
             .unwrap();
-        let shared = SseShared::new();
+        let shared = SseShared::new(SseIntervals::default());
         let expected = "{\"bookId\":\"b1\",\"seriesId\":\"s1\",\"selected\":true}";
 
         let thumbnail = record(&state, DomainEvent::ThumbnailBookAdded(thumbnail_of("b1"))).await;
@@ -1614,7 +1624,7 @@ mod tests {
         let second = map_recorded_event(&state, &shared, &reader, thumbnail.clone()).await;
         assert_eq!(wire_data(second).as_deref(), Some(expected));
         // a fresh mapping would no longer find the series
-        let fresh = SseShared::new();
+        let fresh = SseShared::new(SseIntervals::default());
         let remapped = map_recorded_event(&state, &fresh, &reader, thumbnail).await;
         assert_eq!(
             wire_data(remapped).as_deref(),
@@ -1640,5 +1650,33 @@ mod tests {
         assert!(map_recorded_event(&state, &shared, &reader, imported)
             .await
             .is_none());
+    }
+
+    /// Admin connections share one task count per interval instead of each running it.
+    #[tokio::test]
+    async fn task_count_is_shared_within_the_interval() {
+        let state = test_state();
+        let shared = SseShared::new(SseIntervals {
+            heartbeat: Duration::from_secs(15),
+            task_status: Duration::from_millis(300),
+        });
+        let count = || async {
+            shared
+                .task_counts
+                .try_get_with((), count_tasks(&state))
+                .await
+                .unwrap()
+                .count
+        };
+
+        assert_eq!(count().await, 0);
+        state
+            .task_emitter
+            .submit(komga_core::task::Task::scan_library("l1", false, 4))
+            .unwrap();
+        // within the interval every connection gets the same snapshot
+        assert_eq!(count().await, 0);
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        assert_eq!(count().await, 1);
     }
 }
