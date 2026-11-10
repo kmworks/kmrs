@@ -13,7 +13,28 @@ use ipnet::IpNet;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TrustedProxies(Vec<IpNet>);
 
+/// Loopback and the private ranges: where a reverse proxy on the same host, in a container
+/// network or on the LAN connects from. A peer on a public address is never among them.
+pub const DEFAULT_TRUSTED_PROXIES: [&str; 6] = [
+    "127.0.0.0/8",
+    "::1/128",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "fc00::/7",
+];
+
 impl TrustedProxies {
+    /// The list used when none is configured.
+    pub fn private_networks() -> Self {
+        Self(
+            DEFAULT_TRUSTED_PROXIES
+                .iter()
+                .map(|net| net.parse().expect("valid CIDR literal"))
+                .collect(),
+        )
+    }
+
     pub fn parse(entries: &[String]) -> anyhow::Result<Self> {
         entries
             .iter()
@@ -226,6 +247,23 @@ mod tests {
             resolve("fd00::2", &["2001:db8::7"], &["fd00::/8"]),
             "2001:db8::7"
         );
+    }
+
+    #[test]
+    fn private_networks_trust_local_proxies_but_no_public_peer() {
+        let default = TrustedProxies::private_networks();
+        for (peer, expected) in [
+            ("127.0.0.1", "198.51.100.7"),
+            ("172.18.0.2", "198.51.100.7"),
+            ("192.168.1.5", "198.51.100.7"),
+            ("fd00::2", "198.51.100.7"),
+            // a public peer names itself, whatever it claims
+            ("203.0.113.9", "203.0.113.9"),
+            ("172.32.0.1", "172.32.0.1"),
+        ] {
+            let resolved = client_ip(&parts(Some(peer), &["198.51.100.7"]), &default);
+            assert_eq!(resolved.unwrap().to_string(), expected, "{peer}");
+        }
     }
 
     #[test]

@@ -94,7 +94,8 @@ pub struct ServerConfig {
     /// None/empty = `und` (UCA root), reproducing the legacy hard-coded behavior.
     pub sort_locale: Option<String>,
     /// reverse proxies whose X-Forwarded-For names the client address; from any other peer
-    /// the header is ignored (kmrs enhancement; Java honors it from anyone)
+    /// the header is ignored (kmrs enhancement; Java honors it from anyone). Loopback and the
+    /// private ranges unless configured
     pub trusted_proxies: crate::http::client_addr::TrustedProxies,
     /// substituted into the SQL migrations
     pub migration_placeholders: Placeholders,
@@ -311,11 +312,22 @@ impl ServerConfig {
             .or_else(|| server.and_then(|s| s.sort_locale.clone()))
             .filter(|v| !v.is_empty());
 
-        let trusted_proxies = crate::http::client_addr::TrustedProxies::parse(
-            &env_list(env, "KOMGA_TRUSTED_PROXIES")
-                .or_else(|| server.and_then(|s| s.trusted_proxies.clone()))
-                .unwrap_or_default(),
-        )?;
+        // an explicit list replaces the default, an empty one included; unlike the other
+        // variables, this one set to an empty value therefore means "none", not "unset"
+        let trusted_proxies = match env
+            .iter()
+            .find(|(k, _)| k == "KOMGA_TRUSTED_PROXIES")
+            .map(|(_, v)| {
+                v.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+            })
+            .or_else(|| server.and_then(|s| s.trusted_proxies.clone()))
+        {
+            Some(entries) => crate::http::client_addr::TrustedProxies::parse(&entries)?,
+            None => crate::http::client_addr::TrustedProxies::private_networks(),
+        };
 
         let cors_allowed_origins = env_list(env, "KOMGA_CORS_ALLOWEDORIGINS")
             .or_else(|| {
@@ -1362,10 +1374,10 @@ issuer-uri = "https://github.com"
             let entries: Vec<String> = entries.iter().map(|e| e.to_string()).collect();
             TrustedProxies::parse(&entries).unwrap()
         };
-        // default: none, forwarded addresses are never honored
+        // default: loopback and the private ranges
         let config = resolve("", Cli::default(), &[]);
-        assert_eq!(config.trusted_proxies, TrustedProxies::default());
-        // file value: addresses and CIDR ranges
+        assert_eq!(config.trusted_proxies, TrustedProxies::private_networks());
+        // file value: addresses and CIDR ranges, replacing the default
         let toml = "[server]\ntrusted-proxies = [\"127.0.0.1\", \"fd00::/8\"]\n";
         let config = resolve(toml, Cli::default(), &[]);
         assert_eq!(config.trusted_proxies, parsed(&["127.0.0.1", "fd00::/8"]));
@@ -1376,14 +1388,39 @@ issuer-uri = "https://github.com"
             &env(&[("KOMGA_TRUSTED_PROXIES", "10.0.0.0/8, 192.0.2.4")]),
         );
         assert_eq!(config.trusted_proxies, parsed(&["10.0.0.0/8", "192.0.2.4"]));
-        // an explicit list survives the generated file
-        let file: FileConfig = toml::from_str(toml).unwrap();
-        let config = ServerConfig::resolve(Some(&file), &Cli::default(), &[]).unwrap();
-        let rendered = file::render(&file, &config, None);
-        assert!(rendered.contains("\ntrusted-proxies = [\"127.0.0.1\", \"fd00::/8\"] #"));
-        let reparsed: FileConfig = toml::from_str(&rendered).unwrap();
-        let config = ServerConfig::resolve(Some(&reparsed), &Cli::default(), &[]).unwrap();
-        assert_eq!(config.trusted_proxies, parsed(&["127.0.0.1", "fd00::/8"]));
+        // an explicit empty list trusts no one, from the file and from the env var
+        let config = resolve("[server]\ntrusted-proxies = []\n", Cli::default(), &[]);
+        assert_eq!(config.trusted_proxies, TrustedProxies::default());
+        let config = resolve(toml, Cli::default(), &env(&[("KOMGA_TRUSTED_PROXIES", "")]));
+        assert_eq!(config.trusted_proxies, TrustedProxies::default());
+    }
+
+    #[test]
+    fn rendered_config_keeps_unset_and_empty_trusted_proxies_apart() {
+        use crate::http::client_addr::TrustedProxies;
+        let round_trip = |toml: &str| {
+            let file: FileConfig = toml::from_str(toml).unwrap();
+            let config = ServerConfig::resolve(Some(&file), &Cli::default(), &[]).unwrap();
+            let rendered = file::render(&file, &config, None);
+            let reparsed: FileConfig = toml::from_str(&rendered).unwrap();
+            let config = ServerConfig::resolve(Some(&reparsed), &Cli::default(), &[]).unwrap();
+            (rendered, config.trusted_proxies)
+        };
+        // unset: the default is shown commented out and still applies
+        let (rendered, proxies) = round_trip("");
+        assert!(rendered.contains("\n# trusted-proxies = [\"127.0.0.0/8\", "));
+        assert_eq!(proxies, TrustedProxies::private_networks());
+        // explicitly empty: written out, and still empty
+        let (rendered, proxies) = round_trip("[server]\ntrusted-proxies = []\n");
+        assert!(rendered.contains("\ntrusted-proxies = [] #"));
+        assert_eq!(proxies, TrustedProxies::default());
+        // an explicit list is written out as given
+        let (rendered, proxies) = round_trip("[server]\ntrusted-proxies = [\"192.0.2.4\"]\n");
+        assert!(rendered.contains("\ntrusted-proxies = [\"192.0.2.4\"] #"));
+        assert_eq!(
+            proxies,
+            TrustedProxies::parse(&["192.0.2.4".to_string()]).unwrap()
+        );
     }
 
     #[test]
