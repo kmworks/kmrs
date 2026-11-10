@@ -16,6 +16,7 @@
 # jdbc-session-enabled = true # env: KOMGA_JDBCSESSIONENABLED; persist sessions in [sessions-db] (Spring Session JDBC layout) so they survive restarts
 # context-path = "/" # env: SERVER_SERVLET_CONTEXT_PATH; prefix added to generated links (OPDS/Kobo); routes are not mounted under it, so the reverse proxy must strip the prefix
 # sort-locale = "zh-CN" # env: KOMGA_SORT_LOCALE; BCP47 language tag for ICU sorting, empty/absent = root collation
+# trusted-proxies = [] # env: KOMGA_TRUSTED_PROXIES (comma-separated); reverse proxies whose X-Forwarded-For is honored, as addresses or CIDR ranges (e.g. ["127.0.0.1", "172.16.0.0/12"]); from any other peer the header is ignored and the connection's address is used
 
 [cors]
 # allowed-origins = [] # env: KOMGA_CORS_ALLOWEDORIGINS (comma-separated)

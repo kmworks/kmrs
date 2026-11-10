@@ -94,6 +94,8 @@ pub struct FileServer {
     /// Session JDBC) instead of per-node in-memory storage
     pub jdbc_session_enabled: Option<bool>,
     pub sort_locale: Option<String>,
+    /// reverse proxies whose X-Forwarded-For is honored, as addresses and CIDR ranges
+    pub trusted_proxies: Option<Vec<String>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -325,6 +327,14 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         format!(
             "sort-locale = {} # env: KOMGA_SORT_LOCALE; BCP47 language tag for ICU sorting (e.g. \"zh-CN\"), empty/absent = root collation",
             q(config.sort_locale.as_deref().unwrap_or(""))
+        ),
+    );
+    push_line(
+        &mut out,
+        fserver.and_then(|s| s.trusted_proxies.as_ref()).is_some(),
+        format!(
+            "trusted-proxies = {} # env: KOMGA_TRUSTED_PROXIES (comma-separated); reverse proxies whose X-Forwarded-For is honored, as addresses or CIDR ranges (e.g. [\"127.0.0.1\", \"172.16.0.0/12\"]); from any other peer the header is ignored and the connection's address is used",
+            str_list(fserver.and_then(|s| s.trusted_proxies.as_deref()).unwrap_or_default())
         ),
     );
     out.push('\n');

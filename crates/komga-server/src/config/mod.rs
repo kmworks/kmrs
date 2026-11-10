@@ -93,6 +93,9 @@ pub struct ServerConfig {
     /// BCP47 locale for ICU-based sorting (authors, publishers, genres, tags, ...);
     /// None/empty = `und` (UCA root), reproducing the legacy hard-coded behavior.
     pub sort_locale: Option<String>,
+    /// reverse proxies whose X-Forwarded-For names the client address; from any other peer
+    /// the header is ignored (kmrs enhancement; Java honors it from anyone)
+    pub trusted_proxies: crate::http::client_addr::TrustedProxies,
     /// substituted into the SQL migrations
     pub migration_placeholders: Placeholders,
 }
@@ -308,6 +311,12 @@ impl ServerConfig {
             .or_else(|| server.and_then(|s| s.sort_locale.clone()))
             .filter(|v| !v.is_empty());
 
+        let trusted_proxies = crate::http::client_addr::TrustedProxies::parse(
+            &env_list(env, "KOMGA_TRUSTED_PROXIES")
+                .or_else(|| server.and_then(|s| s.trusted_proxies.clone()))
+                .unwrap_or_default(),
+        )?;
+
         let cors_allowed_origins = env_list(env, "KOMGA_CORS_ALLOWEDORIGINS")
             .or_else(|| {
                 file.and_then(|f| f.cors.as_ref())
@@ -340,6 +349,7 @@ impl ServerConfig {
                 .unwrap_or(true),
             session_timeout,
             sort_locale,
+            trusted_proxies,
             cors_allowed_origins,
             page_hashing: env_u32(env, "KOMGA_PAGEHASHING")
                 .or_else(|| {
@@ -1343,6 +1353,45 @@ issuer-uri = "https://github.com"
             &env(&[("KOMGA_THUMBNAILS_DEEPETAG", "true")]),
         );
         assert!(config.thumbnail_deep_etag);
+    }
+
+    #[test]
+    fn trusted_proxies_from_env_and_file() {
+        use crate::http::client_addr::TrustedProxies;
+        let parsed = |entries: &[&str]| {
+            let entries: Vec<String> = entries.iter().map(|e| e.to_string()).collect();
+            TrustedProxies::parse(&entries).unwrap()
+        };
+        // default: none, forwarded addresses are never honored
+        let config = resolve("", Cli::default(), &[]);
+        assert_eq!(config.trusted_proxies, TrustedProxies::default());
+        // file value: addresses and CIDR ranges
+        let toml = "[server]\ntrusted-proxies = [\"127.0.0.1\", \"fd00::/8\"]\n";
+        let config = resolve(toml, Cli::default(), &[]);
+        assert_eq!(config.trusted_proxies, parsed(&["127.0.0.1", "fd00::/8"]));
+        // env var wins over the file
+        let config = resolve(
+            toml,
+            Cli::default(),
+            &env(&[("KOMGA_TRUSTED_PROXIES", "10.0.0.0/8, 192.0.2.4")]),
+        );
+        assert_eq!(config.trusted_proxies, parsed(&["10.0.0.0/8", "192.0.2.4"]));
+        // an explicit list survives the generated file
+        let file: FileConfig = toml::from_str(toml).unwrap();
+        let config = ServerConfig::resolve(Some(&file), &Cli::default(), &[]).unwrap();
+        let rendered = file::render(&file, &config, None);
+        assert!(rendered.contains("\ntrusted-proxies = [\"127.0.0.1\", \"fd00::/8\"] #"));
+        let reparsed: FileConfig = toml::from_str(&rendered).unwrap();
+        let config = ServerConfig::resolve(Some(&reparsed), &Cli::default(), &[]).unwrap();
+        assert_eq!(config.trusted_proxies, parsed(&["127.0.0.1", "fd00::/8"]));
+    }
+
+    #[test]
+    fn invalid_trusted_proxy_is_rejected() {
+        let file: FileConfig =
+            toml::from_str("[server]\ntrusted-proxies = [\"proxy.local\"]").unwrap();
+        let error = ServerConfig::resolve(Some(&file), &Cli::default(), &[]).unwrap_err();
+        assert!(error.to_string().contains("server.trusted-proxies"));
     }
 
     #[test]
