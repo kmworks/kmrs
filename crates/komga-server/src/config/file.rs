@@ -334,7 +334,7 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
         &mut out,
         fserver.and_then(|s| s.trusted_proxies.as_ref()).is_some(),
         format!(
-            "trusted-proxies = {} # env: KOMGA_TRUSTED_PROXIES (comma-separated; set but empty = none); reverse proxies whose X-Forwarded-For is honored, as addresses or CIDR ranges; from any other peer the header is ignored and the connection's address is used. Default: loopback and the private ranges; a list replaces it, and [] trusts no one",
+            "trusted-proxies = {} # env: KOMGA_TRUSTED_PROXIES (comma-separated; none = trust no one); reverse proxies whose X-Forwarded-For is honored, as addresses or CIDR ranges; from any other peer the header is ignored and the connection's address is used. Default: loopback and the private ranges; a list replaces it, and [] trusts no one",
             match fserver.and_then(|s| s.trusted_proxies.as_deref()) {
                 Some(entries) => str_list(entries),
                 None => str_list(

@@ -312,16 +312,14 @@ impl ServerConfig {
             .or_else(|| server.and_then(|s| s.sort_locale.clone()))
             .filter(|v| !v.is_empty());
 
-        // an explicit list replaces the default, an empty one included; unlike the other
-        // variables, this one set to an empty value therefore means "none", not "unset"
-        let trusted_proxies = match env
-            .iter()
-            .find(|(k, _)| k == "KOMGA_TRUSTED_PROXIES")
-            .map(|(_, v)| {
-                v.split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<_>>()
+        // an explicit list replaces the default, an empty one included. A variable without
+        // entries counts as unset like the others (compose files pass unfilled variables
+        // through empty), so the environment spells the empty list `none`
+        let trusted_proxies = match env_list(env, "KOMGA_TRUSTED_PROXIES")
+            .filter(|entries| !entries.is_empty())
+            .map(|entries| match entries.as_slice() {
+                [only] if only.eq_ignore_ascii_case("none") => Vec::new(),
+                _ => entries,
             })
             .or_else(|| server.and_then(|s| s.trusted_proxies.clone()))
         {
@@ -1388,11 +1386,33 @@ issuer-uri = "https://github.com"
             &env(&[("KOMGA_TRUSTED_PROXIES", "10.0.0.0/8, 192.0.2.4")]),
         );
         assert_eq!(config.trusted_proxies, parsed(&["10.0.0.0/8", "192.0.2.4"]));
-        // an explicit empty list trusts no one, from the file and from the env var
+        // an explicit empty list trusts no one: `[]` in the file, `none` in the env var
         let config = resolve("[server]\ntrusted-proxies = []\n", Cli::default(), &[]);
         assert_eq!(config.trusted_proxies, TrustedProxies::default());
-        let config = resolve(toml, Cli::default(), &env(&[("KOMGA_TRUSTED_PROXIES", "")]));
-        assert_eq!(config.trusted_proxies, TrustedProxies::default());
+        for value in ["none", "NONE", " None "] {
+            let config = resolve(
+                toml,
+                Cli::default(),
+                &env(&[("KOMGA_TRUSTED_PROXIES", value)]),
+            );
+            assert_eq!(config.trusted_proxies, TrustedProxies::default());
+        }
+        // an env var without entries counts as unset: the file value, else the default
+        for value in ["", " ", ","] {
+            let unset = env(&[("KOMGA_TRUSTED_PROXIES", value)]);
+            let config = resolve(toml, Cli::default(), &unset);
+            assert_eq!(config.trusted_proxies, parsed(&["127.0.0.1", "fd00::/8"]));
+            let config = resolve("", Cli::default(), &unset);
+            assert_eq!(config.trusted_proxies, TrustedProxies::private_networks());
+        }
+        // `none` stands alone: next to other entries it is an invalid address
+        let error = ServerConfig::resolve(
+            None,
+            &Cli::default(),
+            &env(&[("KOMGA_TRUSTED_PROXIES", "none, 10.0.0.0/8")]),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("server.trusted-proxies"));
     }
 
     #[test]
