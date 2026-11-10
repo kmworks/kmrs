@@ -47,6 +47,9 @@ pub fn client_ip(parts: &Parts, trusted: &TrustedProxies) -> Option<IpAddr> {
         .ip()
         .to_canonical();
     if !trusted.contains(peer) {
+        if parts.headers.contains_key("X-Forwarded-For") {
+            warn_ignored_once(peer);
+        }
         return Some(peer);
     }
     let mut client = peer;
@@ -66,6 +69,17 @@ pub fn client_ip(parts: &Parts, trusted: &TrustedProxies) -> Option<IpAddr> {
         }
     }
     Some(client)
+}
+
+/// A reverse proxy that is not listed makes every client appear under the proxy's address,
+/// which is easy to miss. Logged once per process: any client can send the header.
+fn warn_ignored_once(peer: IpAddr) {
+    static WARNED: std::sync::Once = std::sync::Once::new();
+    WARNED.call_once(|| {
+        tracing::warn!(
+            "X-Forwarded-For from {peer} ignored: the sender is not in server.trusted-proxies, so its own address is used as the client address. If {peer} is your reverse proxy, add it to server.trusted-proxies"
+        );
+    });
 }
 
 /// An `X-Forwarded-For` entry: an address, optionally with a port (`1.2.3.4:5678`,
