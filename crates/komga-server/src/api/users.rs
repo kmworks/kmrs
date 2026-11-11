@@ -837,8 +837,8 @@ mod tests {
         );
     }
 
-    /// After repeated wrong passwords the account refuses password logins, even the right
-    /// password, with the same 401 and no session. The refusal is recorded in the activity,
+    /// After repeated wrong passwords from one address the account refuses password logins
+    /// from it, even the right password, with the same 401 and no session. The refusal is recorded in the activity,
     /// and a device that is already signed in keeps working.
     #[tokio::test]
     async fn repeated_wrong_passwords_lock_password_logins() {
@@ -890,6 +890,50 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// A lock belongs to the address that was guessing: the same account still signs in
+    /// from another address, while the right password from the locked one stays refused.
+    #[tokio::test]
+    async fn a_lock_does_not_reach_the_accounts_other_addresses() {
+        let (state, _rx) = test_state();
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+        let from = |peer: &str, credentials: &str| {
+            let mut request = basic_request(credentials, None);
+            let peer = std::net::SocketAddr::new(peer.parse().unwrap(), 40000);
+            request
+                .extensions_mut()
+                .insert(axum::extract::ConnectInfo(peer));
+            request
+        };
+
+        for _ in 0..5 {
+            let response = app
+                .clone()
+                .oneshot(from("203.0.113.9", "admin@example.com:wrong"))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+        let response = app
+            .clone()
+            .oneshot(from("203.0.113.9", "admin@example.com:pass"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let response = app
+            .clone()
+            .oneshot(from("198.51.100.7", "admin@example.com:pass"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        // the success elsewhere does not lift the lock
+        let response = app
+            .oneshot(from("203.0.113.9", "admin@example.com:pass"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     /// Concurrent guesses are counted as they start: of twelve sent at once, only the first

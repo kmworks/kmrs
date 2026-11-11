@@ -262,15 +262,19 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                 };
             }
             let account = user_dao.find_by_email_ignore_case(&email).ok().flatten();
+            // failures are counted per account and client address, so a lock only hits
+            // the source that is guessing
+            let client = crate::http::client_addr::client_ip(parts, &state.config.trusted_proxies);
             // counted before bcrypt, so concurrent guesses can't all pass the check
             let mut lock_started = None;
             if let Some(account) = &account {
-                match state
-                    .login_throttle
-                    .begin_attempt(&account.id, std::time::Instant::now())
-                {
+                match state.login_throttle.begin_attempt(
+                    &account.id,
+                    client,
+                    std::time::Instant::now(),
+                ) {
                     Some(lock) => lock_started = lock,
-                    // a locked account answers like a wrong password, without running bcrypt
+                    // a locked source answers like a wrong password, without running bcrypt
                     None => {
                         return Outcome {
                             auth: None,
@@ -291,9 +295,10 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
             let verified =
                 account.filter(|user| bcrypt::verify(&password, &user.password).unwrap_or(false));
             match (&verified, lock_started) {
-                (Some(user), _) => state.login_throttle.record_success(&user.id),
+                (Some(user), _) => state.login_throttle.record_success(&user.id, client),
                 (None, Some(lock)) => tracing::warn!(
-                    "password logins for {email:?} refused for {}s after repeated failures",
+                    "password logins for {email:?} from {} refused for {}s after repeated failures",
+                    client.map_or_else(|| "an unknown address".to_string(), |ip| ip.to_string()),
                     lock.as_secs()
                 ),
                 (None, None) => {}
