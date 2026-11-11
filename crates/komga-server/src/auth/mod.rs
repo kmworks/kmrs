@@ -364,18 +364,21 @@ async fn resolve(
             let (user_id, hash) = (account.id.clone(), account.password.clone());
             let check = tokio::task::spawn_blocking(move || {
                 let _permit = permit;
-                // counted before bcrypt, so concurrent guesses can't all pass the check;
-                // after the permit, so no more attempts are pending than checks can run
-                let Some(lock_started) =
-                    throttle.begin_attempt(&user_id, client, std::time::Instant::now())
-                else {
+                // asked again now that the check is about to run: of the requests that
+                // were waiting when a lock started, none is checked any more
+                if throttle.is_locked(&user_id, client, std::time::Instant::now()) {
                     return PasswordCheck::Refused;
-                };
+                }
                 if bcrypt::verify(&password, &hash).unwrap_or(false) {
                     throttle.record_success(&user_id, client);
                     PasswordCheck::Verified
                 } else {
-                    PasswordCheck::Failed(lock_started)
+                    // a failure counts only now that the check has failed
+                    PasswordCheck::Failed(throttle.record_failure(
+                        &user_id,
+                        client,
+                        std::time::Instant::now(),
+                    ))
                 }
             })
             .await

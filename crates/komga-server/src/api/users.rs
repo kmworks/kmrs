@@ -948,16 +948,20 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
-    /// Concurrent guesses are counted as they start: of twelve sent at once, only the first
-    /// five reach the password check and the rest are refused.
+    /// Wrong guesses sent at once cannot all be checked: the lock starts with the fifth
+    /// failure, and the requests still waiting for a permit are then refused without a
+    /// check. Only the checks already running at that moment still finish, so at most
+    /// one per remaining permit comes on top of the five.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn concurrent_wrong_passwords_cannot_pass_the_lock() {
-        let (state, _rx) = test_state();
+        const PERMITS: usize = 4;
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(PERMITS));
         let user_id = seed_user(&state, "admin@example.com");
         use_cheap_password_hash(&state, &user_id);
         let app = test_router(state.clone());
 
-        let attempts: Vec<_> = (0..12)
+        let attempts: Vec<_> = (0..40)
             .map(|_| {
                 let app = app.clone();
                 tokio::spawn(async move {
@@ -972,7 +976,7 @@ mod tests {
             assert_eq!(attempt.await.unwrap(), StatusCode::UNAUTHORIZED);
         }
 
-        settled_activity_count(&state, &user_id, "admin@example.com", 12).await;
+        settled_activity_count(&state, &user_id, "admin@example.com", 40).await;
         let (activities, _) = UserDao::new(state.db.clone())
             .find_activities_by_user(&user_id, "admin@example.com", None, 0)
             .unwrap();
@@ -984,7 +988,11 @@ mod tests {
             .iter()
             .filter(|a| a.error.as_deref() == Some("Too many failed attempts"))
             .count();
-        assert_eq!((checked, refused), (5, 7));
+        assert_eq!(checked + refused, 40);
+        assert!(
+            (5..=5 + PERMITS - 1).contains(&checked),
+            "{checked} of 40 wrong guesses were checked"
+        );
     }
 
     /// With every permit taken for the whole wait, a password check answers 503 with
@@ -1088,13 +1096,14 @@ mod tests {
         }
     }
 
-    /// Attempts are counted once they hold a permit, so a client that sends many requests
-    /// at once with the right password and no session is served in turn, not refused:
-    /// no more attempts are pending than checks can run.
+    /// A client that sends Basic on every request and keeps no session (many OPDS readers)
+    /// loads a page of covers at once. Every request carries the right password and none
+    /// may be refused, however many checks run at the same time: a failure is counted
+    /// only when a check fails.
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    async fn a_burst_of_correct_passwords_is_served_in_turn() {
+    async fn a_burst_of_correct_passwords_is_never_refused() {
         let (mut state, _rx) = test_state();
-        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(2));
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(8));
         let user_id = seed_user(&state, "admin@example.com");
         use_cheap_password_hash(&state, &user_id);
         let app = test_router(state.clone());

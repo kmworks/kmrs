@@ -12,11 +12,13 @@
 //! - Only existing accounts are counted, so guessing made-up emails cannot grow the map.
 //! - Only password (Basic) logins are refused. Sessions, API keys and remember-me cookies
 //!   keep working, so devices that are already signed in are not affected.
-//! - An attempt counts when it starts, under the same lock as the check, so concurrent
-//!   guesses cannot all slip past it; a correct password then clears the count.
+//! - A failure counts when its check fails, never before, so a client that sends many
+//!   requests at once with the right password is never refused. The caller asks
+//!   `is_locked` again right before each check runs: of a burst of wrong guesses, only
+//!   the checks that were already running when the lock started still finish.
 //! - A refused attempt answers like a wrong password without checking it, and does not
 //!   extend the lock: retrying while locked never makes the wait longer. The lock only
-//!   grows when an attempt after it ends starts.
+//!   grows when a check fails after it has ended.
 
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -60,15 +62,15 @@ impl LoginThrottle {
         Self::default()
     }
 
-    /// Starts a password attempt for the account from the client address, counted as a
-    /// failure until `record_success`. `None` while that source is locked; otherwise the
-    /// lock this attempt starts, if any, which holds unless the attempt succeeds.
-    pub fn begin_attempt(
+    /// Counts a failed password check for the account from the client address and returns
+    /// the lock it starts, if it starts one. A failure that arrives while the source is
+    /// locked, from a check that was already running, is not counted.
+    pub fn record_failure(
         &self,
         user_id: &str,
         client: Option<IpAddr>,
         now: Instant,
-    ) -> Option<Option<Duration>> {
+    ) -> Option<Duration> {
         let source: Source = (user_id.to_string(), client);
         let mut sources = self.sources.lock().unwrap();
         if sources
@@ -105,9 +107,9 @@ impl LoginThrottle {
                 (failures.lock * 2).min(MAX_LOCK)
             };
             failures.locked_until = Some(now + failures.lock);
-            return Some(Some(failures.lock));
+            return Some(failures.lock);
         }
-        Some(None)
+        None
     }
 
     /// A successful password login clears the failures of that account and address.
@@ -145,7 +147,7 @@ mod tests {
     fn fail_times(throttle: &LoginThrottle, user_id: &str, start: Instant, n: u32) -> Instant {
         let mut now = start;
         for _ in 0..n {
-            assert!(throttle.begin_attempt(user_id, A, now).is_some());
+            throttle.record_failure(user_id, A, now);
             now += Duration::from_secs(1);
         }
         now
@@ -159,16 +161,33 @@ mod tests {
         assert!(!throttle.is_locked("u1", A, after_four));
 
         assert_eq!(
-            throttle.begin_attempt("u1", A, after_four),
-            Some(Some(FIRST_LOCK))
+            throttle.record_failure("u1", A, after_four),
+            Some(FIRST_LOCK)
         );
         assert!(throttle.is_locked("u1", A, after_four));
-        // further attempts are refused, also concurrent ones that start now
-        assert_eq!(throttle.begin_attempt("u1", A, after_four), None);
         assert!(throttle.is_locked("u1", A, after_four + Duration::from_secs(59)));
         assert!(!throttle.is_locked("u1", A, after_four + FIRST_LOCK));
         // other accounts are unaffected
         assert!(!throttle.is_locked("u2", A, after_four));
+    }
+
+    #[test]
+    fn a_failure_while_locked_is_not_counted() {
+        let throttle = LoginThrottle::new();
+        let now = fail_times(&throttle, "u1", Instant::now(), MAX_FAILURES);
+        // checks that were already running when the lock started
+        for _ in 0..3 {
+            assert_eq!(throttle.record_failure("u1", A, now), None);
+        }
+        // the lock is neither longer nor later for them
+        let lock_start = now - Duration::from_secs(1);
+        assert!(throttle.is_locked("u1", A, lock_start + FIRST_LOCK - Duration::from_secs(1)));
+        assert!(!throttle.is_locked("u1", A, lock_start + FIRST_LOCK));
+        // and the next failure after it doubles it once, not once per uncounted failure
+        assert_eq!(
+            throttle.record_failure("u1", A, lock_start + FIRST_LOCK),
+            Some(FIRST_LOCK * 2)
+        );
     }
 
     #[test]
@@ -178,12 +197,14 @@ mod tests {
         assert!(throttle.is_locked("u1", A, now));
         // the same account from another address is neither locked nor counted so far
         assert!(!throttle.is_locked("u1", B, now));
-        assert_eq!(throttle.begin_attempt("u1", B, now), Some(None));
+        assert_eq!(throttle.record_failure("u1", B, now), None);
+        assert!(!throttle.is_locked("u1", B, now));
         // a success from the other address leaves the first one locked
         throttle.record_success("u1", B);
         assert!(throttle.is_locked("u1", A, now));
         // an unknown address is a source of its own
-        assert_eq!(throttle.begin_attempt("u1", None, now), Some(None));
+        assert_eq!(throttle.record_failure("u1", None, now), None);
+        assert!(!throttle.is_locked("u1", None, now));
         assert!(throttle.is_locked("u1", A, now));
     }
 
@@ -195,7 +216,7 @@ mod tests {
         for _ in 0..6 {
             now += expected; // the lock has just run out
             expected = (expected * 2).min(MAX_LOCK);
-            assert_eq!(throttle.begin_attempt("u1", A, now), Some(Some(expected)));
+            assert_eq!(throttle.record_failure("u1", A, now), Some(expected));
             assert!(throttle.is_locked("u1", A, now + expected - Duration::from_secs(1)));
             assert!(!throttle.is_locked("u1", A, now + expected));
         }
@@ -213,7 +234,7 @@ mod tests {
 
         // failures further apart than the window start over
         let later = now + FAILURE_WINDOW;
-        assert_eq!(throttle.begin_attempt("u1", A, later), Some(None));
+        assert_eq!(throttle.record_failure("u1", A, later), None);
         assert!(!throttle.is_locked("u1", A, later));
     }
 
@@ -221,13 +242,13 @@ mod tests {
     fn finished_entries_are_dropped_when_a_new_source_fails() {
         let throttle = LoginThrottle::new();
         let t0 = Instant::now();
-        assert!(throttle.begin_attempt("u1", A, t0).is_some());
+        throttle.record_failure("u1", A, t0);
         fail_times(&throttle, "u2", t0, MAX_FAILURES);
         assert_eq!(throttle.len(), 2);
 
         // u1's single failure is past the window; u2's lock ended less than a window ago
         let later = t0 + FAILURE_WINDOW;
-        assert!(throttle.begin_attempt("u3", A, later).is_some());
+        throttle.record_failure("u3", A, later);
         assert_eq!(throttle.len(), 2);
         assert!(!throttle
             .sources
@@ -237,10 +258,11 @@ mod tests {
     }
 
     #[test]
-    fn a_correct_password_on_the_locking_attempt_clears_it() {
+    fn a_success_clears_the_count_and_a_lock() {
         let throttle = LoginThrottle::new();
-        let now = fail_times(&throttle, "u1", Instant::now(), MAX_FAILURES - 1);
-        assert_eq!(throttle.begin_attempt("u1", A, now), Some(Some(FIRST_LOCK)));
+        let now = fail_times(&throttle, "u1", Instant::now(), MAX_FAILURES);
+        assert!(throttle.is_locked("u1", A, now));
+        // a check that was already running when the lock started, with the right password
         throttle.record_success("u1", A);
         assert!(!throttle.is_locked("u1", A, now));
         assert_eq!(throttle.len(), 0);
