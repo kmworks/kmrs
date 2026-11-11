@@ -623,6 +623,16 @@ mod tests {
         user_id
     }
 
+    /// Gives the user a cheap hash of the same password. For tests that send many logins
+    /// at once: with the real cost a slow machine may not get through them within the
+    /// wait for a permit, which is not what those tests are about.
+    fn use_cheap_password_hash(state: &AppState, user_id: &str) {
+        let dao = UserDao::new(state.db.clone());
+        let mut user = dao.find_by_id(user_id).unwrap().unwrap();
+        user.password = bcrypt::hash("pass", 4).unwrap();
+        dao.update(&user).unwrap();
+    }
+
     /// Activity is persisted on a spawned task; poll until it lands.
     async fn wait_activity(
         state: &AppState,
@@ -944,6 +954,7 @@ mod tests {
     async fn concurrent_wrong_passwords_cannot_pass_the_lock() {
         let (state, _rx) = test_state();
         let user_id = seed_user(&state, "admin@example.com");
+        use_cheap_password_hash(&state, &user_id);
         let app = test_router(state.clone());
 
         let attempts: Vec<_> = (0..12)
@@ -1033,7 +1044,8 @@ mod tests {
     }
 
     /// Only a password check needs a permit. With all of them taken, a locked source, an
-    /// unknown email and Basic sent with its own session are still answered at once.
+    /// unknown email and Basic sent with its own session are still answered, where a
+    /// request that waited for a permit would get the 503.
     #[tokio::test]
     async fn only_password_checks_wait_for_a_permit() {
         let (mut state, _rx) = test_state();
@@ -1051,7 +1063,6 @@ mod tests {
         }
 
         let _held = state.password_checks.clone().acquire_owned().await.unwrap();
-        let started = std::time::Instant::now();
         for (request, expected) in [
             // locked source: refused without a check
             (
@@ -1075,7 +1086,6 @@ mod tests {
             let response = app.clone().oneshot(request).await.unwrap();
             assert_eq!(response.status(), expected);
         }
-        assert!(started.elapsed() < std::time::Duration::from_secs(1));
     }
 
     /// Attempts are counted once they hold a permit, so a client that sends many requests
@@ -1085,7 +1095,8 @@ mod tests {
     async fn a_burst_of_correct_passwords_is_served_in_turn() {
         let (mut state, _rx) = test_state();
         state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(2));
-        seed_user(&state, "admin@example.com");
+        let user_id = seed_user(&state, "admin@example.com");
+        use_cheap_password_hash(&state, &user_id);
         let app = test_router(state.clone());
 
         let attempts: Vec<_> = (0..12)
