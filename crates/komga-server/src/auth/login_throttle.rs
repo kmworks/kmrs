@@ -123,8 +123,8 @@ impl LoginThrottle {
         self.sources.lock().unwrap().len()
     }
 
-    #[cfg(test)]
-    fn is_locked(&self, user_id: &str, client: Option<IpAddr>, now: Instant) -> bool {
+    /// Whether that source is refused right now, without counting anything.
+    pub fn is_locked(&self, user_id: &str, client: Option<IpAddr>, now: Instant) -> bool {
         self.sources
             .lock()
             .unwrap()

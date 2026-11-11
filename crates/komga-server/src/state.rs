@@ -34,6 +34,8 @@ pub struct AppState {
     pub shutdown_tx: tokio::sync::watch::Sender<bool>,
     pub api_key_activity_throttle: Arc<crate::auth::ApiKeyActivityThrottle>,
     pub login_throttle: Arc<crate::auth::login_throttle::LoginThrottle>,
+    /// bounds the password checks (bcrypt) that run at the same time
+    pub password_checks: Arc<tokio::sync::Semaphore>,
     pub latest_update: crate::service::update_check::LatestUpdate,
 }
 
@@ -104,6 +106,7 @@ pub(crate) fn test_app_state(
         shutdown_tx,
         api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
         login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
+        password_checks: crate::auth::password_check_permits(),
         latest_update: Default::default(),
     };
     (state, shutdown_rx)

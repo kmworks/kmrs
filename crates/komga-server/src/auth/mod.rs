@@ -156,6 +156,44 @@ struct Outcome {
     activity: Option<ActivityDraft>,
 }
 
+/// How long a password check waits for a free permit before the request is told to retry.
+const PASSWORD_CHECK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// The permits for concurrent password checks: half the available cores, at least one, so
+/// a flood of logins leaves CPU for the other requests.
+pub fn password_check_permits() -> std::sync::Arc<tokio::sync::Semaphore> {
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+    std::sync::Arc::new(tokio::sync::Semaphore::new((cores / 2).max(1)))
+}
+
+/// Every permit stayed taken for `PASSWORD_CHECK_WAIT`: the password was not checked.
+struct PasswordChecksBusy;
+
+/// How a password check ended.
+enum PasswordCheck {
+    /// the source got locked while the request waited for its permit
+    Refused,
+    Verified,
+    /// with the lock this failure started, if it started one
+    Failed(Option<std::time::Duration>),
+}
+
+fn failed_password_outcome(user_id: Option<String>, email: String, error: &str) -> Outcome {
+    Outcome {
+        auth: None,
+        new_session_id: None,
+        activity: Some(ActivityDraft {
+            user_id,
+            email: Some(email),
+            api_key_id: None,
+            api_key_comment: None,
+            success: false,
+            error: Some(error.into()),
+            source: SOURCE_PASSWORD.into(),
+        }),
+    }
+}
+
 /// The session's user when it is the one the Basic credentials name, so Basic can skip
 /// re-authentication like Spring's `BasicAuthenticationFilter.authenticationIsRequired`.
 /// The email compares the way the login lookup does (ASCII case-insensitive).
@@ -178,7 +216,11 @@ fn session_matching_basic(
         .filter(|user| user.email.eq_ignore_ascii_case(email))
 }
 
-fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome {
+async fn resolve(
+    state: &AppState,
+    parts: &Parts,
+    session_id: Option<&str>,
+) -> Result<Outcome, PasswordChecksBusy> {
     let headers = &parts.headers;
     let user_dao = UserDao::new(state.db.clone());
 
@@ -195,7 +237,7 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
         // is the token's principal name (Java's Hasher), used for the failure activity
         let hashed = sha512_hex(key.trim());
         let masked = komga_media::hash::compute_hash_bytes(key.trim().as_bytes());
-        return match user_dao.find_by_api_key(&hashed) {
+        return Ok(match user_dao.find_by_api_key(&hashed) {
             Ok(Some((user, api_key))) => {
                 // LoginListener records user.id/user.email on success; nulls are for failures.
                 // The context is request-scoped (1.29), so every request re-authenticates; no
@@ -235,7 +277,7 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                     source: SOURCE_API_KEY.into(),
                 }),
             },
-        };
+        });
     }
 
     // 2. Basic
@@ -250,7 +292,7 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                 session_matching_basic(state, &user_dao, id, &email)
                     .map(|user| (id.to_string(), user))
             }) {
-                return Outcome {
+                return Ok(Outcome {
                     auth: Some(Auth {
                         user,
                         source: AuthSource::Session,
@@ -259,54 +301,75 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                     }),
                     new_session_id: None,
                     activity: None,
-                };
+                });
             }
-            let account = user_dao.find_by_email_ignore_case(&email).ok().flatten();
+            let Some(account) = user_dao.find_by_email_ignore_case(&email).ok().flatten() else {
+                // an unknown email is neither checked nor counted
+                return Ok(failed_password_outcome(None, email, "Bad credentials"));
+            };
             // failures are counted per account and client address, so a lock only hits
             // the source that is guessing
             let client = crate::http::client_addr::client_ip(parts, &state.config.trusted_proxies);
-            // counted before bcrypt, so concurrent guesses can't all pass the check
-            let mut lock_started = None;
-            if let Some(account) = &account {
-                match state.login_throttle.begin_attempt(
-                    &account.id,
-                    client,
-                    std::time::Instant::now(),
-                ) {
-                    Some(lock) => lock_started = lock,
-                    // a locked source answers like a wrong password, without running bcrypt
-                    None => {
-                        return Outcome {
-                            auth: None,
-                            new_session_id: None,
-                            activity: Some(ActivityDraft {
-                                // the account is known here, so the refusal shows up in
-                                // its login activity whatever spelling of the email was sent
-                                user_id: Some(account.id.clone()),
-                                email: Some(email),
-                                api_key_id: None,
-                                api_key_comment: None,
-                                success: false,
-                                error: Some("Too many failed attempts".into()),
-                                source: SOURCE_PASSWORD.into(),
-                            }),
-                        };
-                    }
+            // the account is known here, so the refusal shows up in its login activity
+            // whatever spelling of the email was sent
+            let refused = |email: String| {
+                failed_password_outcome(Some(account.id.clone()), email, "Too many failed attempts")
+            };
+            // a locked source answers like a wrong password, without waiting for a check
+            if state
+                .login_throttle
+                .is_locked(&account.id, client, std::time::Instant::now())
+            {
+                return Ok(refused(email));
+            }
+            // the checks are CPU-bound: only so many run at a time, the others wait their
+            // turn, and a request that cannot start within the wait is told to retry
+            let permits = state.password_checks.clone();
+            let Ok(Ok(permit)) =
+                tokio::time::timeout(PASSWORD_CHECK_WAIT, permits.acquire_owned()).await
+            else {
+                return Err(PasswordChecksBusy);
+            };
+            // off the async workers, and as one task that runs to its end even when the
+            // client goes away meanwhile: a check that started always reports its result
+            // to the throttle and only then gives the permit back
+            let throttle = state.login_throttle.clone();
+            let (user_id, hash) = (account.id.clone(), account.password.clone());
+            let check = tokio::task::spawn_blocking(move || {
+                let _permit = permit;
+                // counted before bcrypt, so concurrent guesses can't all pass the check;
+                // after the permit, so no more attempts are pending than checks can run
+                let Some(lock_started) =
+                    throttle.begin_attempt(&user_id, client, std::time::Instant::now())
+                else {
+                    return PasswordCheck::Refused;
+                };
+                if bcrypt::verify(&password, &hash).unwrap_or(false) {
+                    throttle.record_success(&user_id, client);
+                    PasswordCheck::Verified
+                } else {
+                    PasswordCheck::Failed(lock_started)
                 }
-            }
-            let verified =
-                account.filter(|user| bcrypt::verify(&password, &user.password).unwrap_or(false));
-            match (&verified, lock_started) {
-                (Some(user), _) => state.login_throttle.record_success(&user.id, client),
-                (None, Some(lock)) => tracing::warn!(
-                    "password logins for {email:?} from {} refused for {}s after repeated failures",
-                    client.map_or_else(|| "an unknown address".to_string(), |ip| ip.to_string()),
-                    lock.as_secs()
-                ),
-                (None, None) => {}
-            }
-            return match verified {
-                Some(user) => {
+            })
+            .await
+            .unwrap_or_else(|e| {
+                tracing::error!("password check for {email:?} did not finish: {e}");
+                PasswordCheck::Failed(None)
+            });
+            return Ok(match check {
+                PasswordCheck::Refused => refused(email),
+                PasswordCheck::Failed(lock_started) => {
+                    if let Some(lock) = lock_started {
+                        tracing::warn!(
+                            "password logins for {email:?} from {} refused for {}s after repeated failures",
+                            client.map_or_else(|| "an unknown address".to_string(), |ip| ip.to_string()),
+                            lock.as_secs()
+                        );
+                    }
+                    failed_password_outcome(None, email, "Bad credentials")
+                }
+                PasswordCheck::Verified => {
+                    let user = account;
                     let activity = ActivityDraft {
                         user_id: Some(user.id.clone()),
                         email: Some(user.email.clone()),
@@ -336,28 +399,15 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                         activity: Some(activity),
                     }
                 }
-                None => Outcome {
-                    auth: None,
-                    new_session_id: None,
-                    activity: Some(ActivityDraft {
-                        user_id: None,
-                        email: Some(email),
-                        api_key_id: None,
-                        api_key_comment: None,
-                        success: false,
-                        error: Some("Bad credentials".into()),
-                        source: SOURCE_PASSWORD.into(),
-                    }),
-                },
-            };
+            });
         }
     }
 
-    Outcome {
+    Ok(Outcome {
         auth: None,
         new_session_id: None,
         activity: None,
-    }
+    })
 }
 
 async fn resolve_session_and_remember(
@@ -472,7 +522,17 @@ pub async fn auth_middleware(
 
     let session_id = session_header.or(session_cookie);
 
-    let mut outcome = resolve(&state, &parts, session_id.as_deref());
+    let mut outcome = match resolve(&state, &parts, session_id.as_deref()).await {
+        Ok(outcome) => outcome,
+        // the limit is server-wide, not this client's, hence 503 and not 429
+        Err(PasswordChecksBusy) => {
+            return Response::builder()
+                .status(axum::http::StatusCode::SERVICE_UNAVAILABLE)
+                .header(axum::http::header::RETRY_AFTER, "1")
+                .body(axum::body::Body::empty())
+                .unwrap();
+        }
+    };
     if outcome.auth.is_none() && outcome.activity.is_none() {
         outcome = resolve_session_and_remember(&state, &parts, session_id.clone()).await;
     }

@@ -238,6 +238,7 @@ async fn run() -> anyhow::Result<()> {
         shutdown_tx,
         api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
         login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
+        password_checks: crate::auth::password_check_permits(),
         latest_update: service::update_check::LatestUpdate::default(),
         db,
         task_db,

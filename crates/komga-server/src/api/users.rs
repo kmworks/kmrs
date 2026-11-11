@@ -976,6 +976,129 @@ mod tests {
         assert_eq!((checked, refused), (5, 7));
     }
 
+    /// With every permit taken for the whole wait, a password check answers 503 with
+    /// `Retry-After` and leaves no trace: nothing was checked, so nothing is counted or
+    /// recorded. Once a permit is free the same request succeeds.
+    #[tokio::test]
+    async fn saturated_password_checks_answer_503_and_count_nothing() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+
+        let held = state.password_checks.clone().acquire_owned().await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(basic_request("admin@example.com:pass", None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers().get("retry-after").unwrap(), "1");
+        assert!(response.headers().get("set-cookie").is_none());
+        assert_eq!(state.login_throttle.len(), 0);
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let (activities, _) = UserDao::new(state.db.clone())
+            .find_all_activities(None, 0)
+            .unwrap();
+        assert!(activities.is_empty());
+
+        drop(held);
+        let response = app
+            .oneshot(basic_request("admin@example.com:pass", None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// A password check that finds every permit taken waits, and runs as soon as one is
+    /// given back within the wait.
+    #[tokio::test]
+    async fn a_waiting_password_check_runs_once_a_permit_is_free() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+
+        let held = state.password_checks.clone().acquire_owned().await.unwrap();
+        let waiting = tokio::spawn(app.oneshot(basic_request("admin@example.com:pass", None)));
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        assert!(!waiting.is_finished());
+        drop(held);
+        assert_eq!(waiting.await.unwrap().unwrap().status(), StatusCode::OK);
+    }
+
+    /// Only a password check needs a permit. With all of them taken, a locked source, an
+    /// unknown email and Basic sent with its own session are still answered at once.
+    #[tokio::test]
+    async fn only_password_checks_wait_for_a_permit() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let user_id = seed_user(&state, "admin@example.com");
+        let session_id = state.sessions.create(&user_id).unwrap();
+        let app = test_router(state.clone());
+        for _ in 0..5 {
+            let response = app
+                .clone()
+                .oneshot(basic_request("admin@example.com:wrong", None))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+
+        let _held = state.password_checks.clone().acquire_owned().await.unwrap();
+        let started = std::time::Instant::now();
+        for (request, expected) in [
+            // locked source: refused without a check
+            (
+                basic_request("admin@example.com:pass", None),
+                StatusCode::UNAUTHORIZED,
+            ),
+            // unknown email: nothing to check
+            (
+                basic_request("nobody@example.com:pass", None),
+                StatusCode::UNAUTHORIZED,
+            ),
+            // Basic with its own session: the session answers
+            (
+                basic_request(
+                    "admin@example.com:pass",
+                    Some(("X-Auth-Token", session_id.as_str())),
+                ),
+                StatusCode::OK,
+            ),
+        ] {
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), expected);
+        }
+        assert!(started.elapsed() < std::time::Duration::from_secs(1));
+    }
+
+    /// Attempts are counted once they hold a permit, so a client that sends many requests
+    /// at once with the right password and no session is served in turn, not refused:
+    /// no more attempts are pending than checks can run.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn a_burst_of_correct_passwords_is_served_in_turn() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(2));
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+
+        let attempts: Vec<_> = (0..12)
+            .map(|_| {
+                let app = app.clone();
+                tokio::spawn(async move {
+                    app.oneshot(basic_request("admin@example.com:pass", None))
+                        .await
+                        .unwrap()
+                        .status()
+                })
+            })
+            .collect();
+        for attempt in attempts {
+            assert_eq!(attempt.await.unwrap(), StatusCode::OK);
+        }
+    }
+
     /// Unknown emails are never tracked, so guessing accounts cannot grow the throttle.
     #[tokio::test]
     async fn wrong_passwords_for_unknown_accounts_are_not_tracked() {
