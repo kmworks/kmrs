@@ -169,6 +169,33 @@ pub fn password_check_permits() -> std::sync::Arc<tokio::sync::Semaphore> {
 /// Every permit stayed taken for `PASSWORD_CHECK_WAIT`: the password was not checked.
 struct PasswordChecksBusy;
 
+/// Reports saturated password checks without writing a line per request: one line when
+/// requests start being told to retry, and one with their number a minute later. A flood
+/// of logins therefore adds two lines a minute to the log.
+fn report_busy_password_checks() {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    const INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
+    static TOLD_TO_RETRY: AtomicU64 = AtomicU64::new(0);
+    static REPORTING: AtomicBool = AtomicBool::new(false);
+
+    TOLD_TO_RETRY.fetch_add(1, Ordering::Relaxed);
+    if !REPORTING.swap(true, Ordering::AcqRel) {
+        tracing::warn!(
+            "password checks are saturated: logins that cannot start within {}s are answered 503",
+            PASSWORD_CHECK_WAIT.as_secs()
+        );
+        tokio::spawn(async {
+            tokio::time::sleep(INTERVAL).await;
+            let told_to_retry = TOLD_TO_RETRY.swap(0, Ordering::Relaxed);
+            REPORTING.store(false, Ordering::Release);
+            tracing::warn!(
+                "{told_to_retry} login request(s) were answered 503 in the last {}s",
+                INTERVAL.as_secs()
+            );
+        });
+    }
+}
+
 /// How a password check ended.
 enum PasswordCheck {
     /// the source got locked while the request waited for its permit
@@ -526,9 +553,12 @@ pub async fn auth_middleware(
         Ok(outcome) => outcome,
         // the limit is server-wide, not this client's, hence 503 and not 429
         Err(PasswordChecksBusy) => {
+            report_busy_password_checks();
             return Response::builder()
                 .status(axum::http::StatusCode::SERVICE_UNAVAILABLE)
                 .header(axum::http::header::RETRY_AFTER, "1")
+                // reported above, once per interval: not a failure for the request trace
+                .extension(crate::http::request_trace::DeliberateRefusal)
                 .body(axum::body::Body::empty())
                 .unwrap();
         }

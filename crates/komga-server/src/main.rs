@@ -41,6 +41,7 @@ use komga_db::pool::Database;
 use komga_db::Migrator;
 use state::AppState;
 use std::sync::Arc;
+use tower_http::classify::SharedClassifier;
 use tower_http::trace::TraceLayer;
 
 /// C libraries allocate through glibc malloc only in builds without the profiling
@@ -415,7 +416,9 @@ pub fn build_router(state: AppState) -> axum::Router {
         .layer(axum::middleware::from_fn(
             http::security_headers::security_headers_middleware,
         ))
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new(SharedClassifier::new(
+            http::request_trace::FailuresExceptDeliberateRefusals,
+        )))
         .layer(axum::middleware::from_fn(http::offload::offload_middleware));
 
     // outermost: preflight OPTIONS must be answered before the auth middleware runs

@@ -994,6 +994,11 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(response.headers().get("retry-after").unwrap(), "1");
+        // marked for the request trace, which would log every other 503 as a failure
+        assert!(response
+            .extensions()
+            .get::<crate::http::request_trace::DeliberateRefusal>()
+            .is_some());
         assert!(response.headers().get("set-cookie").is_none());
         assert_eq!(state.login_throttle.len(), 0);
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
