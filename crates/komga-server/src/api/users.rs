@@ -877,6 +877,8 @@ mod tests {
             .collect();
         assert_eq!(refused.len(), 1);
         assert!(!refused[0].success);
+        // the refusal names the account, which is known at that point
+        assert_eq!(refused[0].user_id.as_deref(), Some(user_id.as_str()));
 
         let response = app
             .oneshot(

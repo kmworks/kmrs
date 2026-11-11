@@ -280,7 +280,9 @@ fn resolve(state: &AppState, parts: &Parts, session_id: Option<&str>) -> Outcome
                             auth: None,
                             new_session_id: None,
                             activity: Some(ActivityDraft {
-                                user_id: None,
+                                // the account is known here, so the refusal shows up in
+                                // its login activity whatever spelling of the email was sent
+                                user_id: Some(account.id.clone()),
                                 email: Some(email),
                                 api_key_id: None,
                                 api_key_comment: None,
