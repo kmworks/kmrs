@@ -267,6 +267,7 @@ async fn update_user(
         || before.shared_all_libraries != existing.shared_all_libraries
         || before.shared_libraries_ids != existing.shared_libraries_ids;
     if expire_sessions {
+        state.password_cache.forget_user(&id);
         state.sessions.invalidate_user(&id)?;
     }
     let _ = state.events.send(DomainEvent::UserUpdated {
@@ -290,6 +291,7 @@ async fn delete_user(
         .find_by_id(&id)?
         .ok_or_else(|| ApiError::not_found(""))?;
     dao.delete(&id, &user.email)?;
+    state.password_cache.forget_user(&id);
     state.sessions.invalidate_user(&id)?;
     // Java publishes UserUpdated (not UserDeleted) on delete, with sessions expired
     let _ = state.events.send(DomainEvent::UserUpdated {
@@ -319,6 +321,7 @@ async fn update_password_by_id(
     // changing someone else's password invalidates their sessions; changing your own does not
     let expire_sessions = auth.0.user.id != id;
     if expire_sessions {
+        state.password_cache.forget_user(&id);
         state.sessions.invalidate_user(&id)?;
     }
     let _ = state.events.send(DomainEvent::UserUpdated {
@@ -1122,6 +1125,298 @@ mod tests {
         for attempt in attempts {
             assert_eq!(attempt.await.unwrap(), StatusCode::OK);
         }
+    }
+
+    /// A Basic request as it arrives from the given address.
+    fn basic_request_from(peer: &str, credentials: &str) -> Request<Body> {
+        let mut request = basic_request(credentials, None);
+        let peer = std::net::SocketAddr::new(peer.parse().unwrap(), 40000);
+        request
+            .extensions_mut()
+            .insert(axum::extract::ConnectInfo(peer));
+        request
+    }
+
+    /// A password that was checked a moment ago is served again without a check: with
+    /// every permit taken, where a check would wait and then get the 503. That holds for
+    /// the same password from the same address only. A wrong password and the right one
+    /// from another address still need their check.
+    #[tokio::test]
+    async fn a_repeated_correct_password_needs_no_check() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+        let status = |request: Request<Body>| {
+            let app = app.clone();
+            async move { app.oneshot(request).await.unwrap().status() }
+        };
+        let home = "203.0.113.9";
+
+        assert_eq!(
+            status(basic_request_from(home, "admin@example.com:pass")).await,
+            StatusCode::OK
+        );
+        let held = state.password_checks.clone().acquire_owned().await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(basic_request_from(home, "admin@example.com:pass"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        // otherwise like a login that was checked: it gets its session
+        assert!(response.headers().get("set-cookie").is_some());
+        assert_eq!(state.sessions.all().unwrap().len(), 2);
+        // the email is not part of what is remembered, the account is
+        assert_eq!(
+            status(basic_request_from(home, "ADMIN@example.com:pass")).await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            status(basic_request_from(home, "admin@example.com:wrong")).await,
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            status(basic_request_from("198.51.100.7", "admin@example.com:pass")).await,
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+
+        drop(held);
+        assert_eq!(
+            status(basic_request_from(home, "admin@example.com:wrong")).await,
+            StatusCode::UNAUTHORIZED
+        );
+        // nothing but the one success was remembered
+        let held = state.password_checks.clone().acquire_owned().await.unwrap();
+        assert_eq!(
+            status(basic_request_from(home, "admin@example.com:wrong")).await,
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        drop(held);
+    }
+
+    /// The lock comes before the cache: a source that was locked for guessing is refused
+    /// even with a password that was checked from that address just before.
+    #[tokio::test]
+    async fn a_locked_source_is_refused_whatever_was_checked_before() {
+        let (state, _rx) = test_state();
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+        let status = |credentials: &'static str| {
+            let app = app.clone();
+            async move {
+                app.oneshot(basic_request(credentials, None))
+                    .await
+                    .unwrap()
+                    .status()
+            }
+        };
+
+        assert_eq!(status("admin@example.com:pass").await, StatusCode::OK);
+        for _ in 0..5 {
+            assert_eq!(
+                status("admin@example.com:wrong").await,
+                StatusCode::UNAUTHORIZED
+            );
+        }
+        assert_eq!(
+            status("admin@example.com:pass").await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+
+    /// A login served from the cache clears the failures of its source like one that was
+    /// checked: four wrong passwords on each side of it do not add up to a lock.
+    #[tokio::test]
+    async fn a_login_without_a_check_clears_the_failures_too() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+        let status = |credentials: &'static str| {
+            let app = app.clone();
+            async move {
+                app.oneshot(basic_request(credentials, None))
+                    .await
+                    .unwrap()
+                    .status()
+            }
+        };
+
+        assert_eq!(status("admin@example.com:pass").await, StatusCode::OK);
+        for round in 0..2 {
+            for _ in 0..4 {
+                assert_eq!(
+                    status("admin@example.com:wrong").await,
+                    StatusCode::UNAUTHORIZED
+                );
+            }
+            // served without a check: every permit is taken meanwhile
+            let held = state.password_checks.clone().acquire_owned().await.unwrap();
+            assert_eq!(
+                status("admin@example.com:pass").await,
+                StatusCode::OK,
+                "round {round}"
+            );
+            drop(held);
+        }
+    }
+
+    /// A user who changes their own password keeps their sessions, and still the old
+    /// password stops working at once: what was remembered belongs to the old hash.
+    #[tokio::test]
+    async fn a_changed_password_is_checked_again() {
+        let (state, _rx) = test_state();
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+        let status = |credentials: &'static str| {
+            let app = app.clone();
+            async move {
+                app.oneshot(basic_request(credentials, None))
+                    .await
+                    .unwrap()
+                    .status()
+            }
+        };
+
+        assert_eq!(status("admin@example.com:pass").await, StatusCode::OK);
+        let mut change = basic_request("admin@example.com:pass", None);
+        *change.method_mut() = axum::http::Method::PATCH;
+        *change.uri_mut() = "/api/v2/users/me/password".parse().unwrap();
+        change.headers_mut().insert(
+            axum::http::header::CONTENT_TYPE,
+            "application/json".parse().unwrap(),
+        );
+        *change.body_mut() = Body::from(r#"{"password":"newpass123"}"#);
+        let response = app.clone().oneshot(change).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        assert_eq!(
+            status("admin@example.com:pass").await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(status("admin@example.com:newpass123").await, StatusCode::OK);
+    }
+
+    /// The first page of a client that keeps no session: thirty requests at once, none of
+    /// them checked before, through a single permit and with a hash of the real cost. The
+    /// first one is checked and the others find its result when their turn comes, so the
+    /// page does not depend on thirty checks fitting into the wait for a permit.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_first_burst_is_served_from_its_first_check() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        seed_user(&state, "admin@example.com");
+        let app = test_router(state.clone());
+
+        let held = state.password_checks.clone().acquire_owned().await.unwrap();
+        let attempts: Vec<_> = (0..30)
+            .map(|_| {
+                let app = app.clone();
+                tokio::spawn(async move {
+                    app.oneshot(basic_request("admin@example.com:pass", None))
+                        .await
+                        .unwrap()
+                        .status()
+                })
+            })
+            .collect();
+        // all thirty have missed the cache and wait for the permit
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        drop(held);
+        for attempt in attempts {
+            assert_eq!(attempt.await.unwrap(), StatusCode::OK);
+        }
+        assert_eq!(state.password_checks.available_permits(), 1);
+    }
+
+    /// Where a user's sessions are invalidated, what was remembered of their password goes
+    /// too: on a change of roles, on an admin setting their password and on deletion.
+    #[tokio::test]
+    async fn remembered_checks_end_with_the_users_sessions() {
+        let (state, _rx) = test_state();
+        let admin_id = seed_user(&state, "admin@example.com");
+        let target = seed_plain_user(&state, "reader@example.com");
+        let admin_session = state.sessions.create(&admin_id).unwrap();
+        let app = test_router(state.clone());
+        let login = || {
+            let app = app.clone();
+            async move {
+                app.oneshot(basic_request("reader@example.com:pass", None))
+                    .await
+                    .unwrap()
+                    .status()
+            }
+        };
+        let as_admin = |method: &str, uri: String, body: Option<serde_json::Value>| {
+            let builder = Request::builder()
+                .method(method)
+                .uri(uri)
+                .header("X-Auth-Token", admin_session.as_str())
+                .header("Content-Type", "application/json");
+            let request = builder
+                .body(body.map_or_else(Body::empty, |json| Body::from(json.to_string())))
+                .unwrap();
+            let app = app.clone();
+            async move { app.oneshot(request).await.unwrap().status() }
+        };
+        let remembered = |password: &str| {
+            let stored = UserDao::new(state.db.clone())
+                .find_by_id(&target)
+                .unwrap()
+                .map(|user| user.password)
+                .unwrap_or_default();
+            let key = state.password_cache.key(&target, &stored, None, password);
+            (key, state.password_cache.contains(&key))
+        };
+
+        // a change that keeps the sessions keeps the entry, a change of roles drops it
+        assert_eq!(login().await, StatusCode::OK);
+        let (key, found) = remembered("pass");
+        assert!(found);
+        let update = |roles: serde_json::Value| {
+            as_admin(
+                "PATCH",
+                format!("/api/v2/users/{target}"),
+                Some(serde_json::json!({ "roles": roles })),
+            )
+        };
+        assert_eq!(update(serde_json::json!([])).await, StatusCode::NO_CONTENT);
+        assert!(state.password_cache.contains(&key));
+        assert_eq!(
+            update(serde_json::json!(["ADMIN"])).await,
+            StatusCode::NO_CONTENT
+        );
+        assert!(!state.password_cache.contains(&key));
+
+        // an admin sets the password
+        assert_eq!(login().await, StatusCode::OK);
+        assert!(state.password_cache.contains(&key));
+        assert_eq!(
+            as_admin(
+                "PATCH",
+                format!("/api/v2/users/{target}/password"),
+                Some(serde_json::json!({"password": "newpass123"})),
+            )
+            .await,
+            StatusCode::NO_CONTENT
+        );
+        assert!(!state.password_cache.contains(&key));
+
+        // deletion
+        let response = app
+            .clone()
+            .oneshot(basic_request("reader@example.com:newpass123", None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let (key, found) = remembered("newpass123");
+        assert!(found);
+        assert_eq!(
+            as_admin("DELETE", format!("/api/v2/users/{target}"), None).await,
+            StatusCode::NO_CONTENT
+        );
+        assert!(!state.password_cache.contains(&key));
     }
 
     /// Unknown emails are never tracked, so guessing accounts cannot grow the throttle.

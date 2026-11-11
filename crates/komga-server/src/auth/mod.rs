@@ -8,6 +8,7 @@
 //! `X-Auth-User` (the kosync filter chain's converter).
 
 pub mod login_throttle;
+pub mod password_cache;
 pub mod remember_me;
 pub mod session;
 
@@ -221,6 +222,34 @@ fn failed_password_outcome(user_id: Option<String>, email: String, error: &str) 
     }
 }
 
+/// A password login that succeeded, by a check or by the cache of successful checks.
+fn verified_password_outcome(state: &AppState, user: KomgaUser) -> Outcome {
+    let activity = ActivityDraft {
+        user_id: Some(user.id.clone()),
+        email: Some(user.email.clone()),
+        api_key_id: None,
+        api_key_comment: None,
+        success: true,
+        error: None,
+        source: SOURCE_PASSWORD.into(),
+    };
+    Outcome {
+        // a broken session store must not fail the authentication itself
+        new_session_id: state
+            .sessions
+            .create(&user.id)
+            .map_err(|e| tracing::warn!("failed to persist session, continuing without one: {e}"))
+            .ok(),
+        auth: Some(Auth {
+            user,
+            source: AuthSource::Password,
+            api_key_id: None,
+            session_id: None,
+        }),
+        activity: Some(activity),
+    }
+}
+
 /// The session's user when it is the one the Basic credentials name, so Basic can skip
 /// re-authentication like Spring's `BasicAuthenticationFilter.authenticationIsRequired`.
 /// The email compares the way the login lookup does (ASCII case-insensitive).
@@ -349,6 +378,23 @@ async fn resolve(
             {
                 return Ok(refused(email));
             }
+            // the same password was checked for this account and address a moment ago: it
+            // is served without a check, and otherwise like a check that succeeded. Only
+            // sources that are not locked get here.
+            let cache_key =
+                state
+                    .password_cache
+                    .key(&account.id, &account.password, client, &password);
+            let checked_before = || {
+                let hit = state.password_cache.contains(&cache_key);
+                if hit {
+                    state.login_throttle.record_success(&account.id, client);
+                }
+                hit
+            };
+            if checked_before() {
+                return Ok(verified_password_outcome(state, account));
+            }
             // the checks are CPU-bound: only so many run at a time, the others wait their
             // turn, and a request that cannot start within the wait is told to retry
             let permits = state.password_checks.clone();
@@ -357,10 +403,15 @@ async fn resolve(
             else {
                 return Err(PasswordChecksBusy);
             };
+            // asked again now that the wait is over: requests that arrive together all
+            // miss the cache, and all but the first find its result here
+            if checked_before() {
+                return Ok(verified_password_outcome(state, account));
+            }
             // off the async workers, and as one task that runs to its end even when the
             // client goes away meanwhile: a check that started always reports its result
             // to the throttle and only then gives the permit back
-            let throttle = state.login_throttle.clone();
+            let (throttle, cache) = (state.login_throttle.clone(), state.password_cache.clone());
             let (user_id, hash) = (account.id.clone(), account.password.clone());
             let check = tokio::task::spawn_blocking(move || {
                 let _permit = permit;
@@ -370,6 +421,7 @@ async fn resolve(
                     return PasswordCheck::Refused;
                 }
                 if bcrypt::verify(&password, &hash).unwrap_or(false) {
+                    cache.insert(cache_key, &user_id);
                     throttle.record_success(&user_id, client);
                     PasswordCheck::Verified
                 } else {
@@ -398,37 +450,7 @@ async fn resolve(
                     }
                     failed_password_outcome(None, email, "Bad credentials")
                 }
-                PasswordCheck::Verified => {
-                    let user = account;
-                    let activity = ActivityDraft {
-                        user_id: Some(user.id.clone()),
-                        email: Some(user.email.clone()),
-                        api_key_id: None,
-                        api_key_comment: None,
-                        success: true,
-                        error: None,
-                        source: SOURCE_PASSWORD.into(),
-                    };
-                    Outcome {
-                        // a broken session store must not fail the authentication itself
-                        new_session_id: state
-                            .sessions
-                            .create(&user.id)
-                            .map_err(|e| {
-                                tracing::warn!(
-                                    "failed to persist session, continuing without one: {e}"
-                                )
-                            })
-                            .ok(),
-                        auth: Some(Auth {
-                            user,
-                            source: AuthSource::Password,
-                            api_key_id: None,
-                            session_id: None,
-                        }),
-                        activity: Some(activity),
-                    }
-                }
+                PasswordCheck::Verified => verified_password_outcome(state, account),
             });
         }
     }

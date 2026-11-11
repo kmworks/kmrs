@@ -36,6 +36,8 @@ pub struct AppState {
     pub login_throttle: Arc<crate::auth::login_throttle::LoginThrottle>,
     /// bounds the password checks (bcrypt) that run at the same time
     pub password_checks: Arc<tokio::sync::Semaphore>,
+    /// password checks that succeeded lately, so repeats of them skip bcrypt
+    pub password_cache: Arc<crate::auth::password_cache::PasswordCache>,
     pub latest_update: crate::service::update_check::LatestUpdate,
 }
 
@@ -107,6 +109,7 @@ pub(crate) fn test_app_state(
         api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
         login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
         password_checks: crate::auth::password_check_permits(),
+        password_cache: Arc::new(crate::auth::password_cache::PasswordCache::new()),
         latest_update: Default::default(),
     };
     (state, shutdown_rx)
