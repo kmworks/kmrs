@@ -241,6 +241,7 @@ async fn run() -> anyhow::Result<()> {
         login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
         password_checks: crate::auth::password_check_permits(),
         password_cache: Arc::new(crate::auth::password_cache::PasswordCache::new()),
+        user_auth_lock: Arc::new(std::sync::RwLock::new(())),
         latest_update: service::update_check::LatestUpdate::default(),
         db,
         task_db,

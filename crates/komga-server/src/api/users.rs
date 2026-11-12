@@ -97,6 +97,7 @@ async fn update_my_password(
         .ok_or_else(|| ApiError::not_found(""))?;
     user.password =
         bcrypt::hash(&body.password, 10).map_err(|e| ApiError::Internal(e.to_string()))?;
+    let _guard = state.user_auth_lock.write().unwrap();
     dao.update(&user)?;
     // changing your own password keeps the current session (KomgaUserLifecycle semantics)
     let _ = state.events.send(DomainEvent::UserUpdated {
@@ -218,6 +219,7 @@ async fn update_user(
         return Err(ApiError::forbidden(""));
     }
     let dao = user_dao(&state);
+    let _guard = state.user_auth_lock.write().unwrap();
     let mut existing = dao
         .find_by_id(&id)?
         .ok_or_else(|| ApiError::not_found(""))?;
@@ -287,6 +289,7 @@ async fn delete_user(
         return Err(ApiError::forbidden(""));
     }
     let dao = user_dao(&state);
+    let _guard = state.user_auth_lock.write().unwrap();
     let user = dao
         .find_by_id(&id)?
         .ok_or_else(|| ApiError::not_found(""))?;
@@ -317,6 +320,7 @@ async fn update_password_by_id(
         .ok_or_else(|| ApiError::not_found(""))?;
     user.password =
         bcrypt::hash(&body.password, 10).map_err(|e| ApiError::Internal(e.to_string()))?;
+    let _guard = state.user_auth_lock.write().unwrap();
     dao.update(&user)?;
     // changing someone else's password invalidates their sessions; changing your own does not
     let expire_sessions = auth.0.user.id != id;
@@ -848,6 +852,161 @@ mod tests {
             settled_activity_count(&state, &user_id, "admin@example.com", 2).await,
             2
         );
+    }
+
+    #[test]
+    fn password_logins_complete_with_a_saturated_request_pool() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(2)
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (mut state, _rx) = test_state();
+            state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+            let user_id = seed_user(&state, "admin@example.com");
+            use_cheap_password_hash(&state, &user_id);
+            let entered = std::sync::Arc::new(tokio::sync::Barrier::new(3));
+            let request_entered = entered.clone();
+            let app = test_router(state)
+                .layer(axum::middleware::from_fn(
+                    move |request: Request<Body>, next: axum::middleware::Next| {
+                        let entered = request_entered.clone();
+                        async move {
+                            entered.wait().await;
+                            next.run(request).await
+                        }
+                    },
+                ))
+                .layer(axum::middleware::from_fn(
+                    crate::http::offload::offload_middleware,
+                ));
+            let first = tokio::spawn(
+                app.clone()
+                    .oneshot(basic_request("admin@example.com:pass", None)),
+            );
+            let second = tokio::spawn(app.oneshot(basic_request("admin@example.com:pass", None)));
+            entered.wait().await;
+            assert_eq!(first.await.unwrap().unwrap().status(), StatusCode::OK);
+            assert_eq!(second.await.unwrap().unwrap().status(), StatusCode::OK);
+        });
+    }
+
+    #[tokio::test]
+    async fn queued_password_login_rejects_password_reset() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let admin_id = seed_user(&state, "admin@example.com");
+        let target_id = seed_plain_user(&state, "reader@example.com");
+        let admin_session = state.sessions.create(&admin_id).unwrap();
+        let app = test_router(state.clone());
+        let held = state.password_checks.clone().acquire_owned().await.unwrap();
+        let pending = app
+            .clone()
+            .oneshot(basic_request("reader@example.com:pass", None));
+        tokio::pin!(pending);
+        assert!(futures_util::poll!(pending.as_mut()).is_pending());
+
+        let reset = Request::builder()
+            .method("PATCH")
+            .uri(format!("/api/v2/users/{target_id}/password"))
+            .header("X-Auth-Token", &admin_session)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"password":"newpass123"}"#))
+            .unwrap();
+        assert_eq!(
+            app.clone().oneshot(reset).await.unwrap().status(),
+            StatusCode::NO_CONTENT
+        );
+        drop(held);
+        let response = pending.await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(response.headers().get("set-cookie").is_none());
+        assert!(state
+            .sessions
+            .all()
+            .unwrap()
+            .iter()
+            .all(|(_, session)| session.user_id != target_id));
+        assert_eq!(
+            app.oneshot(basic_request("reader@example.com:newpass123", None))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+    }
+
+    #[tokio::test]
+    async fn queued_password_login_rejects_deleted_user() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let admin_id = seed_user(&state, "admin@example.com");
+        let target_id = seed_plain_user(&state, "reader@example.com");
+        let admin_session = state.sessions.create(&admin_id).unwrap();
+        let app = test_router(state.clone());
+        let held = state.password_checks.clone().acquire_owned().await.unwrap();
+        let pending = app
+            .clone()
+            .oneshot(basic_request("reader@example.com:pass", None));
+        tokio::pin!(pending);
+        assert!(futures_util::poll!(pending.as_mut()).is_pending());
+
+        let delete = Request::builder()
+            .method("DELETE")
+            .uri(format!("/api/v2/users/{target_id}"))
+            .header("X-Auth-Token", admin_session)
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.oneshot(delete).await.unwrap().status(),
+            StatusCode::NO_CONTENT
+        );
+        drop(held);
+        let response = pending.await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(response.headers().get("set-cookie").is_none());
+        assert!(state
+            .sessions
+            .all()
+            .unwrap()
+            .iter()
+            .all(|(_, session)| session.user_id != target_id));
+    }
+
+    #[tokio::test]
+    async fn queued_password_login_uses_current_permissions() {
+        let (mut state, _rx) = test_state();
+        state.password_checks = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let admin_id = seed_user(&state, "admin@example.com");
+        let target_id = seed_plain_user(&state, "reader@example.com");
+        let dao = UserDao::new(state.db.clone());
+        let mut target = dao.find_by_id(&target_id).unwrap().unwrap();
+        target.roles.insert(UserRole::Admin);
+        dao.update(&target).unwrap();
+        let admin_session = state.sessions.create(&admin_id).unwrap();
+        let app = test_router(state.clone());
+        let held = state.password_checks.clone().acquire_owned().await.unwrap();
+        let mut request = basic_request("reader@example.com:pass", None);
+        *request.uri_mut() = "/api/v2/users".parse().unwrap();
+        let pending = app.clone().oneshot(request);
+        tokio::pin!(pending);
+        assert!(futures_util::poll!(pending.as_mut()).is_pending());
+
+        let update = Request::builder()
+            .method("PATCH")
+            .uri(format!("/api/v2/users/{target_id}"))
+            .header("X-Auth-Token", admin_session)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"roles":[]}"#))
+            .unwrap();
+        assert_eq!(
+            app.oneshot(update).await.unwrap().status(),
+            StatusCode::NO_CONTENT
+        );
+        drop(held);
+        assert_eq!(pending.await.unwrap().status(), StatusCode::FORBIDDEN);
     }
 
     /// After repeated wrong passwords from one address the account refuses password logins

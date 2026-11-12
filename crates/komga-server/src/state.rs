@@ -38,6 +38,7 @@ pub struct AppState {
     pub password_checks: Arc<tokio::sync::Semaphore>,
     /// password checks that succeeded lately, so repeats of them skip bcrypt
     pub password_cache: Arc<crate::auth::password_cache::PasswordCache>,
+    pub user_auth_lock: Arc<std::sync::RwLock<()>>,
     pub latest_update: crate::service::update_check::LatestUpdate,
 }
 
@@ -110,6 +111,7 @@ pub(crate) fn test_app_state(
         login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
         password_checks: crate::auth::password_check_permits(),
         password_cache: Arc::new(crate::auth::password_cache::PasswordCache::new()),
+        user_auth_lock: Arc::new(std::sync::RwLock::new(())),
         latest_update: Default::default(),
     };
     (state, shutdown_rx)
