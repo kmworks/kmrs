@@ -9,6 +9,11 @@
 //!   its owner out. The address is the one `http::client_addr` resolves, which takes
 //!   `X-Forwarded-For` from trusted proxies only. Clients that reach the server through one
 //!   shared address, such as a proxy that is not listed, share a key.
+//! - IPv6 addresses are counted by their /64 network: a client usually holds a whole /64
+//!   and can pick any address in it, so counting each address on its own would give it
+//!   fresh attempts and a new entry per address. Wherever this file says address, that is
+//!   the /64 network for IPv6: its addresses share a count and a lock, and a success from
+//!   one of them clears both. IPv4 addresses are counted as they are.
 //! - Only existing accounts are counted, so guessing made-up emails cannot grow the map.
 //! - Only password (Basic) logins are refused. Sessions, API keys and remember-me cookies
 //!   keep working, so devices that are already signed in are not affected.
@@ -21,10 +26,12 @@
 //!   grows when a check fails after it has ended.
 
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv6Addr};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+/// Keeps the upper 64 bits of an IPv6 address, its /64 network.
+const IPV6_NETWORK_MASK: u128 = !(u64::MAX as u128);
 const MAX_FAILURES: u32 = 5;
 const FAILURE_WINDOW: Duration = Duration::from_secs(10 * 60);
 const FIRST_LOCK: Duration = Duration::from_secs(60);
@@ -48,9 +55,18 @@ impl Failures {
     }
 }
 
-/// An account as seen from one client address. The address is `None` only when the
-/// connection's own address is unknown.
+/// An account as seen from one client address, or from one /64 network for IPv6. The
+/// address is `None` only when the connection's own address is unknown.
 type Source = (String, Option<IpAddr>);
+
+/// The key an attempt is counted under: an IPv6 address is reduced to its /64 network.
+fn source(user_id: &str, client: Option<IpAddr>) -> Source {
+    let counted = client.map(|address| match address {
+        IpAddr::V4(_) => address,
+        IpAddr::V6(v6) => IpAddr::V6(Ipv6Addr::from(u128::from(v6) & IPV6_NETWORK_MASK)),
+    });
+    (user_id.to_string(), counted)
+}
 
 #[derive(Default)]
 pub struct LoginThrottle {
@@ -71,20 +87,20 @@ impl LoginThrottle {
         client: Option<IpAddr>,
         now: Instant,
     ) -> Option<Duration> {
-        let source: Source = (user_id.to_string(), client);
+        let key = source(user_id, client);
         let mut sources = self.sources.lock().unwrap();
         if sources
-            .get(&source)
+            .get(&key)
             .and_then(|failures| failures.locked_until)
             .is_some_and(|until| until > now)
         {
             return None;
         }
-        if !sources.contains_key(&source) {
+        if !sources.contains_key(&key) {
             // a new key is the only way the map grows: drop the entries that are done
             sources.retain(|_, failures| failures.is_live(now));
         }
-        let failures = sources.entry(source).or_insert_with(|| Failures {
+        let failures = sources.entry(key).or_insert_with(|| Failures {
             count: 0,
             last: now,
             lock: Duration::ZERO,
@@ -112,12 +128,13 @@ impl LoginThrottle {
         None
     }
 
-    /// A successful password login clears the failures of that account and address.
+    /// A successful password login clears the failures of that account and address (for
+    /// IPv6, of its /64 network).
     pub fn record_success(&self, user_id: &str, client: Option<IpAddr>) {
         self.sources
             .lock()
             .unwrap()
-            .remove(&(user_id.to_string(), client));
+            .remove(&source(user_id, client));
     }
 
     #[cfg(test)]
@@ -130,7 +147,7 @@ impl LoginThrottle {
         self.sources
             .lock()
             .unwrap()
-            .get(&(user_id.to_string(), client))
+            .get(&source(user_id, client))
             .and_then(|failures| failures.locked_until)
             .is_some_and(|until| until > now)
     }
@@ -206,6 +223,45 @@ mod tests {
         assert_eq!(throttle.record_failure("u1", None, now), None);
         assert!(!throttle.is_locked("u1", None, now));
         assert!(throttle.is_locked("u1", A, now));
+    }
+
+    #[test]
+    fn ipv6_addresses_in_one_64_network_share_a_lock() {
+        fn v6(text: &str) -> Option<IpAddr> {
+            Some(text.parse().unwrap())
+        }
+        let first = v6("2001:db8:0:1::1");
+        let same_network = v6("2001:db8:0:1:ffff:ffff:ffff:fffe");
+        // differs from the first network in its last bit only
+        let other_network = v6("2001:db8::1");
+        // differs from it in its first 16 bits only
+        let far_network = v6("2002:db8:0:1::1");
+
+        let throttle = LoginThrottle::new();
+        let mut now = Instant::now();
+        // the failures come from two addresses of one network and count together
+        for i in 0..MAX_FAILURES {
+            let client = if i % 2 == 0 { first } else { same_network };
+            throttle.record_failure("u1", client, now);
+            now += Duration::from_secs(1);
+        }
+        assert!(throttle.is_locked("u1", first, now));
+        assert!(throttle.is_locked("u1", same_network, now));
+        assert!(throttle.is_locked("u1", v6("2001:db8:0:1::2"), now));
+        assert_eq!(throttle.len(), 1);
+        // the neighbouring network is neither locked nor counted so far
+        assert!(!throttle.is_locked("u1", other_network, now));
+        assert_eq!(throttle.record_failure("u1", other_network, now), None);
+        assert!(!throttle.is_locked("u1", other_network, now));
+        assert_eq!(throttle.len(), 2);
+        // nor is a network that only shares the lower part of the prefix
+        assert!(!throttle.is_locked("u1", far_network, now));
+        assert_eq!(throttle.record_failure("u1", far_network, now), None);
+        assert_eq!(throttle.len(), 3);
+        // a success from any address of the network clears it, and only it
+        throttle.record_success("u1", v6("2001:db8:0:1::3"));
+        assert!(!throttle.is_locked("u1", first, now));
+        assert_eq!(throttle.len(), 2);
     }
 
     #[test]
