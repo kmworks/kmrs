@@ -41,17 +41,17 @@ struct Failures {
     count: u32,
     last: Instant,
     lock: Duration,
-    locked_until: Option<Instant>,
 }
 
 impl Failures {
     /// Kept while a further failure would still count: until `FAILURE_WINDOW` after the
     /// last failure or, when locked, after the lock ends (a lock can outlast the window).
     fn is_live(&self, now: Instant) -> bool {
-        let since = self
-            .locked_until
-            .map_or(self.last, |until| until.max(self.last));
-        now.saturating_duration_since(since) < FAILURE_WINDOW
+        now.saturating_duration_since(self.last + self.lock) < FAILURE_WINDOW
+    }
+
+    fn is_locked(&self, now: Instant) -> bool {
+        !self.lock.is_zero() && now < self.last + self.lock
     }
 }
 
@@ -91,8 +91,7 @@ impl LoginThrottle {
         let mut sources = self.sources.lock().unwrap();
         if sources
             .get(&key)
-            .and_then(|failures| failures.locked_until)
-            .is_some_and(|until| until > now)
+            .is_some_and(|failures| failures.is_locked(now))
         {
             return None;
         }
@@ -104,14 +103,12 @@ impl LoginThrottle {
             count: 0,
             last: now,
             lock: Duration::ZERO,
-            locked_until: None,
         });
         if !failures.is_live(now) {
             *failures = Failures {
                 count: 0,
                 last: now,
                 lock: Duration::ZERO,
-                locked_until: None,
             };
         }
         failures.count += 1;
@@ -122,7 +119,6 @@ impl LoginThrottle {
             } else {
                 (failures.lock * 2).min(MAX_LOCK)
             };
-            failures.locked_until = Some(now + failures.lock);
             return Some(failures.lock);
         }
         None
@@ -148,8 +144,7 @@ impl LoginThrottle {
             .lock()
             .unwrap()
             .get(&source(user_id, client))
-            .and_then(|failures| failures.locked_until)
-            .is_some_and(|until| until > now)
+            .is_some_and(|failures| failures.is_locked(now))
     }
 }
 

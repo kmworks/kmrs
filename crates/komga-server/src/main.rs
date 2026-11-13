@@ -219,11 +219,13 @@ async fn run() -> anyhow::Result<()> {
     let search_index =
         Arc::new(komga_search::SearchIndex::open(&config.lucene_dir).context("open search index")?);
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let sessions = match sessions_db {
+        Some(db) => auth::SessionStore::jdbc(db, config.session_timeout),
+        None => auth::SessionStore::new(config.session_timeout),
+    };
     let state = AppState {
-        sessions: match sessions_db {
-            Some(db) => auth::SessionStore::jdbc(db, config.session_timeout),
-            None => auth::SessionStore::new(config.session_timeout),
-        },
+        sessions: sessions.clone(),
+        user_auth: Arc::new(auth::UserAuthentication::new(db.clone(), sessions)),
         settings: Arc::new(settings::SettingsProvider::load(db.clone())),
         tsid: Arc::new(komga_core::tsid::TsidFactory::new_random_node()),
         events: events::event_bus(),
@@ -238,10 +240,6 @@ async fn run() -> anyhow::Result<()> {
         kobo_proxy: service::kobo_proxy::KoboProxy::new(),
         shutdown_tx,
         api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-        login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
-        password_checks: crate::auth::password_check_permits(),
-        password_cache: Arc::new(crate::auth::password_cache::PasswordCache::new()),
-        user_auth_lock: Arc::new(std::sync::RwLock::new(())),
         latest_update: service::update_check::LatestUpdate::default(),
         db,
         task_db,

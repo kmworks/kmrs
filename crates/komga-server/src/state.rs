@@ -33,12 +33,7 @@ pub struct AppState {
     /// (graceful shutdown waits for them)
     pub shutdown_tx: tokio::sync::watch::Sender<bool>,
     pub api_key_activity_throttle: Arc<crate::auth::ApiKeyActivityThrottle>,
-    pub login_throttle: Arc<crate::auth::login_throttle::LoginThrottle>,
-    /// bounds the password checks (bcrypt) that run at the same time
-    pub password_checks: Arc<tokio::sync::Semaphore>,
-    /// password checks that succeeded lately, so repeats of them skip bcrypt
-    pub password_cache: Arc<crate::auth::password_cache::PasswordCache>,
-    pub user_auth_lock: Arc<std::sync::RwLock<()>>,
+    pub(crate) user_auth: Arc<crate::auth::UserAuthentication>,
     pub latest_update: crate::service::update_check::LatestUpdate,
 }
 
@@ -84,6 +79,7 @@ pub(crate) fn test_app_state(
     kmrs_db: Database,
 ) -> (AppState, tokio::sync::watch::Receiver<bool>) {
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let sessions = SessionStore::new(config.session_timeout);
     let state = AppState {
         config: Arc::new(config.clone()),
         db: db.clone(),
@@ -91,7 +87,8 @@ pub(crate) fn test_app_state(
         task_db: db.clone(),
         tasks_db: tasks_db.clone(),
         kmrs_db: kmrs_db.clone(),
-        sessions: SessionStore::new(config.session_timeout),
+        sessions: sessions.clone(),
+        user_auth: Arc::new(crate::auth::UserAuthentication::new(db.clone(), sessions)),
         settings: Arc::new(SettingsProvider::load(db.clone())),
         tsid: Arc::new(TsidFactory::new_random_node()),
         events: crate::events::event_bus(),
@@ -108,10 +105,6 @@ pub(crate) fn test_app_state(
         kobo_proxy: crate::service::kobo_proxy::KoboProxy::new(),
         shutdown_tx,
         api_key_activity_throttle: Arc::new(crate::auth::ApiKeyActivityThrottle::new()),
-        login_throttle: Arc::new(crate::auth::login_throttle::LoginThrottle::new()),
-        password_checks: crate::auth::password_check_permits(),
-        password_cache: Arc::new(crate::auth::password_cache::PasswordCache::new()),
-        user_auth_lock: Arc::new(std::sync::RwLock::new(())),
         latest_update: Default::default(),
     };
     (state, shutdown_rx)

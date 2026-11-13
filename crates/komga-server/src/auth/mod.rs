@@ -7,8 +7,9 @@
 //! (`ApiKeyActivityThrottle`). `/koreader/**` also accepts the KOReader sync header
 //! `X-Auth-User` (the kosync filter chain's converter).
 
-pub mod login_throttle;
-pub mod password_cache;
+mod login_throttle;
+mod password;
+mod password_cache;
 pub mod remember_me;
 pub mod session;
 
@@ -19,9 +20,10 @@ use axum::middleware::Next;
 use axum::response::Response;
 use komga_core::model::user::{KomgaUser, UserRole};
 use komga_db::dao::user::UserDao;
+use password::PasswordChecksBusy;
 use sha2::{Digest, Sha512};
-use std::net::IpAddr;
 
+pub(crate) use password::UserAuthentication;
 pub use session::{SessionStore, SESSION_COOKIE_NAME, SESSION_HEADER_NAME};
 
 /// One successful API-key activity row per key per window: upstream komga writes a row for
@@ -158,108 +160,6 @@ struct Outcome {
     activity: Option<ActivityDraft>,
 }
 
-/// How long a password check waits for a free permit before the request is told to retry.
-const PASSWORD_CHECK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
-
-/// The permits for concurrent password checks: half the available cores, at least one, so
-/// a flood of logins leaves CPU for the other requests.
-pub fn password_check_permits() -> std::sync::Arc<tokio::sync::Semaphore> {
-    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
-    std::sync::Arc::new(tokio::sync::Semaphore::new((cores / 2).max(1)))
-}
-
-/// Every permit stayed taken for `PASSWORD_CHECK_WAIT`: the password was not checked.
-struct PasswordChecksBusy;
-
-/// Reports saturated password checks without writing a line per request: one line when
-/// requests start being told to retry, and one with their number a minute later. A flood
-/// of logins therefore adds two lines a minute to the log.
-fn report_busy_password_checks() {
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    const INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
-    static TOLD_TO_RETRY: AtomicU64 = AtomicU64::new(0);
-    static REPORTING: AtomicBool = AtomicBool::new(false);
-
-    TOLD_TO_RETRY.fetch_add(1, Ordering::Relaxed);
-    if !REPORTING.swap(true, Ordering::AcqRel) {
-        tracing::warn!(
-            "password checks are saturated: logins that cannot start within {}s are answered 503",
-            PASSWORD_CHECK_WAIT.as_secs()
-        );
-        tokio::spawn(async {
-            tokio::time::sleep(INTERVAL).await;
-            let told_to_retry = TOLD_TO_RETRY.swap(0, Ordering::Relaxed);
-            REPORTING.store(false, Ordering::Release);
-            tracing::warn!(
-                "{told_to_retry} login request(s) were answered 503 in the last {}s",
-                INTERVAL.as_secs()
-            );
-        });
-    }
-}
-
-fn failed_password_outcome(user_id: Option<String>, email: String, error: &str) -> Outcome {
-    Outcome {
-        auth: None,
-        new_session_id: None,
-        activity: Some(ActivityDraft {
-            user_id,
-            email: Some(email),
-            api_key_id: None,
-            api_key_comment: None,
-            success: false,
-            error: Some(error.into()),
-            source: SOURCE_PASSWORD.into(),
-        }),
-    }
-}
-
-/// A password login that succeeded, by a check or by the cache of successful checks.
-fn verified_password_outcome(
-    state: &AppState,
-    checked_user: KomgaUser,
-    client: Option<IpAddr>,
-    cache_key: Option<password_cache::VerifiedPassword>,
-) -> Outcome {
-    let _guard = state.user_auth_lock.read().unwrap();
-    let Some(user) = UserDao::new(state.db.clone())
-        .find_by_id(&checked_user.id)
-        .ok()
-        .flatten()
-        .filter(|user| user.password == checked_user.password)
-    else {
-        return failed_password_outcome(None, checked_user.email, "Bad credentials");
-    };
-    if let Some(key) = cache_key {
-        state.password_cache.insert(key, &user.id);
-    }
-    state.login_throttle.record_success(&user.id, client);
-    let activity = ActivityDraft {
-        user_id: Some(user.id.clone()),
-        email: Some(user.email.clone()),
-        api_key_id: None,
-        api_key_comment: None,
-        success: true,
-        error: None,
-        source: SOURCE_PASSWORD.into(),
-    };
-    Outcome {
-        // a broken session store must not fail the authentication itself
-        new_session_id: state
-            .sessions
-            .create(&user.id)
-            .map_err(|e| tracing::warn!("failed to persist session, continuing without one: {e}"))
-            .ok(),
-        auth: Some(Auth {
-            user,
-            source: AuthSource::Password,
-            api_key_id: None,
-            session_id: None,
-        }),
-        activity: Some(activity),
-    }
-}
-
 /// The session's user when it is the one the Basic credentials name, so Basic can skip
 /// re-authentication like Spring's `BasicAuthenticationFilter.authenticationIsRequired`.
 /// The email compares the way the login lookup does (ASCII case-insensitive).
@@ -369,76 +269,8 @@ async fn resolve(
                     activity: None,
                 });
             }
-            let Some(account) = user_dao.find_by_email_ignore_case(&email).ok().flatten() else {
-                // an unknown email is neither checked nor counted
-                return Ok(failed_password_outcome(None, email, "Bad credentials"));
-            };
-            // failures are counted per account and client address, so a lock only hits
-            // the source that is guessing
             let client = crate::http::client_addr::client_ip(parts, &state.config.trusted_proxies);
-            if state
-                .login_throttle
-                .is_locked(&account.id, client, std::time::Instant::now())
-            {
-                return Ok(failed_password_outcome(
-                    Some(account.id),
-                    email,
-                    "Too many failed attempts",
-                ));
-            }
-            let cache_key =
-                state
-                    .password_cache
-                    .key(&account.id, &account.password, client, &password);
-            if state.password_cache.contains(&cache_key) {
-                return Ok(verified_password_outcome(state, account, client, None));
-            }
-            let permits = state.password_checks.clone();
-            let Ok(Ok(_permit)) =
-                tokio::time::timeout(PASSWORD_CHECK_WAIT, permits.acquire_owned()).await
-            else {
-                return Err(PasswordChecksBusy);
-            };
-            let Some(account) = user_dao.find_by_id(&account.id).ok().flatten() else {
-                return Ok(failed_password_outcome(None, email, "Bad credentials"));
-            };
-            if state
-                .login_throttle
-                .is_locked(&account.id, client, std::time::Instant::now())
-            {
-                return Ok(failed_password_outcome(
-                    Some(account.id),
-                    email,
-                    "Too many failed attempts",
-                ));
-            }
-            let cache_key =
-                state
-                    .password_cache
-                    .key(&account.id, &account.password, client, &password);
-            if state.password_cache.contains(&cache_key) {
-                return Ok(verified_password_outcome(state, account, client, None));
-            }
-            if bcrypt::verify(&password, &account.password).unwrap_or(false) {
-                return Ok(verified_password_outcome(
-                    state,
-                    account,
-                    client,
-                    Some(cache_key),
-                ));
-            }
-            if let Some(lock) =
-                state
-                    .login_throttle
-                    .record_failure(&account.id, client, std::time::Instant::now())
-            {
-                tracing::warn!(
-                    "password logins for {email:?} from {} refused for {}s after repeated failures",
-                    client.map_or_else(|| "an unknown address".to_string(), |ip| ip.to_string()),
-                    lock.as_secs()
-                );
-            }
-            return Ok(failed_password_outcome(None, email, "Bad credentials"));
+            return state.user_auth.authenticate(email, &password, client).await;
         }
     }
 
@@ -565,7 +397,6 @@ pub async fn auth_middleware(
         Ok(outcome) => outcome,
         // the limit is server-wide, not this client's, hence 503 and not 429
         Err(PasswordChecksBusy) => {
-            report_busy_password_checks();
             return Response::builder()
                 .status(axum::http::StatusCode::SERVICE_UNAVAILABLE)
                 .header(axum::http::header::RETRY_AFTER, "1")
@@ -689,82 +520,6 @@ impl axum::extract::FromRequestParts<AppState> for MaybeAuth {
 mod tests {
     use super::*;
     use std::time::{Duration, Instant};
-
-    fn checked_password_user() -> (AppState, KomgaUser) {
-        let db = komga_db::pool::Database::open_in_memory(true).unwrap();
-        let migrations = komga_db::main_migrations();
-        komga_db::Migrator::new(&migrations, komga_db::Placeholders::default())
-            .migrate(&db.rw().unwrap())
-            .unwrap();
-        let (state, _rx) = crate::state::test_app_state(
-            crate::config::ServerConfig::from_env(),
-            db.clone(),
-            komga_db::pool::Database::open_in_memory(false).unwrap(),
-            crate::state::test_kmrs_db(),
-        );
-        let mut user = KomgaUser {
-            id: String::new(),
-            email: "reader@example.com".into(),
-            password: bcrypt::hash("pass", 4).unwrap(),
-            roles: [UserRole::Admin].into_iter().collect(),
-            shared_all_libraries: true,
-            shared_libraries_ids: Default::default(),
-            restrictions: Default::default(),
-            created_date: komga_core::time_codec::now_utc(),
-            last_modified_date: komga_core::time_codec::now_utc(),
-        };
-        user.id = UserDao::new(db).insert(&user).unwrap();
-        (state, user)
-    }
-
-    #[test]
-    fn completed_password_check_rejects_a_changed_password() {
-        let (state, checked_user) = checked_password_user();
-        let key = state
-            .password_cache
-            .key(&checked_user.id, &checked_user.password, None, "pass");
-        let mut current = checked_user.clone();
-        current.password = bcrypt::hash("newpass", 4).unwrap();
-        UserDao::new(state.db.clone()).update(&current).unwrap();
-
-        let outcome = verified_password_outcome(&state, checked_user, None, Some(key));
-        assert!(outcome.auth.is_none());
-        assert!(outcome.new_session_id.is_none());
-        assert!(!outcome.activity.unwrap().success);
-        assert!(state.sessions.all().unwrap().is_empty());
-        assert!(!state.password_cache.contains(&key));
-    }
-
-    #[test]
-    fn completed_password_check_rejects_a_deleted_user() {
-        let (state, checked_user) = checked_password_user();
-        let key = state
-            .password_cache
-            .key(&checked_user.id, &checked_user.password, None, "pass");
-        UserDao::new(state.db.clone())
-            .delete(&checked_user.id, &checked_user.email)
-            .unwrap();
-
-        let outcome = verified_password_outcome(&state, checked_user, None, Some(key));
-        assert!(outcome.auth.is_none());
-        assert!(outcome.new_session_id.is_none());
-        assert!(!outcome.activity.unwrap().success);
-        assert!(state.sessions.all().unwrap().is_empty());
-        assert!(!state.password_cache.contains(&key));
-    }
-
-    #[test]
-    fn completed_password_check_uses_current_permissions() {
-        let (state, checked_user) = checked_password_user();
-        let mut current = checked_user.clone();
-        current.roles.clear();
-        UserDao::new(state.db.clone()).update(&current).unwrap();
-
-        let outcome = verified_password_outcome(&state, checked_user, None, None);
-        assert!(!outcome.auth.unwrap().is_admin());
-        assert!(outcome.new_session_id.is_some());
-        assert!(outcome.activity.unwrap().success);
-    }
 
     #[test]
     fn api_key_activity_throttle_collapses_within_window_per_key() {

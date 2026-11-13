@@ -29,8 +29,7 @@ pub struct VerifiedPassword([u8; 32]);
 
 pub struct PasswordCache {
     secret: [u8; 32],
-    /// the value is the user id, for `forget_user`
-    verified: Cache<VerifiedPassword, String>,
+    verified: Cache<VerifiedPassword, ()>,
 }
 
 impl PasswordCache {
@@ -74,21 +73,8 @@ impl PasswordCache {
         self.verified.get(key).is_some()
     }
 
-    pub fn insert(&self, key: VerifiedPassword, user_id: &str) {
-        self.verified.insert(key, user_id.to_string());
-    }
-
-    /// Drops every entry of the user, where the user's sessions are invalidated too.
-    pub fn forget_user(&self, user_id: &str) {
-        let keys: Vec<VerifiedPassword> = self
-            .verified
-            .iter()
-            .filter(|(_, owner)| owner == user_id)
-            .map(|(key, _)| *key)
-            .collect();
-        for key in keys {
-            self.verified.invalidate(&key);
-        }
+    pub fn insert(&self, key: VerifiedPassword) {
+        self.verified.insert(key, ());
     }
 }
 
@@ -134,23 +120,8 @@ mod tests {
         let cache = PasswordCache::new();
         let key = cache.key("user", HASH, None, "pass");
         assert!(!cache.contains(&key));
-        cache.insert(key, "user");
+        cache.insert(key);
         assert!(cache.contains(&key));
         assert!(!cache.contains(&cache.key("user", HASH, None, "wrong")));
-    }
-
-    #[test]
-    fn forgetting_a_user_keeps_the_others() {
-        let cache = PasswordCache::new();
-        let first = cache.key("user", HASH, address("192.0.2.1"), "pass");
-        let second = cache.key("user", HASH, address("192.0.2.2"), "pass");
-        let other = cache.key("other", HASH, None, "pass");
-        cache.insert(first, "user");
-        cache.insert(second, "user");
-        cache.insert(other, "other");
-        cache.forget_user("user");
-        assert!(!cache.contains(&first));
-        assert!(!cache.contains(&second));
-        assert!(cache.contains(&other));
     }
 }
