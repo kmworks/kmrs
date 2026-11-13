@@ -3,6 +3,7 @@ name = "komga-search"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [dependencies]
 komga-core = { path = "../komga-core" }
