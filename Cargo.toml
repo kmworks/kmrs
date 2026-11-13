@@ -42,7 +42,6 @@ crc32fast = "1"
 time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
 # icu
 icu_collator = "2"
-icu_normalizer = "2"
 icu_locale = "2"
 # cli / config
 clap = { version = "4", features = ["derive"] }

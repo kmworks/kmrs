@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[package.metadata.cargo-machete]
+ignored = ["libheif-sys"]
+
 [dependencies]
 komga-core = { path = "../komga-core" }
 anyhow.workspace = true

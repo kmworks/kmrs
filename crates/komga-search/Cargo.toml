@@ -10,8 +10,6 @@ komga-core = { path = "../komga-core" }
 tantivy.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 unicode-normalization = "0.1"
 
 [dev-dependencies]

@@ -8,6 +8,5 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
-crc32fast.workspace = true
 komga-db = { path = "../crates/komga-db" }
 rusqlite.workspace = true
