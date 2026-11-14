@@ -358,15 +358,6 @@ async fn run() -> anyhow::Result<()> {
 }
 
 pub fn build_router(state: AppState) -> axum::Router {
-    build_router_with_body_idle_timeout(state, http::body_timeout::BODY_IDLE_TIMEOUT)
-}
-
-/// The router with the idle limit for request bodies given by the caller, so that tests
-/// can run every layer of the server with a limit short enough to wait for.
-pub(crate) fn build_router_with_body_idle_timeout(
-    state: AppState,
-    body_idle_timeout: std::time::Duration,
-) -> axum::Router {
     let routes = axum::Router::new()
         .merge(api::claim::router())
         .merge(api::login::router())
@@ -406,7 +397,11 @@ pub(crate) fn build_router_with_body_idle_timeout(
     let routes = routes.merge(profiling::router());
 
     let app = http::body_limit::apply(routes.fallback(webui::fallback));
-    let app = http::body_timeout::apply(app, body_idle_timeout)
+    let app = match state.config.body_idle_timeout {
+        Some(idle) => http::body_timeout::apply(app, idle),
+        None => app,
+    };
+    let app = app
         .layer(axum::middleware::from_fn(
             http::error_path::error_path_middleware,
         ))

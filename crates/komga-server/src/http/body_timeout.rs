@@ -2,9 +2,9 @@
 //! of the blocking pool, and a client that went away in the middle of a body would hold
 //! it for as long as the connection stays open.
 //!
-//! - When no part of a body arrives for `BODY_IDLE_TIMEOUT`, the request answers 408 in
-//!   the API's error format. Java komga gives up on a body after the same 60 seconds,
-//!   Tomcat's connection timeout.
+//! - When no part of a body arrives for `server.body-idle-timeout`, the request answers
+//!   408 in the API's error format. The default of 60 seconds is where Java komga gives
+//!   up on a body, at Tomcat's default connection timeout.
 //! - The time restarts with every part that arrives: a slow upload that keeps moving is
 //!   never cut, whatever it takes in total. So this ends requests from clients that are
 //!   gone, not from one that sends a byte now and then on purpose.
@@ -29,7 +29,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::time::Sleep;
 
-pub const BODY_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+pub const DEFAULT_BODY_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Applies the idle limit to the request bodies of every route of the router.
 pub fn apply<S: Clone + Send + Sync + 'static>(router: Router<S>, idle: Duration) -> Router<S> {
@@ -105,9 +105,9 @@ impl http_body::Body for IdleTimeoutBody {
         let idle_timer = match &mut this.idle_timer {
             Some(idle_timer) => {
                 if !this.reading {
-                    idle_timer
-                        .as_mut()
-                        .reset(tokio::time::Instant::now() + this.idle);
+                    // not `reset`: adding a very long limit to the current time
+                    // would overflow, a new sleep is clamped
+                    idle_timer.set(tokio::time::sleep(this.idle));
                 }
                 idle_timer
             }
@@ -174,12 +174,33 @@ pub(crate) mod testing {
     }
 
     /// The request answered by the server's own router, with every layer it has and
-    /// `SHORT_IDLE_TIMEOUT` as the idle limit.
+    /// `SHORT_IDLE_TIMEOUT` configured as the idle limit.
     pub(crate) async fn send_to_server(
         state: &crate::state::AppState,
         request: Request<Body>,
     ) -> (StatusCode, serde_json::Value) {
-        let router = crate::build_router_with_body_idle_timeout(state.clone(), SHORT_IDLE_TIMEOUT);
+        send_to_server_configured(state, Some(SHORT_IDLE_TIMEOUT), request).await
+    }
+
+    /// The same with the idle limit turned off in the configuration.
+    pub(crate) async fn send_to_server_without_limit(
+        state: &crate::state::AppState,
+        request: Request<Body>,
+    ) -> (StatusCode, serde_json::Value) {
+        send_to_server_configured(state, None, request).await
+    }
+
+    async fn send_to_server_configured(
+        state: &crate::state::AppState,
+        body_idle_timeout: Option<Duration>,
+        request: Request<Body>,
+    ) -> (StatusCode, serde_json::Value) {
+        let mut state = state.clone();
+        state.config = std::sync::Arc::new(crate::config::ServerConfig {
+            body_idle_timeout,
+            ..(*state.config).clone()
+        });
+        let router = crate::build_router(state);
         let response = router.oneshot(request).await.unwrap();
         let status = response.status();
         let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -418,6 +439,26 @@ mod tests {
         assert!(body.frame().await.unwrap().is_err());
         assert!(started.elapsed() >= idle);
         assert!(timed_out.load(Ordering::Relaxed));
+    }
+
+    /// A configured limit can be longer than a clock can count. It is never reached,
+    /// and starting the wait again after a part does not overflow.
+    #[tokio::test]
+    async fn a_limit_too_long_to_count_is_never_reached() {
+        use http_body_util::BodyExt;
+        let (parts, incoming) = futures_channel_of_frames();
+        let mut body = IdleTimeoutBody {
+            body: incoming,
+            idle: Duration::from_secs(i64::MAX as u64),
+            idle_timer: None,
+            reading: false,
+            timed_out: Arc::new(AtomicBool::new(false)),
+        };
+        let pending = Duration::from_millis(20);
+        assert!(tokio::time::timeout(pending, body.frame()).await.is_err());
+        parts.send(Bytes::from_static(b"part")).unwrap();
+        assert!(body.frame().await.unwrap().is_ok());
+        assert!(tokio::time::timeout(pending, body.frame()).await.is_err());
     }
 
     /// A body fed by hand: what is sent arrives as one part.

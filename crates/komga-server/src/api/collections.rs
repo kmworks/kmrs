@@ -1495,14 +1495,15 @@ pub(crate) mod tests {
 
     /// A request whose body stops arriving is answered with 408 by the server's own
     /// router and changes nothing; one that fails authentication is still refused at
-    /// once, and a slow upload that keeps arriving is stored.
+    /// once, and a slow upload that keeps arriving is stored. The limit is the one from
+    /// the configuration, and turning it off there turns it off.
     #[tokio::test]
     async fn a_body_that_stops_arriving_is_given_up_on() {
         let state = test_state();
         seed_base(&state.db);
         use crate::http::body_timeout::testing::{
-            assert_body_timed_out, send_stalled_to_server, send_to_server, with_pauses,
-            SHORT_IDLE_TIMEOUT,
+            assert_body_timed_out, send_stalled_to_server, send_to_server,
+            send_to_server_without_limit, with_pauses, SHORT_IDLE_TIMEOUT,
         };
         let thumbnails = "/api/v1/collections/c1/thumbnails";
         let stored_thumbnails = || async {
@@ -1541,6 +1542,17 @@ pub(crate) mod tests {
         let (status, _) = send_to_server(&state, Request::from_parts(parts, body)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(stored_thumbnails().await.as_array().unwrap().len(), 1);
+
+        // with the limit turned off in the configuration, a pause longer than it is
+        // waited out
+        let request = multipart_request(thumbnails, ADMIN_KEY, &tiny_jpeg(), None);
+        let (parts, body) = request.into_parts();
+        let body = axum::body::to_bytes(body, usize::MAX).await.unwrap();
+        let body = with_pauses(body.to_vec(), 2, 2 * SHORT_IDLE_TIMEOUT);
+        let (status, _) =
+            send_to_server_without_limit(&state, Request::from_parts(parts, body)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(stored_thumbnails().await.as_array().unwrap().len(), 2);
     }
 
     /// The limit as the server applies it, through the whole router: a cover of exactly
