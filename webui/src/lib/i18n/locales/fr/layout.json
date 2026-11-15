@@ -56,6 +56,8 @@
     "densityCompact": "Compacte",
     "densityStandard": "Standard",
     "densityCozy": "Confortable",
+    "cardHoverPreview": "Aperçu au survol des cartes",
+    "cardHoverPreviewLabel": "Afficher un aperçu au survol des cartes",
     "blurUnread": "Flouter les couvertures non lues",
     "blurUnreadLabel": "Flouter les couvertures des séries et livres non lus"
   },

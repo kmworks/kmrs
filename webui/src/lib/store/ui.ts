@@ -9,6 +9,7 @@ interface UiState {
   theme: Theme
   cardStyle: CardStyle
   gridDensity: GridDensity
+  cardHoverPreview: boolean
   blurUnreadCovers: boolean
   sidebarLibrariesExpanded: boolean | undefined
   /** search scope outside /search: 'all' | 'pinned' | a library id */
@@ -16,6 +17,7 @@ interface UiState {
   setTheme: (t: Theme) => void
   setCardStyle: (s: CardStyle) => void
   setGridDensity: (d: GridDensity) => void
+  setCardHoverPreview: (v: boolean) => void
   setBlurUnreadCovers: (v: boolean) => void
   setSidebarLibrariesExpanded: (v: boolean) => void
   setSearchScope: (v: string) => void
@@ -27,12 +29,14 @@ export const useUiStore = create<UiState>()(
       theme: 'system',
       cardStyle: 'standard',
       gridDensity: 'standard',
+      cardHoverPreview: true,
       blurUnreadCovers: false,
       sidebarLibrariesExpanded: undefined,
       searchScope: 'pinned',
       setTheme: (theme) => set({ theme }),
       setCardStyle: (cardStyle) => set({ cardStyle }),
       setGridDensity: (gridDensity) => set({ gridDensity }),
+      setCardHoverPreview: (cardHoverPreview) => set({ cardHoverPreview }),
       setBlurUnreadCovers: (blurUnreadCovers) => set({ blurUnreadCovers }),
       setSidebarLibrariesExpanded: (sidebarLibrariesExpanded) => set({ sidebarLibrariesExpanded }),
       setSearchScope: (searchScope) => set({ searchScope }),

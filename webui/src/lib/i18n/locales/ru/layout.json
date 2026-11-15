@@ -57,6 +57,8 @@
     "densityCompact": "Компактная",
     "densityStandard": "Стандартная",
     "densityCozy": "Свободная",
+    "cardHoverPreview": "Предпросмотр при наведении",
+    "cardHoverPreviewLabel": "Показывать предпросмотр при наведении на карточку",
     "blurUnread": "Размывать непрочитанные обложки",
     "blurUnreadLabel": "Размывать обложки непрочитанных серий и книг"
   },

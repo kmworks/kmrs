@@ -13,6 +13,7 @@ import { CoverImage } from './CoverImage'
 import { CardFrame, CardMenuButton, CardText, CardOverlayText } from './CardFrame'
 import { ProgressCapsule, UnreadBadge, OneshotLine } from './badges'
 import { SeriesCardMenu } from './SeriesCardMenu'
+import { MediaCardPreview } from './CardPreview'
 import { SelectBadge } from '@/components/selection/SelectBadge'
 import type { CardSelection } from '@/components/selection/useSelection'
 import { cn } from '@/lib/utils/cn'
@@ -54,6 +55,7 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
   const libraryUnavailable = useLibraryUnavailable(series.libraryId)
   const statusLabel = cardStatusLabel({ deleted: series.deleted || libraryUnavailable })
   const secondary = statusLabel ? <span className={statusLabel.className}>{statusLabel.text}</span> : secondaryLine(series, t)
+  const cover = urls.seriesThumbnail(series.id, bust || undefined)
 
   const frame = (
     <CardFrame
@@ -61,6 +63,18 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
       label={title}
       className={selection ? undefined : className}
       onLongPress={selection?.active ? undefined : () => setMenuOpen(true)}
+      preview={
+        <MediaCardPreview
+          title={title}
+          cover={cover}
+          subtitle={series.metadata.publisher || undefined}
+          authors={series.booksMetadata.authors}
+          meta={secondary}
+          summary={series.metadata.summary || series.booksMetadata.summary}
+          blurred={blurUnread && series.booksUnreadCount > 0}
+        />
+      }
+      previewDisabled={menuOpen || selection?.active}
       actions={
         selection?.active ? undefined : (
           <SeriesCardMenu
@@ -74,7 +88,7 @@ export function SeriesCard({ series, className, eager, selection }: SeriesCardPr
     >
       <div className="relative">
         <CoverImage
-          src={urls.seriesThumbnail(series.id, bust || undefined)}
+          src={cover}
           alt={title}
           eager={eager}
           blurred={blurUnread && series.booksUnreadCount > 0}
@@ -126,10 +140,17 @@ export function CollectionCard({
   const { t } = useTranslation('media')
   const bust = useBust(id)
   const secondary = t('collection.seriesCount', { count })
+  const cover = urls.collectionThumbnail(id, bust || undefined)
   return (
-    <CardFrame to={`/collections/${id}`} label={name} className={className} actions={actions}>
+    <CardFrame
+      to={`/collections/${id}`}
+      label={name}
+      className={className}
+      actions={actions}
+      preview={<MediaCardPreview title={name} cover={cover} meta={secondary} />}
+    >
       <div className={cn('relative')}>
-        <CoverImage src={urls.collectionThumbnail(id, bust || undefined)} alt={name} />
+        <CoverImage src={cover} alt={name} />
         <CardOverlayText title={name} secondary={secondary} />
       </div>
       <CardText title={name} secondary={secondary} />
@@ -154,10 +175,17 @@ export function ReadListCard({
   const { t } = useTranslation('media')
   const bust = useBust(id)
   const secondary = t('readList.bookCount', { count })
+  const cover = urls.readlistThumbnail(id, bust || undefined)
   return (
-    <CardFrame to={`/readlists/${id}`} label={name} className={className} actions={actions}>
+    <CardFrame
+      to={`/readlists/${id}`}
+      label={name}
+      className={className}
+      actions={actions}
+      preview={<MediaCardPreview title={name} cover={cover} meta={secondary} />}
+    >
       <div className="relative">
-        <CoverImage src={urls.readlistThumbnail(id, bust || undefined)} alt={name} />
+        <CoverImage src={cover} alt={name} />
         <CardOverlayText title={name} secondary={secondary} />
       </div>
       <CardText title={name} secondary={secondary} />

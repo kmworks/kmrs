@@ -606,9 +606,11 @@ function AppearanceMenu() {
   const { t } = useTranslation('layout')
   const cardStyle = useUiStore((s) => s.cardStyle)
   const gridDensity = useUiStore((s) => s.gridDensity)
+  const cardHoverPreview = useUiStore((s) => s.cardHoverPreview)
   const blurUnreadCovers = useUiStore((s) => s.blurUnreadCovers)
   const setCardStyle = useUiStore((s) => s.setCardStyle)
   const setGridDensity = useUiStore((s) => s.setGridDensity)
+  const setCardHoverPreview = useUiStore((s) => s.setCardHoverPreview)
   const setBlurUnreadCovers = useUiStore((s) => s.setBlurUnreadCovers)
 
   return (
@@ -646,6 +648,14 @@ function AppearanceMenu() {
             ]}
             value={gridDensity}
             onChange={setGridDensity}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3 px-2.5 pt-1 pb-1">
+          <span className="text-[13px] text-ink-2">{t('appearance.cardHoverPreview')}</span>
+          <Switch
+            checked={cardHoverPreview}
+            onCheckedChange={setCardHoverPreview}
+            label={t('appearance.cardHoverPreviewLabel')}
           />
         </div>
         <div className="flex items-center justify-between gap-3 px-2.5 pt-1 pb-1">

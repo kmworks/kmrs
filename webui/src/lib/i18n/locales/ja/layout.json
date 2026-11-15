@@ -54,6 +54,8 @@
     "densityCompact": "コンパクト",
     "densityStandard": "標準",
     "densityCozy": "ゆったり",
+    "cardHoverPreview": "カードのホバープレビュー",
+    "cardHoverPreviewLabel": "カードにマウスを重ねたときにプレビューを表示",
     "blurUnread": "未読のカバーをぼかす",
     "blurUnreadLabel": "未読のシリーズと本のカバーをぼかします"
   },

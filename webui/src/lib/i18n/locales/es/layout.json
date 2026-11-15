@@ -56,6 +56,8 @@
     "densityCompact": "Compacta",
     "densityStandard": "Estándar",
     "densityCozy": "Espaciosa",
+    "cardHoverPreview": "Vista previa al pasar el cursor",
+    "cardHoverPreviewLabel": "Mostrar una vista previa al pasar el cursor sobre las tarjetas",
     "blurUnread": "Difuminar portadas no leídas",
     "blurUnreadLabel": "Difuminar las portadas de series y libros no leídos"
   },

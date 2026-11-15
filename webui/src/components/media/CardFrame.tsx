@@ -4,6 +4,7 @@ import { DotsThree } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils/cn'
 import { useUiStore } from '@/lib/store/ui'
 import { useLongPress } from '@/lib/hooks/useLongPress'
+import { CardPreview } from './CardPreview'
 
 interface CardFrameProps {
   to: string
@@ -14,10 +15,21 @@ interface CardFrameProps {
       interactive element nests inside the <a> */
   actions?: ReactNode
   onLongPress?: () => void
+  preview?: ReactNode
+  previewDisabled?: boolean
 }
 
 /** Shared hover/press treatment for all media cards. */
-export function CardFrame({ to, children, className, label, actions, onLongPress }: CardFrameProps) {
+export function CardFrame({
+  to,
+  children,
+  className,
+  label,
+  actions,
+  onLongPress,
+  preview,
+  previewDisabled,
+}: CardFrameProps) {
   const longPress = useLongPress(onLongPress ?? (() => undefined))
   const link = (
     <Link
@@ -34,13 +46,21 @@ export function CardFrame({ to, children, className, label, actions, onLongPress
       {children}
     </Link>
   )
-  if (!actions) return link
-  return (
+  const frame = actions ? (
     <div className={cn('group relative animate-card-in rounded-lg', className)}>
       {link}
       {/* the frame also spans the text under the cover; this box is the cover's area */}
       <div className="cover-aspect pointer-events-none absolute inset-x-0 top-0">{actions}</div>
     </div>
+  ) : (
+    link
+  )
+  return preview ? (
+    <CardPreview content={preview} disabled={previewDisabled}>
+      {frame}
+    </CardPreview>
+  ) : (
+    frame
   )
 }
 
