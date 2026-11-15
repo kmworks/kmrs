@@ -635,14 +635,8 @@ pub(crate) fn dispatch_task(state: &AppState, task: &Task) -> anyhow::Result<()>
             state.task_emitter.analyze_book(&imported, t.priority + 1)?;
             Ok(())
         }
-        Task::RebuildIndex(t) => {
-            crate::search_index::rebuild_index(state, t.entities.clone());
-            Ok(())
-        }
-        Task::UpgradeIndex(_) => {
-            crate::search_index::upgrade_index(state);
-            Ok(())
-        }
+        Task::RebuildIndex(t) => crate::search_index::rebuild_index(state, t.entities.clone()),
+        Task::UpgradeIndex(_) => crate::search_index::upgrade_index(state),
         Task::DeleteBook(t) => {
             // fails rather than skips, so the outcome reports the file as not deleted
             if !state.config.allow_file_deletion {
@@ -1074,9 +1068,19 @@ mod tests {
         let dao = TasksDao::new(state.tasks_db.clone());
         let task = Task::book(BookTaskKind::DeleteBook, "b1", DEFAULT_PRIORITY, None);
         dao.save(&task).unwrap();
+        HANDLE_LOG.lock().unwrap().clear();
 
         process_one_with_backoff(&state, 1, &[std::time::Duration::ZERO; 3]).await;
 
+        assert_eq!(
+            HANDLE_LOG
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|entry| entry.0 == task.unique_id())
+                .count(),
+            4
+        );
         assert!(queue_empty(&state));
         let failed = TaskFailureDao::new(state.kmrs_db.clone())
             .find_all()
@@ -1085,6 +1089,27 @@ mod tests {
         assert_eq!(failed[0].retry_count, 3);
         assert!(failed[0].error.contains("allow-file-deletion = false"));
         assert_eq!(failed[0].task.to_payload(), task.to_payload());
+    }
+
+    #[test]
+    fn rebuild_index_errors_are_task_failures() {
+        let state = series_tests::test_state();
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute("DROP TABLE BOOK", [])
+            .unwrap();
+        let task = Task::RebuildIndex(komga_core::task::RebuildIndex {
+            entities: Some([komga_core::task::LuceneEntity::Book].into()),
+            priority: DEFAULT_PRIORITY,
+            group_id: None,
+            unique_id: String::new(),
+        });
+
+        let error = dispatch_task(&state, &task).unwrap_err();
+
+        assert!(error.to_string().contains("rebuild index"));
     }
 
     #[tokio::test]
