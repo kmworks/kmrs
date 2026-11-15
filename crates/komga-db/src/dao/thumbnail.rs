@@ -81,14 +81,6 @@ impl ThumbnailBookDao {
 
     pub fn find_all_by_book_id(&self, book_id: &str) -> Result<Vec<ThumbnailBook>> {
         let conn = self.db.ro()?;
-        self.find_all_by_book_id_on(&conn, book_id)
-    }
-
-    pub fn find_all_by_book_id_on(
-        &self,
-        conn: &rusqlite::Connection,
-        book_id: &str,
-    ) -> Result<Vec<ThumbnailBook>> {
         let mut stmt = conn.prepare(&format!(
             "SELECT {BOOK_COLUMNS} FROM THUMBNAIL_BOOK WHERE BOOK_ID = ?"
         ))?;

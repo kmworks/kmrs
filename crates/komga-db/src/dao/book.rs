@@ -352,18 +352,6 @@ impl BookDao {
         Ok(())
     }
 
-    pub fn update_many(&self, books: &[Book]) -> Result<()> {
-        let mut conn = self.db.rw()?;
-        for chunk in books.chunks(WRITE_BATCH_SIZE) {
-            let tx = write_transaction(&mut conn)?;
-            for book in chunk {
-                self.update_on(&tx, book)?;
-            }
-            commit_batch(tx)?;
-        }
-        Ok(())
-    }
-
     /// Deletes only the BOOK row; cascading of metadata/media/thumbnail is the
     /// responsibility of the upper-layer lifecycle (same as komga).
     pub fn delete(&self, id: &str) -> Result<()> {

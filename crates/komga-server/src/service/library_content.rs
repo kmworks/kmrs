@@ -352,12 +352,24 @@ pub fn scan_root_folder(
                     }
                     {
                         let mut conn = state.db.rw()?;
-                        for chunk in books_to_update.chunks(WRITE_BATCH_SIZE) {
+                        // Media updates rewrite every page/file row, so their lock
+                        // window stays per book. Book-only updates can share a batch.
+                        for book in books_to_update
+                            .iter()
+                            .filter(|book| media_to_update.contains_key(&book.id))
+                        {
+                            let tx = write_transaction(&mut conn)?;
+                            media_dao.update_on(&tx, &media_to_update[&book.id])?;
+                            book_dao.update_on(&tx, book)?;
+                            commit_batch(tx)?;
+                        }
+                        let book_only: Vec<&Book> = books_to_update
+                            .iter()
+                            .filter(|book| !media_to_update.contains_key(&book.id))
+                            .collect();
+                        for chunk in book_only.chunks(WRITE_BATCH_SIZE) {
                             let tx = write_transaction(&mut conn)?;
                             for book in chunk {
-                                if let Some(media) = media_to_update.get(&book.id) {
-                                    media_dao.update_on(&tx, media)?;
-                                }
                                 book_dao.update_on(&tx, book)?;
                             }
                             commit_batch(tx)?;
@@ -620,10 +632,10 @@ pub fn empty_trash(state: &AppState, library: &Library, reason: &str) -> Result<
     let series_refs: Vec<&Series> = series_to_delete.iter().collect();
     let cascaded_books = books_of_series(state, &series_refs)?;
     crate::service::series::delete_many(state, &series_to_delete)?;
-    let mut purge_events = vec![];
+    let mut series_purge_events = vec![];
     // every book of a purged series is destroyed with it, trashed already or not
     for book in &cascaded_books {
-        purge_events.push(historical_event(
+        series_purge_events.push(historical_event(
             HistoricalEventType::BookPurged,
             Some(&book.id),
             Some(&book.series_id),
@@ -632,7 +644,7 @@ pub fn empty_trash(state: &AppState, library: &Library, reason: &str) -> Result<
         ));
     }
     for series in &series_to_delete {
-        purge_events.push(historical_event(
+        series_purge_events.push(historical_event(
             HistoricalEventType::SeriesPurged,
             None,
             Some(&series.id),
@@ -640,6 +652,7 @@ pub fn empty_trash(state: &AppState, library: &Library, reason: &str) -> Result<
             &series_path(series),
         ));
     }
+    HistoricalEventDao::new(state.db.clone()).insert_many(&series_purge_events)?;
 
     let books_to_delete = BookDao::new(state.db.clone()).find_all_by_condition(
         Some(&SearchConditionBook::AllOf {
@@ -658,16 +671,19 @@ pub fn empty_trash(state: &AppState, library: &Library, reason: &str) -> Result<
         &[],
     )?;
     crate::service::book::delete_many(state, &books_to_delete)?;
-    for book in &books_to_delete {
-        purge_events.push(historical_event(
-            HistoricalEventType::BookPurged,
-            Some(&book.id),
-            Some(&book.series_id),
-            reason,
-            &book_path(book),
-        ));
-    }
-    HistoricalEventDao::new(state.db.clone()).insert_many(&purge_events)?;
+    let book_purge_events: Vec<HistoricalEvent> = books_to_delete
+        .iter()
+        .map(|book| {
+            historical_event(
+                HistoricalEventType::BookPurged,
+                Some(&book.id),
+                Some(&book.series_id),
+                reason,
+                &book_path(book),
+            )
+        })
+        .collect();
+    HistoricalEventDao::new(state.db.clone()).insert_many(&book_purge_events)?;
     let series_dao = SeriesDao::new(state.db.clone());
     let mut seen = BTreeSet::new();
     for book in &books_to_delete {

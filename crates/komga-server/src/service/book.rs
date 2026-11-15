@@ -364,6 +364,7 @@ pub fn add_thumbnail_for_book(
         selected: false,
         ..thumbnail.clone()
     };
+    let mut replaced_urls = vec![];
     let mut conn = state.db.rw()?;
     let tx = write_transaction(&mut conn)?;
     match thumbnail.type_ {
@@ -375,10 +376,7 @@ pub fn add_thumbnail_for_book(
                 ThumbnailType::Generated,
             )?;
             dao.delete_by_book_id_and_type_on(&tx, &thumbnail.book_id, ThumbnailType::Generated)?;
-            crate::thumbnails::remove_managed_files(
-                state,
-                replaced.iter().filter_map(|t| t.url.as_deref()),
-            );
+            replaced_urls = replaced.into_iter().filter_map(|t| t.url).collect();
             dao.insert_on(&tx, &to_insert)?;
         }
         ThumbnailType::Sidecar => {
@@ -411,11 +409,16 @@ pub fn add_thumbnail_for_book(
 
     if selected {
         dao.mark_selected_on(&tx, &thumbnail)?;
-    } else {
-        thumbnails_house_keeping_on(&dao, &tx, &thumbnail.book_id)?;
     }
     commit_batch(tx)?;
     drop(conn);
+
+    // Keep filesystem work outside the writer transaction: slow mounts must not
+    // extend the lock, and a rollback must not restore rows whose files are gone.
+    crate::thumbnails::remove_managed_files(state, replaced_urls.iter().map(String::as_str));
+    if !selected {
+        thumbnails_house_keeping(state, &thumbnail.book_id)?;
+    }
 
     let new_thumbnail = ThumbnailBook {
         selected,
@@ -530,23 +533,11 @@ pub fn get_thumbnail_bytes_by_thumbnail_id(
 
 pub fn thumbnails_house_keeping(state: &AppState, book_id: &str) -> komga_db::Result<()> {
     let dao = ThumbnailBookDao::new(state.db.clone());
-    let mut conn = state.db.rw()?;
-    let tx = write_transaction(&mut conn)?;
-    thumbnails_house_keeping_on(&dao, &tx, book_id)?;
-    commit_batch(tx)?;
-    Ok(())
-}
-
-fn thumbnails_house_keeping_on(
-    dao: &ThumbnailBookDao,
-    conn: &rusqlite::Connection,
-    book_id: &str,
-) -> komga_db::Result<()> {
     let mut all = vec![];
-    for thumbnail in dao.find_all_by_book_id_on(conn, book_id)? {
+    for thumbnail in dao.find_all_by_book_id(book_id)? {
         if !thumbnail_exists(&thumbnail) {
             tracing::warn!("Thumbnail doesn't exist, removing entry");
-            dao.delete_on(conn, &thumbnail.id)?;
+            dao.delete(&thumbnail.id)?;
         } else {
             all.push(thumbnail);
         }
@@ -556,11 +547,11 @@ fn thumbnails_house_keeping_on(
     match selected.len() {
         n if n > 1 => {
             tracing::info!("More than one thumbnail is selected, removing extra ones");
-            dao.mark_selected_on(conn, selected[0])?;
+            dao.mark_selected(selected[0])?;
         }
         0 if !all.is_empty() => {
             tracing::info!("Book has no selected thumbnail, choosing one automatically");
-            dao.mark_selected_on(conn, &all[0])?;
+            dao.mark_selected(&all[0])?;
         }
         _ => {}
     }
@@ -624,9 +615,22 @@ pub fn soft_delete_many(state: &AppState, books: &[Book]) -> komga_db::Result<()
             ..book.clone()
         })
         .collect();
-    BookDao::new(state.db.clone()).update_many(&updated)?;
-    for book in books {
-        let _ = state.events.send(DomainEvent::BookUpdated(book.clone()));
+    let dao = BookDao::new(state.db.clone());
+    let mut conn = state.db.rw()?;
+    for (chunk, event_chunk) in updated
+        .chunks(WRITE_BATCH_SIZE)
+        .zip(books.chunks(WRITE_BATCH_SIZE))
+    {
+        let tx = write_transaction(&mut conn)?;
+        for book in chunk {
+            dao.update_on(&tx, book)?;
+        }
+        commit_batch(tx)?;
+        // A later batch may still fail: consumers must see every batch that has
+        // already committed, just as they did when each row committed separately.
+        for book in event_chunk {
+            let _ = state.events.send(DomainEvent::BookUpdated(book.clone()));
+        }
     }
     Ok(())
 }
@@ -1755,6 +1759,34 @@ mod tests {
         sidecar.url = Some(format!("file:{}", cover.display()));
         add_thumbnail_for_book(&state, sidecar, MarkSelectedPreference::No).unwrap();
 
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute(
+                "CREATE TRIGGER reject_generated_thumbnail BEFORE INSERT ON THUMBNAIL_BOOK \
+                 WHEN NEW.TYPE = 'GENERATED' BEGIN SELECT RAISE(ABORT, 'forced'); END",
+                [],
+            )
+            .unwrap();
+        add_thumbnail_for_book(
+            &state,
+            make_generated(&state),
+            MarkSelectedPreference::IfNoneOrGenerated,
+        )
+        .unwrap_err();
+        assert!(first_file.exists());
+        assert!(ThumbnailBookDao::new(state.db.clone())
+            .find_by_id(&first.id)
+            .unwrap()
+            .is_some());
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute("DROP TRIGGER reject_generated_thumbnail", [])
+            .unwrap();
+
         let second = add_thumbnail_for_book(
             &state,
             make_generated(&state),
@@ -2166,6 +2198,48 @@ mod tests {
         assert!(books.iter().all(|book| book.deleted_date.is_some()));
         assert!(matches!(rx.try_recv(), Ok(DomainEvent::BookUpdated(_))));
         assert!(matches!(rx.try_recv(), Ok(DomainEvent::BookUpdated(_))));
+    }
+
+    #[test]
+    fn soft_delete_many_emits_events_for_committed_batches_before_a_failure() {
+        let state = test_state();
+        seed_library(&state, "lib1", true);
+        seed_series(&state, "lib1", "s1");
+        let books: Vec<Book> = (1..=101)
+            .map(|number| {
+                seed_book(
+                    &state,
+                    "lib1",
+                    "s1",
+                    &format!("file:/l/s/v{number:03}.cbz"),
+                    1,
+                )
+            })
+            .collect();
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute(
+                "CREATE TRIGGER fail_second_soft_delete BEFORE UPDATE ON BOOK \
+                 WHEN OLD.URL = 'file:/l/s/v101.cbz' BEGIN SELECT RAISE(ABORT, 'forced'); END",
+                [],
+            )
+            .unwrap();
+        let mut rx = state.events.subscribe();
+
+        soft_delete_many(&state, &books).unwrap_err();
+
+        let books = BookDao::new(state.db.clone()).find_all().unwrap();
+        assert_eq!(
+            books
+                .iter()
+                .filter(|book| book.deleted_date.is_some())
+                .count(),
+            100
+        );
+        let emitted = std::iter::from_fn(|| rx.try_recv().ok()).count();
+        assert_eq!(emitted, 100);
     }
 
     #[test]
