@@ -159,7 +159,15 @@ async fn process_one_with_backoff(state: &AppState, worker: u32, backoff: &[std:
             if let Some(error) = error {
                 failures.record(&task, retry_count, &error)?;
             } else {
-                failures.delete(&task.unique_id())?;
+                TasksDao::new(tasks_db).delete(&task.unique_id())?;
+                // Repeating completed lifecycle work after a restart is worse than a stale failure row.
+                if let Err(e) = failures.delete(&task.unique_id()) {
+                    tracing::error!(
+                        "Failed to clear failure record for {}: {e}",
+                        task.unique_id()
+                    );
+                }
+                return Ok(());
             }
             TasksDao::new(tasks_db).delete(&task.unique_id())
         })
@@ -1110,6 +1118,49 @@ mod tests {
         let error = dispatch_task(&state, &task).unwrap_err();
 
         assert!(error.to_string().contains("rebuild index"));
+    }
+
+    #[tokio::test]
+    async fn success_deletes_queue_when_failure_cleanup_fails() {
+        let state = series_tests::test_state();
+        let root = visible_tempdir("success-cleanup");
+        seed_library(
+            &state.db,
+            &test_library("lib-cleanup", &format!("file:{}/", root.display())),
+        );
+        seed_series(&state.db, "lib-cleanup", "s1");
+        let book_path = root.join("v01.cbz");
+        fixture_zip(&book_path);
+        let book = seed_book(
+            &state.db,
+            "lib-cleanup",
+            "s1",
+            &format!("file:{}", book_path.display()),
+        );
+        let task = Task::book(BookTaskKind::HashBook, &book.id, DEFAULT_PRIORITY, None);
+        let dao = TasksDao::new(state.tasks_db.clone());
+        dao.save(&task).unwrap();
+        state
+            .kmrs_db
+            .rw()
+            .unwrap()
+            .execute("DROP TABLE TASK_FAILURE", [])
+            .unwrap();
+
+        process_one_with_backoff(&state, 1, &[]).await;
+
+        assert!(queue_empty(&state));
+        let hash: String = state
+            .db
+            .ro()
+            .unwrap()
+            .query_row(
+                "SELECT FILE_HASH FROM BOOK WHERE ID = ?",
+                [&book.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(!hash.is_empty());
     }
 
     #[tokio::test]

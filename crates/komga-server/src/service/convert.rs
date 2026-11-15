@@ -434,7 +434,7 @@ pub fn remove_hashed_pages(
                     book.file_last_modified,
                     scanned.file_last_modified
                 );
-                return Ok(None);
+                return Ok(page_removal_action(pages_to_delete));
             }
         }
         None => {
@@ -478,7 +478,8 @@ pub fn remove_hashed_pages(
             "Should be removing {} pages from book, but count doesn't add up, skipping",
             pages_to_delete.len()
         );
-        return Ok(None);
+        // An earlier attempt may have removed page 1 before its thumbnail follow-up was queued.
+        return Ok(page_removal_action(pages_to_delete));
     }
 
     tracing::info!(
@@ -623,11 +624,14 @@ pub fn remove_hashed_pages(
     }
     let _ = state.events.send(DomainEvent::BookUpdated(new_book));
 
-    Ok(if pages_to_delete.iter().any(|p| p.page_number == 1) {
-        Some(BookAction::GenerateThumbnail)
-    } else {
-        None
-    })
+    Ok(page_removal_action(pages_to_delete))
+}
+
+fn page_removal_action(pages_to_delete: &[BookPageNumbered]) -> Option<BookAction> {
+    pages_to_delete
+        .iter()
+        .any(|p| p.page_number == 1)
+        .then_some(BookAction::GenerateThumbnail)
 }
 
 /// `PageHashLifecycle.getBookPagesToDeleteAutomatically`: every page whose hash is known with a
@@ -1185,6 +1189,12 @@ mod tests {
         let action =
             remove_hashed_pages(&env.state, &book, std::slice::from_ref(&page_to_delete)).unwrap();
         assert!(matches!(action, Some(BookAction::GenerateThumbnail)));
+        let repeated =
+            remove_hashed_pages(&env.state, &book, std::slice::from_ref(&page_to_delete)).unwrap();
+        assert!(
+            matches!(repeated, Some(BookAction::GenerateThumbnail)),
+            "a retried follow-up must still be able to regenerate the thumbnail"
+        );
     }
 
     #[test]
