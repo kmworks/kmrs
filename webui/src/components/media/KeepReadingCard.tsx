@@ -16,6 +16,7 @@ import { useLongPress } from '@/lib/hooks/useLongPress'
 import { MenuItem } from '@/components/ui/Menu'
 import { OneshotLine } from './badges'
 import { BookCardMenu } from './BookCardMenu'
+import { CardPreview, MediaCardPreview } from './CardPreview'
 
 /**
  * Apple Books-style resume card: cover-tinted solid background, small cover on
@@ -59,7 +60,7 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
     `${numberPrefix}${Math.round(pct * 100)}% · ${t('card.pageCount', { count: book.media.pagesCount })}`
   )
 
-  return (
+  const card = (
     <div
       className={cn(
         'group relative flex w-[250px] shrink-0 animate-card-in items-center rounded-xl p-2 transition-[background-color,box-shadow,filter] duration-200 hover:shadow-card hover:brightness-[1.07]',
@@ -134,5 +135,23 @@ export function KeepReadingCard({ book, className }: { book: BookDto; className?
         }
       />
     </div>
+  )
+
+  return (
+    <CardPreview
+      disabled={menuOpen}
+      content={
+        <MediaCardPreview
+          title={title}
+          cover={cover}
+          subtitle={book.oneshot ? undefined : book.seriesTitle}
+          authors={book.metadata.authors}
+          meta={meta}
+          summary={book.metadata.summary}
+        />
+      }
+    >
+      {card}
+    </CardPreview>
   )
 }

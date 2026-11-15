@@ -54,6 +54,8 @@
     "densityCompact": "紧凑",
     "densityStandard": "标准",
     "densityCozy": "宽松",
+    "cardHoverPreview": "卡片悬停预览",
+    "cardHoverPreviewLabel": "悬停卡片时显示预览",
     "blurUnread": "模糊未读封面",
     "blurUnreadLabel": "模糊未读系列和书籍的封面"
   },

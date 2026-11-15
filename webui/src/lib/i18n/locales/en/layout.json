@@ -55,6 +55,8 @@
     "densityCompact": "Compact",
     "densityStandard": "Standard",
     "densityCozy": "Cozy",
+    "cardHoverPreview": "Card hover preview",
+    "cardHoverPreviewLabel": "Show a preview when hovering over cards",
     "blurUnread": "Blur unread covers",
     "blurUnreadLabel": "Blur covers of unread series and books"
   },

@@ -55,6 +55,8 @@
     "densityCompact": "Kompakt",
     "densityStandard": "Standard",
     "densityCozy": "Großzügig",
+    "cardHoverPreview": "Kartenvorschau bei Hover",
+    "cardHoverPreviewLabel": "Vorschau beim Überfahren von Karten anzeigen",
     "blurUnread": "Ungelesene Cover weichzeichnen",
     "blurUnreadLabel": "Cover ungelesener Serien und Bücher weichzeichnen"
   },

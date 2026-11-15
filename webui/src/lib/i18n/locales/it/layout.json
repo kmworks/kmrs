@@ -56,6 +56,8 @@
     "densityCompact": "Compatta",
     "densityStandard": "Standard",
     "densityCozy": "Comoda",
+    "cardHoverPreview": "Anteprima al passaggio del mouse",
+    "cardHoverPreviewLabel": "Mostra un'anteprima al passaggio del mouse sulle schede",
     "blurUnread": "Sfoca copertine da leggere",
     "blurUnreadLabel": "Sfoca le copertine delle serie e dei libri da leggere"
   },

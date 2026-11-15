@@ -54,6 +54,8 @@
     "densityCompact": "좁게",
     "densityStandard": "표준",
     "densityCozy": "넓게",
+    "cardHoverPreview": "카드 호버 미리 보기",
+    "cardHoverPreviewLabel": "카드에 마우스를 올리면 미리 보기 표시",
     "blurUnread": "읽지 않은 표지 흐리게",
     "blurUnreadLabel": "읽지 않은 시리즈와 책의 표지를 흐리게 표시"
   },

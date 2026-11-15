@@ -11,6 +11,7 @@ import { CoverImage } from './CoverImage'
 import { CardFrame, CardMenuButton, CardText, CardOverlayText } from './CardFrame'
 import { ProgressCapsule, OneshotLine } from './badges'
 import { BookCardMenu } from './BookCardMenu'
+import { MediaCardPreview } from './CardPreview'
 import { MenuItem } from '@/components/ui/Menu'
 import { SelectBadge } from '@/components/selection/SelectBadge'
 import type { CardSelection } from '@/components/selection/useSelection'
@@ -77,6 +78,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
   ) : (
     secondary
   )
+  const cover = urls.bookThumbnail(book.id, bust || undefined)
 
   const frame = (
     <CardFrame
@@ -84,6 +86,18 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
       label={title}
       className={selection ? undefined : className}
       onLongPress={selection?.active ? undefined : () => setMenuOpen(true)}
+      preview={
+        <MediaCardPreview
+          title={title}
+          cover={cover}
+          subtitle={book.oneshot ? undefined : book.seriesTitle}
+          authors={book.metadata.authors}
+          meta={secondaryText}
+          summary={book.metadata.summary}
+          blurred={blurUnread && unread}
+        />
+      }
+      previewDisabled={menuOpen || selection?.active}
       actions={
         selection?.active ? undefined : (
           <BookCardMenu
@@ -109,7 +123,7 @@ export function BookCard({ book, className, showSeries, eager, selection }: Book
     >
       <div className="relative">
         <CoverImage
-          src={urls.bookThumbnail(book.id, bust || undefined)}
+          src={cover}
           alt={title}
           eager={eager}
           blurred={blurUnread && unread}
