@@ -8,7 +8,15 @@
 //! - the archive ends with a Zip64 EOCD, its locator, and a classic EOCD
 //! - entry times are the current local time at DOS 2-second precision
 
-use std::io::{self, Read, Write};
+use std::io::{self, BufWriter, Read, Write};
+use std::path::PathBuf;
+
+use axum::body::{Body, Bytes};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+
+const STREAM_BUFFER_SIZE: usize = 64 * 1024;
+const STREAM_CHANNEL_CAPACITY: usize = 2;
 
 const LOCAL_SIG: u32 = 0x04034b50;
 const DATA_DESCRIPTOR_SIG: u32 = 0x08074b50;
@@ -31,6 +39,67 @@ struct CentralRecord {
     compressed_size: u64,
     uncompressed_size: u64,
     local_header_offset: u64,
+}
+
+type StreamChunk = Result<Bytes, io::Error>;
+
+struct ChannelWriter {
+    sender: mpsc::Sender<StreamChunk>,
+}
+
+impl Write for ChannelWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.sender
+            .blocking_send(Ok(Bytes::copy_from_slice(buf)))
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "zip download closed"))?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Keeps archive downloads at a bounded memory footprint and propagates I/O failures through the
+/// body so a failed archive cannot be mistaken for a complete response.
+pub fn stream_files(entries: Vec<(String, PathBuf)>) -> Body {
+    stream_with(move |zip| {
+        for (name, path) in entries {
+            let file = std::fs::File::open(&path).map_err(|error| {
+                io::Error::new(
+                    error.kind(),
+                    format!("could not open {}: {error}", path.display()),
+                )
+            })?;
+            zip.add_entry(&name, file)?;
+        }
+        Ok(())
+    })
+}
+
+fn stream_with(
+    write_entries: impl FnOnce(&mut ZipWriter<BufWriter<ChannelWriter>>) -> io::Result<()>
+        + Send
+        + 'static,
+) -> Body {
+    let (sender, receiver) = mpsc::channel(STREAM_CHANNEL_CAPACITY);
+    drop(tokio::task::spawn_blocking(move || {
+        let writer = BufWriter::with_capacity(
+            STREAM_BUFFER_SIZE,
+            ChannelWriter {
+                sender: sender.clone(),
+            },
+        );
+        let mut zip = ZipWriter::new(writer);
+        let result = write_entries(&mut zip).and_then(|()| {
+            let mut writer = zip.finish()?;
+            writer.flush()
+        });
+        if let Err(error) = result {
+            let _ = sender.blocking_send(Err(error));
+        }
+    }));
+    Body::from_stream(ReceiverStream::new(receiver))
 }
 
 pub struct ZipWriter<W: Write> {
@@ -206,6 +275,17 @@ fn dos_now() -> (u16, u16) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http_body_util::BodyExt;
+    use std::time::Duration;
+
+    struct WaitForRelease(std::sync::mpsc::Receiver<()>);
+
+    impl Read for WaitForRelease {
+        fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+            self.0.recv().expect("release the blocked entry");
+            Ok(0)
+        }
+    }
 
     fn build(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut zip = ZipWriter::new(Vec::new());
@@ -241,6 +321,36 @@ mod tests {
         // local header of the first entry: zip64 placeholder sizes and zeroed extra
         assert_eq!(&bytes[0..4], &LOCAL_SIG.to_le_bytes());
         assert_eq!(&bytes[18..26], &U32_MAX.to_le_bytes()[..4].repeat(2));
+    }
+
+    #[tokio::test]
+    async fn stream_sends_data_before_later_entries_finish() {
+        let (release, wait) = std::sync::mpsc::channel();
+        let content = vec![1u8; STREAM_BUFFER_SIZE];
+        let mut body = stream_with(move |zip| {
+            zip.add_entry("first", content.as_slice())?;
+            zip.add_entry("second", WaitForRelease(wait))
+        });
+
+        let first = tokio::time::timeout(Duration::from_secs(5), body.frame()).await;
+        release.send(()).unwrap();
+        let frame = first
+            .expect("timed out waiting for the first archive chunk")
+            .expect("archive ended before its first chunk")
+            .expect("archive stream failed");
+        assert!(!frame.into_data().unwrap().is_empty());
+        tokio::time::timeout(Duration::from_secs(5), body.collect())
+            .await
+            .expect("timed out finishing the archive")
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn stream_propagates_file_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing.cbz");
+        let body = stream_files(vec![("missing.cbz".into(), missing)]);
+        body.collect().await.unwrap_err();
     }
 
     #[test]
