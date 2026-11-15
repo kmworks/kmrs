@@ -105,6 +105,11 @@
     "cleared_many": "Se eliminaron {{count}} tareas de la cola.",
     "cleared_other": "Se eliminaron {{count}} tareas de la cola.",
     "clearFailed": "No se pudo vaciar la cola.",
+    "failedTitle": "Tareas con error permanente",
+    "failedEmpty": "No hay tareas con error permanente.",
+    "failedLoad": "No se pudieron cargar las tareas con error permanente.",
+    "retryCount": "Número de reintentos: {{count}}",
+    "clearFailuresBody": "Los registros de tareas con error permanente también se eliminarán.",
     "clearTitle": "Vaciar la cola de tareas",
     "clearBody": "Las tareas en cola que ningún trabajador haya tomado aún se eliminarán. Las tareas ya en ejecución no se ven afectadas."
   },

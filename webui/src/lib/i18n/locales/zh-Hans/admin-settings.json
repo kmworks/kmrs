@@ -89,6 +89,11 @@
     "waiting": "等待首次更新… · 每 10 秒更新",
     "cleared_other": "已清除 {{count}} 个排队任务。",
     "clearFailed": "无法清空队列。",
+    "failedTitle": "永久失败任务",
+    "failedEmpty": "没有永久失败的任务。",
+    "failedLoad": "无法加载永久失败任务。",
+    "retryCount": "重试次数：{{count}}",
+    "clearFailuresBody": "永久失败任务的记录也会被清除。",
     "clearTitle": "清空任务队列",
     "clearBody": "尚未开始执行的排队任务将被移除，正在运行的任务不受影响。"
   },

@@ -105,6 +105,11 @@
     "cleared_many": "{{count}} tâches en file supprimées.",
     "cleared_other": "{{count}} tâches en file supprimées.",
     "clearFailed": "Impossible de vider la file.",
+    "failedTitle": "Tâches en échec permanent",
+    "failedEmpty": "Aucune tâche en échec permanent.",
+    "failedLoad": "Impossible de charger les tâches en échec permanent.",
+    "retryCount": "Nombre de tentatives : {{count}}",
+    "clearFailuresBody": "Les enregistrements des tâches en échec permanent seront également supprimés.",
     "clearTitle": "Vider la file de tâches",
     "clearBody": "Les tâches en file qu'aucun worker n'a encore prises seront supprimées. Les tâches déjà en cours ne sont pas affectées."
   },

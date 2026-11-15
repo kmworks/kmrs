@@ -97,6 +97,11 @@
     "cleared_one": "Cleared {{count}} queued task.",
     "cleared_other": "Cleared {{count}} queued tasks.",
     "clearFailed": "Could not clear the queue.",
+    "failedTitle": "Permanent failures",
+    "failedEmpty": "No permanently failed tasks.",
+    "failedLoad": "Could not load permanently failed tasks.",
+    "retryCount": "Retry count: {{count}}",
+    "clearFailuresBody": "Permanently failed task records will also be removed.",
     "clearTitle": "Clear task queue",
     "clearBody": "Queued tasks that no worker has picked up yet will be removed. Tasks already running are unaffected."
   },

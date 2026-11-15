@@ -6,6 +6,7 @@
 
 use crate::events::DomainEvent;
 use crate::state::AppState;
+use anyhow::Context;
 use komga_core::dto::book::BookDto;
 use komga_core::dto::collection::CollectionDto;
 use komga_core::dto::readlist::ReadListDto;
@@ -195,12 +196,11 @@ fn readlist_to_document(readlist: &ReadListDto) -> EntityDoc {
     }
 }
 
-fn rebuild_one(state: &AppState, entity: LuceneEntity) {
+fn rebuild_one(state: &AppState, entity: LuceneEntity) -> anyhow::Result<()> {
     let index = state.search_index.clone();
-    if let Err(e) = index.delete_entity_type(entity) {
-        tracing::error!("rebuild index for {entity:?}: could not delete existing documents: {e}");
-        return;
-    }
+    index
+        .delete_entity_type(entity)
+        .with_context(|| format!("rebuild index for {entity:?}: could not delete documents"))?;
     match entity {
         LuceneEntity::Book => rebuild_pages(
             entity,
@@ -301,41 +301,33 @@ fn rebuild_pages<T, F, W>(
     index: &komga_search::SearchIndex,
     mut fetch: F,
     mut write: W,
-) where
+) -> anyhow::Result<()>
+where
     F: FnMut(u32) -> komga_db::Result<(Vec<T>, i64)>,
     W: FnMut(&komga_search::SearchIndex, Vec<T>) -> komga_search::Result<()>,
 {
-    let (first, total) = match fetch(0) {
-        Ok(first) => first,
-        Err(e) => {
-            tracing::error!("rebuild index for {entity:?}: first page failed: {e}");
-            return;
-        }
-    };
+    let (first, total) =
+        fetch(0).with_context(|| format!("rebuild index for {entity:?}: first page failed"))?;
     let pages = ((total + BATCH_SIZE as i64 - 1) / BATCH_SIZE as i64).max(1) as u32;
-    if let Err(e) = write(index, first).and_then(|_| index.commit()) {
-        tracing::error!("rebuild index for {entity:?}: write page 0 failed: {e}");
-        return;
-    }
+    write(index, first)
+        .and_then(|_| index.commit())
+        .with_context(|| format!("rebuild index for {entity:?}: write page 0 failed"))?;
     for page in 1..pages {
-        match fetch(page) {
-            Ok((items, _)) => {
-                if let Err(e) = write(index, items).and_then(|_| index.commit()) {
-                    tracing::error!("rebuild index for {entity:?}: write page {page} failed: {e}");
-                    return;
-                }
-            }
-            Err(e) => {
-                tracing::error!("rebuild index for {entity:?}: page {page} failed: {e}");
-                return;
-            }
-        }
+        let (items, _) = fetch(page)
+            .with_context(|| format!("rebuild index for {entity:?}: page {page} failed"))?;
+        write(index, items)
+            .and_then(|_| index.commit())
+            .with_context(|| format!("rebuild index for {entity:?}: write page {page} failed"))?;
     }
     tracing::info!("Wrote {entity:?} index ({total} entities)");
+    Ok(())
 }
 
 /// `SearchIndexLifecycle.rebuildIndex`: full rebuild of the given entities (all by default).
-pub fn rebuild_index(state: &AppState, entities: Option<BTreeSet<LuceneEntity>>) {
+pub fn rebuild_index(
+    state: &AppState,
+    entities: Option<BTreeSet<LuceneEntity>>,
+) -> anyhow::Result<()> {
     let target: BTreeSet<LuceneEntity> = entities.unwrap_or_else(|| {
         [
             LuceneEntity::Book,
@@ -348,19 +340,23 @@ pub fn rebuild_index(state: &AppState, entities: Option<BTreeSet<LuceneEntity>>)
     });
     tracing::info!("Rebuild index for: {target:?}");
     for entity in target {
-        rebuild_one(state, entity);
+        rebuild_one(state, entity)?;
     }
-    if let Err(e) = state.search_index.set_index_version(INDEX_VERSION) {
-        tracing::error!("set index version after rebuild failed: {e}");
-    }
+    state
+        .search_index
+        .set_index_version(INDEX_VERSION)
+        .context("set index version after rebuild failed")?;
+    Ok(())
 }
 
 /// `SearchIndexLifecycle.upgradeIndex` + version stamp.
-pub fn upgrade_index(state: &AppState) {
+pub fn upgrade_index(state: &AppState) -> anyhow::Result<()> {
     state.search_index.upgrade();
-    if let Err(e) = state.search_index.set_index_version(INDEX_VERSION) {
-        tracing::error!("set index version after upgrade failed: {e}");
-    }
+    state
+        .search_index
+        .set_index_version(INDEX_VERSION)
+        .context("set index version after upgrade failed")?;
+    Ok(())
 }
 
 fn lookup_collection_doc(state: &AppState, collection_id: &str) -> Option<EntityDoc> {

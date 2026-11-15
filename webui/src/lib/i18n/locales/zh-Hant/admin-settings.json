@@ -89,6 +89,11 @@
     "waiting": "等待第一次更新… · 每 10 秒更新",
     "cleared_other": "已清除 {{count}} 個排隊任務。",
     "clearFailed": "無法清空佇列。",
+    "failedTitle": "永久失敗任務",
+    "failedEmpty": "沒有永久失敗的任務。",
+    "failedLoad": "無法載入永久失敗任務。",
+    "retryCount": "重試次數：{{count}}",
+    "clearFailuresBody": "永久失敗任務的記錄也會被清除。",
     "clearTitle": "清空任務佇列",
     "clearBody": "尚未有工作程序處理的排隊任務會被移除。已在執行的任務不受影響。"
   },

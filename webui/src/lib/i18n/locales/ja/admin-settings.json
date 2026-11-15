@@ -89,6 +89,11 @@
     "waiting": "最初の更新を待っています… · 10 秒ごとに更新",
     "cleared_other": "{{count}} 件の待機タスクをクリアしました。",
     "clearFailed": "キューをクリアできませんでした。",
+    "failedTitle": "永久に失敗したタスク",
+    "failedEmpty": "永久に失敗したタスクはありません。",
+    "failedLoad": "永久に失敗したタスクを読み込めませんでした。",
+    "retryCount": "再試行回数：{{count}}",
+    "clearFailuresBody": "永久に失敗したタスクの記録も削除されます。",
     "clearTitle": "タスクキューをクリア",
     "clearBody": "まだワーカーに拾われていない待機タスクが削除されます。実行中のタスクには影響しません。"
   },

@@ -89,6 +89,11 @@
     "waiting": "첫 업데이트를 기다리는 중… · 10초마다 업데이트",
     "cleared_other": "대기 중인 작업 {{count}}개를 비웠습니다.",
     "clearFailed": "큐를 비울 수 없습니다.",
+    "failedTitle": "영구적으로 실패한 작업",
+    "failedEmpty": "영구적으로 실패한 작업이 없습니다.",
+    "failedLoad": "영구적으로 실패한 작업을 불러오지 못했습니다.",
+    "retryCount": "재시도 횟수: {{count}}",
+    "clearFailuresBody": "영구적으로 실패한 작업 기록도 삭제됩니다.",
     "clearTitle": "작업 큐 비우기",
     "clearBody": "아직 워커가 가져가지 않은 대기 중인 작업이 제거됩니다. 이미 실행 중인 작업은 영향을 받지 않습니다."
   },

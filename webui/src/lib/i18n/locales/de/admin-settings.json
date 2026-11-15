@@ -97,6 +97,11 @@
     "cleared_one": "{{count}} wartende Aufgabe entfernt.",
     "cleared_other": "{{count}} wartende Aufgaben entfernt.",
     "clearFailed": "Die Warteschlange konnte nicht geleert werden.",
+    "failedTitle": "Dauerhaft fehlgeschlagene Aufgaben",
+    "failedEmpty": "Keine dauerhaft fehlgeschlagenen Aufgaben.",
+    "failedLoad": "Dauerhaft fehlgeschlagene Aufgaben konnten nicht geladen werden.",
+    "retryCount": "Wiederholungsversuche: {{count}}",
+    "clearFailuresBody": "Datensätze dauerhaft fehlgeschlagener Aufgaben werden ebenfalls entfernt.",
     "clearTitle": "Aufgabenwarteschlange leeren",
     "clearBody": "Wartende Aufgaben, die noch kein Worker aufgegriffen hat, werden entfernt. Bereits laufende Aufgaben bleiben unberührt."
   },

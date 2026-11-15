@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { DirectoryListingDto, SettingsDto, SettingsUpdateDto } from './types'
+import type { DirectoryListingDto, FailedTaskDto, SettingsDto, SettingsUpdateDto } from './types'
 
 export const settingsApi = {
   get: () => api.get<SettingsDto>('/api/v1/settings'),
@@ -12,6 +12,7 @@ export const filesystemApi = {
 }
 
 export const tasksApi = {
-  /** Purges queued tasks (not ones already claimed by a worker); returns how many were removed. */
+  failed: () => api.get<FailedTaskDto[]>('/api/v1/tasks/failed'),
+  /** Purges queued tasks (not ones already claimed by a worker) and permanent failure records. */
   clear: () => api.delete<number>('/api/v1/tasks'),
 }

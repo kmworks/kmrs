@@ -21,13 +21,6 @@ use komga_media::container;
 use komga_media::scanner::Scanner;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
-
-/// Process-level failure/skip memory, matching the `@Service`-scoped mutable lists on the JVM.
-static FAILED_CONVERSIONS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(vec![]));
-static SKIPPED_REPAIRS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(vec![]));
-static FAILED_PAGE_REMOVAL: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(vec![]));
-
 const CBZ_EXTENSION: &str = "cbz";
 const CONVERTIBLE_TYPES: [&str; 2] = [
     "application/x-rar-compressed; version=4",
@@ -158,11 +151,6 @@ pub fn convert_to_cbz(state: &AppState, book: &Book) -> ConvertResult<()> {
         );
         return Ok(());
     }
-    if FAILED_CONVERSIONS.lock().unwrap().contains(&book.id) {
-        tracing::info!("Book conversion already failed before, skipping");
-        return Ok(());
-    }
-
     let book_path = book_path(book);
     let scanner = Scanner::new();
     match scanner.scan_file(&book_path) {
@@ -253,7 +241,6 @@ pub fn convert_to_cbz(state: &AppState, book: &Book) -> ConvertResult<()> {
 
     let conversion_failure = |message: &str| -> ConvertError {
         let _ = std::fs::remove_file(&destination_path);
-        FAILED_CONVERSIONS.lock().unwrap().push(book.id.clone());
         ConvertError::Plain(message.to_string())
     };
     if converted_media.status != MediaStatus::Ready {
@@ -346,11 +333,6 @@ pub fn repair_extension(state: &AppState, book: &Book) -> ConvertResult<()> {
         );
         return Ok(());
     }
-    if SKIPPED_REPAIRS.lock().unwrap().contains(&book.id) {
-        tracing::info!("Extension repair has already been skipped before, skipping");
-        return Ok(());
-    }
-
     let book_path = book_path(book);
     if !book_path.exists() {
         return Err(ConvertError::Plain(format!(
@@ -377,7 +359,6 @@ pub fn repair_extension(state: &AppState, book: &Book) -> ConvertResult<()> {
         .map(|e| e.to_string_lossy().into_owned())
         .unwrap_or_default();
     if actual_extension.eq_ignore_ascii_case("epub") && media_type == TYPE_ZIP {
-        SKIPPED_REPAIRS.lock().unwrap().push(book.id.clone());
         tracing::info!(
             "EPUB file detected as zip should not be repaired, skipping: {}",
             book_path.display()
@@ -396,7 +377,6 @@ pub fn repair_extension(state: &AppState, book: &Book) -> ConvertResult<()> {
             media.media_type.as_deref().unwrap_or(""),
             actual_extension
         );
-        SKIPPED_REPAIRS.lock().unwrap().push(book.id.clone());
         // Kotlin has no early return here: it falls through to the rename, which then fails
         // because the destination is the book itself
     }
@@ -444,11 +424,6 @@ pub fn remove_hashed_pages(
     book: &Book,
     pages_to_delete: &[BookPageNumbered],
 ) -> ConvertResult<Option<BookAction>> {
-    if FAILED_PAGE_REMOVAL.lock().unwrap().contains(&book.id) {
-        tracing::info!("Book page removal already failed before, skipping");
-        return Ok(None);
-    }
-
     let book_path = book_path(book);
     let scanner = Scanner::new();
     match scanner.scan_file(&book_path) {
@@ -459,7 +434,7 @@ pub fn remove_hashed_pages(
                     book.file_last_modified,
                     scanned.file_last_modified
                 );
-                return Ok(None);
+                return Ok(page_removal_action(pages_to_delete));
             }
         }
         None => {
@@ -503,7 +478,8 @@ pub fn remove_hashed_pages(
             "Should be removing {} pages from book, but count doesn't add up, skipping",
             pages_to_delete.len()
         );
-        return Ok(None);
+        // An earlier attempt may have removed page 1 before its thumbnail follow-up was queued.
+        return Ok(page_removal_action(pages_to_delete));
     }
 
     tracing::info!(
@@ -564,7 +540,6 @@ pub fn remove_hashed_pages(
 
     let removal_failure = |message: &str| -> ConvertError {
         let _ = std::fs::remove_file(&temp_file);
-        FAILED_PAGE_REMOVAL.lock().unwrap().push(book.id.clone());
         ConvertError::Plain(message.to_string())
     };
     if created_media.status != MediaStatus::Ready {
@@ -649,11 +624,14 @@ pub fn remove_hashed_pages(
     }
     let _ = state.events.send(DomainEvent::BookUpdated(new_book));
 
-    Ok(if pages_to_delete.iter().any(|p| p.page_number == 1) {
-        Some(BookAction::GenerateThumbnail)
-    } else {
-        None
-    })
+    Ok(page_removal_action(pages_to_delete))
+}
+
+fn page_removal_action(pages_to_delete: &[BookPageNumbered]) -> Option<BookAction> {
+    pages_to_delete
+        .iter()
+        .any(|p| p.page_number == 1)
+        .then_some(BookAction::GenerateThumbnail)
 }
 
 /// `PageHashLifecycle.getBookPagesToDeleteAutomatically`: every page whose hash is known with a
@@ -1061,6 +1039,24 @@ mod tests {
     }
 
     #[test]
+    fn repair_failure_is_not_hidden_on_next_attempt() {
+        let env = setup("repair-retry", false, true);
+        let file = env.series_path.join("v01.cbz");
+        std::fs::copy(fixtures().join("archives/zip.zip"), &file).unwrap();
+        let book = seed_analyzed_book(&env, &file, TYPE_ZIP);
+
+        let first = repair_extension(&env.state, &book).unwrap_err();
+        let second = repair_extension(&env.state, &book).unwrap_err();
+
+        assert!(first
+            .to_string()
+            .contains("Destination file already exists"));
+        assert!(second
+            .to_string()
+            .contains("Destination file already exists"));
+    }
+
+    #[test]
     fn repair_extension_skips_epub_detected_as_zip() {
         let env = setup("repair-epub", false, true);
         let epub = env.series_path.join("book.epub");
@@ -1193,6 +1189,12 @@ mod tests {
         let action =
             remove_hashed_pages(&env.state, &book, std::slice::from_ref(&page_to_delete)).unwrap();
         assert!(matches!(action, Some(BookAction::GenerateThumbnail)));
+        let repeated =
+            remove_hashed_pages(&env.state, &book, std::slice::from_ref(&page_to_delete)).unwrap();
+        assert!(
+            matches!(repeated, Some(BookAction::GenerateThumbnail)),
+            "a retried follow-up must still be able to regenerate the thumbnail"
+        );
     }
 
     #[test]
