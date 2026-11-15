@@ -933,9 +933,10 @@ async fn download_series_as_zip(
         .ok_or_else(|| ApiError::Internal(format!("no metadata for series {series_id}")))?
         .title;
     let db = state.db.clone();
-    let bytes = tokio::task::spawn_blocking(move || build_series_zip(&db, &series_id))
+    let entries = tokio::task::spawn_blocking(move || series_zip_entries(&db, &series_id))
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))??;
+    let body = crate::zip_archive::stream_files(entries);
     Ok((
         [
             (
@@ -947,7 +948,7 @@ async fn download_series_as_zip(
                 content_disposition("attachment", &format!("{title}.zip")),
             ),
         ],
-        bytes,
+        body,
     )
         .into_response())
 }
@@ -999,12 +1000,13 @@ async fn delete_series_file(
     Ok(StatusCode::ACCEPTED)
 }
 
-/// Zip of every book file of the series; missing files are skipped. The byte layout mirrors
-/// Commons Compress (deflate level 0, Zip64 everywhere), buffered in memory like the Kotlin
-/// streaming version buffers per entry.
-fn build_series_zip(db: &Database, series_id: &str) -> Result<Vec<u8>, ApiError> {
+/// Zip of every book file of the series; missing files are skipped.
+fn series_zip_entries(
+    db: &Database,
+    series_id: &str,
+) -> Result<Vec<(String, std::path::PathBuf)>, ApiError> {
     let books = BookDao::new(db.clone()).find_by_series_id(series_id)?;
-    let mut zip = crate::zip_archive::ZipWriter::new(Vec::new());
+    let mut entries = Vec::new();
     for book in books {
         let path = std::path::PathBuf::from(url_to_file_path(&book.url));
         if !path.exists() {
@@ -1018,11 +1020,9 @@ fn build_series_zip(db: &Database, series_id: &str) -> Result<Vec<u8>, ApiError>
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let file = std::fs::File::open(&path).map_err(|e| ApiError::Internal(e.to_string()))?;
-        zip.add_entry(&file_name, file)
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        entries.push((file_name, path));
     }
-    zip.finish().map_err(|e| ApiError::Internal(e.to_string()))
+    Ok(entries)
 }
 
 // endregion

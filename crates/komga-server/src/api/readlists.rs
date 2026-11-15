@@ -11,7 +11,6 @@ use crate::error::{ApiError, Violation};
 use crate::http::headers::content_disposition;
 use crate::http::pagination::{QueryExt, QueryPageable};
 use crate::state::AppState;
-use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::Response;
@@ -347,18 +346,7 @@ async fn download_readlist_as_zip(
         entries.push((format!("{} - {}", index + 1, file_name), path));
     }
 
-    // the whole archive is built in memory: a zip buffer cannot be rewound mid-stream
-    // without much more complexity
-    let mut zip = crate::zip_archive::ZipWriter::new(Vec::new());
-    for (name, path) in &entries {
-        let file = std::fs::File::open(path)
-            .map_err(|e| ApiError::Internal(format!("could not read {}: {e}", path.display())))?;
-        zip.add_entry(name, file)
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
-    }
-    let bytes = zip
-        .finish()
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let body = crate::zip_archive::stream_files(entries);
 
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "application/zip")
@@ -366,7 +354,7 @@ async fn download_readlist_as_zip(
             header::CONTENT_DISPOSITION,
             content_disposition("attachment", &format!("{}.zip", readlist.name)),
         )
-        .body(Body::from(bytes))
+        .body(body)
         .expect("zip response"))
 }
 
@@ -720,6 +708,7 @@ mod tests {
     use crate::api::collections::tests::{
         call, exec, get, insert_user, seed_base, test_state, tiny_jpeg, ADMIN_KEY, USER_KEY,
     };
+    use axum::body::Body;
     use axum::http::Request;
     use komga_core::model::user::ContentRestrictions;
 
