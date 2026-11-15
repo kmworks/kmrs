@@ -22,10 +22,11 @@ use komga_db::dao::readlist::ReadListDao;
 use komga_db::dao::series::{SeriesDao, SeriesMetadataDao};
 use komga_db::dao::sidecar::SidecarDao;
 use komga_db::dao::thumbnail::{ThumbnailBookDao, ThumbnailSeriesDao};
+use komga_db::pool::{commit_batch, write_transaction, WRITE_BATCH_SIZE};
 use komga_db::Result;
 use komga_media::hash::compute_hash;
 use komga_media::scanner::{path_to_url, ScanError, ScanOptions, Scanner};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
@@ -232,16 +233,19 @@ pub fn scan_root_folder(
     if !gone_books.is_empty() {
         tracing::info!("Soft deleting books not on disk anymore: {gone_books:?}");
         crate::service::book::soft_delete_many(state, &gone_books)?;
-        for book in &gone_books {
-            insert_history(
-                state,
-                HistoricalEventType::BookTrashed,
-                Some(&book.id),
-                Some(&book.series_id),
-                "File is no longer on disk",
-                &book_path(book),
-            )?;
-        }
+        let events: Vec<HistoricalEvent> = gone_books
+            .iter()
+            .map(|book| {
+                historical_event(
+                    HistoricalEventType::BookTrashed,
+                    Some(&book.id),
+                    Some(&book.series_id),
+                    "File is no longer on disk",
+                    &book_path(book),
+                )
+            })
+            .collect();
+        HistoricalEventDao::new(state.db.clone()).insert_many(&events)?;
         let mut seen = BTreeSet::new();
         for book in &gone_books {
             if seen.insert(book.series_id.clone()) {
@@ -288,6 +292,9 @@ pub fn scan_root_folder(
                 }
                 if scan_deep || series_changed {
                     let existing_books = book_dao.find_by_series_id(&existing_series.id)?;
+                    let mut books_to_update = vec![];
+                    let mut media_to_update = BTreeMap::new();
+                    let media_dao = MediaDao::new(state.db.clone());
                     for new_book in new_books {
                         let Some(existing_book) = existing_books
                             .iter()
@@ -312,24 +319,26 @@ pub fn scan_root_folder(
                             tracing::info!(
                                 "Book changed on disk, but still has the same hash, no need to reset media status: {existing_book:?}"
                             );
-                            book_dao.update(&Book {
+                            books_to_update.push(Book {
                                 file_last_modified: new_book.file_last_modified,
                                 file_size: new_book.file_size,
                                 file_hash: hash.expect("checked above"),
                                 ..existing_book.clone()
-                            })?;
+                            });
                         } else {
                             tracing::info!(
                                 "Book changed on disk, update and reset media status: {existing_book:?}"
                             );
-                            let media_dao = MediaDao::new(state.db.clone());
                             if let Some(media) = media_dao.find_by_id(&existing_book.id)? {
-                                media_dao.update(&Media {
-                                    status: MediaStatus::Outdated,
-                                    ..media
-                                })?;
+                                media_to_update.insert(
+                                    existing_book.id.clone(),
+                                    Media {
+                                        status: MediaStatus::Outdated,
+                                        ..media
+                                    },
+                                );
                             }
-                            book_dao.update(&Book {
+                            books_to_update.push(Book {
                                 file_last_modified: new_book.file_last_modified,
                                 file_size: new_book.file_size,
                                 file_hash: hash.unwrap_or_default(),
@@ -338,7 +347,20 @@ pub fn scan_root_folder(
                                 // via the empty-hash scan task
                                 file_hash_koreader: String::new(),
                                 ..existing_book.clone()
-                            })?;
+                            });
+                        }
+                    }
+                    {
+                        let mut conn = state.db.rw()?;
+                        for chunk in books_to_update.chunks(WRITE_BATCH_SIZE) {
+                            let tx = write_transaction(&mut conn)?;
+                            for book in chunk {
+                                if let Some(media) = media_to_update.get(&book.id) {
+                                    media_dao.update_on(&tx, media)?;
+                                }
+                                book_dao.update_on(&tx, book)?;
+                            }
+                            commit_batch(tx)?;
                         }
                     }
 
@@ -381,6 +403,7 @@ pub fn scan_root_folder(
     // sidecars: refresh the owning entity when a sidecar appears or changes
     let sidecar_dao = SidecarDao::new(state.db.clone());
     let existing_sidecars = sidecar_dao.find_all()?;
+    let mut changed_sidecars = vec![];
     for new_sidecar in &scan_result.sidecars {
         let changed = match existing_sidecars.iter().find(|s| s.url == new_sidecar.url) {
             Some(existing) => {
@@ -425,13 +448,14 @@ pub fn scan_root_folder(
                 }
             }
         }
-        sidecar_dao.save(&SidecarStored {
+        changed_sidecars.push(SidecarStored {
             url: new_sidecar.url.clone(),
             parent_url: new_sidecar.parent_url.clone(),
             last_modified_time: new_sidecar.last_modified_time,
             library_id: library.id.clone(),
-        })?;
+        });
     }
+    sidecar_dao.save_many(&changed_sidecars)?;
 
     // cleanup sidecars that don't exist anymore
     let new_urls: BTreeSet<&str> = scan_result
@@ -596,26 +620,25 @@ pub fn empty_trash(state: &AppState, library: &Library, reason: &str) -> Result<
     let series_refs: Vec<&Series> = series_to_delete.iter().collect();
     let cascaded_books = books_of_series(state, &series_refs)?;
     crate::service::series::delete_many(state, &series_to_delete)?;
+    let mut purge_events = vec![];
     // every book of a purged series is destroyed with it, trashed already or not
     for book in &cascaded_books {
-        insert_history(
-            state,
+        purge_events.push(historical_event(
             HistoricalEventType::BookPurged,
             Some(&book.id),
             Some(&book.series_id),
             reason,
             &book_path(book),
-        )?;
+        ));
     }
     for series in &series_to_delete {
-        insert_history(
-            state,
+        purge_events.push(historical_event(
             HistoricalEventType::SeriesPurged,
             None,
             Some(&series.id),
             reason,
             &series_path(series),
-        )?;
+        ));
     }
 
     let books_to_delete = BookDao::new(state.db.clone()).find_all_by_condition(
@@ -636,15 +659,15 @@ pub fn empty_trash(state: &AppState, library: &Library, reason: &str) -> Result<
     )?;
     crate::service::book::delete_many(state, &books_to_delete)?;
     for book in &books_to_delete {
-        insert_history(
-            state,
+        purge_events.push(historical_event(
             HistoricalEventType::BookPurged,
             Some(&book.id),
             Some(&book.series_id),
             reason,
             &book_path(book),
-        )?;
+        ));
     }
+    HistoricalEventDao::new(state.db.clone()).insert_many(&purge_events)?;
     let series_dao = SeriesDao::new(state.db.clone());
     let mut seen = BTreeSet::new();
     for book in &books_to_delete {
@@ -971,15 +994,14 @@ fn series_path(series: &Series) -> PathBuf {
 /// Local twin of the helpers in book.rs/convert.rs/import.rs: scan deletions and trash purges are
 /// recorded here, not inside `soft_delete_many`/`delete_many` — those also serve moves, restores,
 /// and library deletion, where a "trashed/purged" event would misreport what happened.
-fn insert_history(
-    state: &AppState,
+fn historical_event(
     type_: HistoricalEventType,
     book_id: Option<&str>,
     series_id: Option<&str>,
     reason: &str,
     name: &Path,
-) -> Result<()> {
-    HistoricalEventDao::new(state.db.clone()).insert(&HistoricalEvent {
+) -> HistoricalEvent {
+    HistoricalEvent {
         id: String::new(),
         type_,
         book_id: book_id.map(str::to_string),
@@ -991,8 +1013,7 @@ fn insert_history(
         .into_iter()
         .collect(),
         timestamp: time_codec::now_utc(),
-    })?;
-    Ok(())
+    }
 }
 
 fn books_of_series(state: &AppState, series: &[&Series]) -> Result<Vec<Book>> {
@@ -1012,26 +1033,26 @@ fn insert_series_trashed_events(
     series: &[&Series],
     books: &[Book],
 ) -> Result<()> {
+    let mut events = vec![];
     for book in books.iter().filter(|b| b.deleted_date.is_none()) {
-        insert_history(
-            state,
+        events.push(historical_event(
             HistoricalEventType::BookTrashed,
             Some(&book.id),
             Some(&book.series_id),
             "File is no longer on disk",
             &book_path(book),
-        )?;
+        ));
     }
     for s in series {
-        insert_history(
-            state,
+        events.push(historical_event(
             HistoricalEventType::SeriesTrashed,
             None,
             Some(&s.id),
             "Folder is no longer on disk",
             &series_path(s),
-        )?;
+        ));
     }
+    HistoricalEventDao::new(state.db.clone()).insert_many(&events)?;
     Ok(())
 }
 

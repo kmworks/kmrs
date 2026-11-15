@@ -2,7 +2,7 @@
 
 use super::get_datetime;
 use crate::error::Result;
-use crate::pool::Database;
+use crate::pool::{commit_batch, write_transaction, Database, WRITE_BATCH_SIZE};
 use komga_core::model::sidecar::SidecarStored;
 use komga_core::time_codec;
 use rusqlite::{params, Row};
@@ -39,6 +39,10 @@ impl SidecarDao {
     /// Upsert by URL (corresponds to jOOQ `onDuplicateKeyUpdate`).
     pub fn save(&self, sidecar: &SidecarStored) -> Result<()> {
         let conn = self.db.rw()?;
+        self.save_on(&conn, sidecar)
+    }
+
+    fn save_on(&self, conn: &rusqlite::Connection, sidecar: &SidecarStored) -> Result<()> {
         conn.execute(
             &format!(
                 "INSERT INTO SIDECAR ({COLUMNS}) VALUES (?,?,?,?) \
@@ -55,19 +59,34 @@ impl SidecarDao {
         Ok(())
     }
 
+    pub fn save_many(&self, sidecars: &[SidecarStored]) -> Result<()> {
+        let mut conn = self.db.rw()?;
+        for chunk in sidecars.chunks(WRITE_BATCH_SIZE) {
+            let tx = write_transaction(&mut conn)?;
+            for sidecar in chunk {
+                self.save_on(&tx, sidecar)?;
+            }
+            commit_batch(tx)?;
+        }
+        Ok(())
+    }
+
     pub fn delete_by_library_id_and_urls(&self, library_id: &str, urls: &[String]) -> Result<()> {
         if urls.is_empty() {
             return Ok(());
         }
         let mut conn = self.db.rw()?;
-        let tx = conn.transaction()?;
-        {
-            let mut stmt = tx.prepare("DELETE FROM SIDECAR WHERE LIBRARY_ID = ? AND URL = ?")?;
-            for url in urls {
-                stmt.execute(params![library_id, url])?;
+        for chunk in urls.chunks(WRITE_BATCH_SIZE) {
+            let tx = write_transaction(&mut conn)?;
+            {
+                let mut stmt =
+                    tx.prepare("DELETE FROM SIDECAR WHERE LIBRARY_ID = ? AND URL = ?")?;
+                for url in chunk {
+                    stmt.execute(params![library_id, url])?;
+                }
             }
+            commit_batch(tx)?;
         }
-        tx.commit()?;
         Ok(())
     }
 

@@ -36,6 +36,24 @@ use std::time::Duration;
 pub type Pool = r2d2::Pool<SqliteConnectionManager>;
 pub type PooledConn = r2d2::PooledConnection<SqliteConnectionManager>;
 
+/// Maximum number of entities in one background write transaction. Committing
+/// bounded batches keeps a large scan from monopolizing SQLite's single writer.
+pub const WRITE_BATCH_SIZE: usize = 100;
+
+/// Acquires the writer once for a service-level batch instead of once per DAO call.
+pub fn write_transaction(
+    conn: &mut rusqlite::Connection,
+) -> crate::Result<rusqlite::Transaction<'_>> {
+    Ok(conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?)
+}
+
+/// Releases the writer between batches and yields so waiting API writers can be scheduled.
+pub fn commit_batch(tx: rusqlite::Transaction<'_>) -> crate::Result<()> {
+    tx.commit()?;
+    std::thread::yield_now();
+    Ok(())
+}
+
 /// Per-`Database` page-cache budget split between its connections.
 const CACHE_BUDGET_KIB: u32 = 16 * 1024;
 /// Clamp range for one connection's share: the floor keeps B-tree interior pages

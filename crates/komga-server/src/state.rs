@@ -37,6 +37,17 @@ pub struct AppState {
     pub latest_update: crate::service::update_check::LatestUpdate,
 }
 
+#[cfg(test)]
+pub(crate) fn commit_counter(db: &Database) -> Arc<std::sync::atomic::AtomicUsize> {
+    let commits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let observed = commits.clone();
+    db.rw().unwrap().commit_hook(Some(move || {
+        observed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        false
+    }));
+    commits
+}
+
 /// A throwaway tantivy index for tests (one fresh directory per call).
 #[cfg(test)]
 pub(crate) fn test_search_index() -> Arc<komga_search::SearchIndex> {

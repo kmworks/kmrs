@@ -121,6 +121,10 @@ impl SeriesDao {
     /// Audit columns and BOOK_COUNT fall back to DB defaults, matching the jOOQ insert behavior.
     pub fn insert(&self, series: &Series) -> Result<String> {
         let conn = self.db.rw()?;
+        self.insert_on(&conn, series)
+    }
+
+    pub fn insert_on(&self, conn: &rusqlite::Connection, series: &Series) -> Result<String> {
         let id = if series.id.is_empty() {
             self.tsid.create_string()
         } else {
@@ -144,6 +148,15 @@ impl SeriesDao {
 
     pub fn update(&self, series: &Series, update_modified_time: bool) -> Result<()> {
         let conn = self.db.rw()?;
+        self.update_on(&conn, series, update_modified_time)
+    }
+
+    pub fn update_on(
+        &self,
+        conn: &rusqlite::Connection,
+        series: &Series,
+        update_modified_time: bool,
+    ) -> Result<()> {
         let mut sql =
             "UPDATE SERIES SET NAME = ?, URL = ?, FILE_LAST_MODIFIED = ?, LIBRARY_ID = ?, \
                    BOOK_COUNT = ?, DELETED_DATE = ?, ONESHOT = ?"
@@ -378,7 +391,13 @@ impl SeriesMetadataDao {
     pub fn insert(&self, metadata: &SeriesMetadata) -> Result<()> {
         let mut conn = self.db.rw()?;
         let tx = conn.transaction()?;
-        tx.execute(
+        self.insert_on(&tx, metadata)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn insert_on(&self, conn: &rusqlite::Connection, metadata: &SeriesMetadata) -> Result<()> {
+        conn.execute(
       "INSERT INTO SERIES_METADATA (SERIES_ID, STATUS, STATUS_LOCK, TITLE, TITLE_LOCK, TITLE_SORT, TITLE_SORT_LOCK, \
        SUMMARY, SUMMARY_LOCK, READING_DIRECTION, READING_DIRECTION_LOCK, PUBLISHER, PUBLISHER_LOCK, \
        AGE_RATING, AGE_RATING_LOCK, LANGUAGE, LANGUAGE_LOCK, GENRES_LOCK, TAGS_LOCK, \
@@ -386,8 +405,7 @@ impl SeriesMetadataDao {
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       rusqlite::params_from_iter(metadata_params(metadata)),
     )?;
-        self.replace_children(&tx, metadata)?;
-        tx.commit()?;
+        self.replace_children(conn, metadata)?;
         Ok(())
     }
 
@@ -607,7 +625,17 @@ impl BookMetadataAggregationDao {
     pub fn insert(&self, metadata: &BookMetadataAggregation) -> Result<()> {
         let mut conn = self.db.rw()?;
         let tx = conn.transaction()?;
-        tx.execute(
+        self.insert_on(&tx, metadata)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn insert_on(
+        &self,
+        conn: &rusqlite::Connection,
+        metadata: &BookMetadataAggregation,
+    ) -> Result<()> {
+        conn.execute(
       "INSERT INTO BOOK_METADATA_AGGREGATION (SERIES_ID, RELEASE_DATE, SUMMARY, SUMMARY_NUMBER) \
        VALUES (?, ?, ?, ?)",
       params![
@@ -617,8 +645,7 @@ impl BookMetadataAggregationDao {
         metadata.summary_number,
       ],
     )?;
-        self.replace_children(&tx, metadata)?;
-        tx.commit()?;
+        self.replace_children(conn, metadata)?;
         Ok(())
     }
 

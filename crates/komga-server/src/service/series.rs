@@ -24,6 +24,7 @@ use komga_db::dao::media::MediaDao;
 use komga_db::dao::read_progress::ReadProgressDao;
 use komga_db::dao::series::{BookMetadataAggregationDao, SeriesDao, SeriesMetadataDao};
 use komga_db::dao::thumbnail::ThumbnailSeriesDao;
+use komga_db::pool::{commit_batch, write_transaction, WRITE_BATCH_SIZE};
 use komga_db::Result;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -53,34 +54,41 @@ pub fn sort_books(state: &AppState, series: &Series) -> Result<()> {
         )
     });
 
-    for (index, (book, _)) in sorted.iter().enumerate() {
-        book_dao.update(&Book {
-            number: index as i32 + 1,
-            ..book.clone()
-        })?;
-    }
-
     let mut renumbered: Vec<(Book, BookMetadata, BookMetadata)> = vec![];
-    for (index, (book, metadata)) in sorted.into_iter().enumerate() {
-        if metadata.number_lock && metadata.number_sort_lock {
-            continue;
+    let mut conn = state.db.rw()?;
+    for (chunk_index, chunk) in sorted.chunks(WRITE_BATCH_SIZE).enumerate() {
+        let tx = write_transaction(&mut conn)?;
+        for (chunk_offset, (book, metadata)) in chunk.iter().enumerate() {
+            let index = chunk_index * WRITE_BATCH_SIZE + chunk_offset;
+            book_dao.update_on(
+                &tx,
+                &Book {
+                    number: index as i32 + 1,
+                    ..book.clone()
+                },
+            )?;
+            if metadata.number_lock && metadata.number_sort_lock {
+                continue;
+            }
+            let updated = BookMetadata {
+                number: if metadata.number_lock {
+                    metadata.number.clone()
+                } else {
+                    (index + 1).to_string()
+                },
+                number_sort: if metadata.number_sort_lock {
+                    metadata.number_sort
+                } else {
+                    index as f32 + 1.0
+                },
+                ..metadata.clone()
+            };
+            metadata_dao.update_on(&tx, &updated)?;
+            renumbered.push((book.clone(), metadata.clone(), updated));
         }
-        let updated = BookMetadata {
-            number: if metadata.number_lock {
-                metadata.number.clone()
-            } else {
-                (index + 1).to_string()
-            },
-            number_sort: if metadata.number_sort_lock {
-                metadata.number_sort
-            } else {
-                index as f32 + 1.0
-            },
-            ..metadata.clone()
-        };
-        metadata_dao.update(&updated)?;
-        renumbered.push((book, metadata, updated));
+        commit_batch(tx)?;
     }
+    drop(conn);
 
     // refresh metadata to reimport the book number, else the series resorting would overwrite it
     for (book, old, new) in &renumbered {
@@ -131,52 +139,65 @@ pub fn add_books(state: &AppState, series: &Series, books_to_add: &[Book]) -> Re
     let media_dao = MediaDao::new(state.db.clone());
     let metadata_dao = BookMetadataDao::new(state.db.clone());
     let mut inserted = vec![];
-    for book in &to_add {
-        let id = book_dao.insert(book)?;
-        inserted.push(Book { id, ..book.clone() });
+    let mut conn = state.db.rw()?;
+    for chunk in to_add.chunks(WRITE_BATCH_SIZE) {
+        let tx = write_transaction(&mut conn)?;
+        let chunk_start = inserted.len();
+        for book in chunk {
+            let id = book_dao.insert_on(&tx, book)?;
+            inserted.push(Book { id, ..book.clone() });
+        }
+        for book in &inserted[chunk_start..] {
+            media_dao.insert_on(
+                &tx,
+                &Media {
+                    book_id: book.id.clone(),
+                    status: MediaStatus::Unknown,
+                    media_type: None,
+                    comment: None,
+                    page_count: 0,
+                    pages: vec![],
+                    files: vec![],
+                    extension_class: None,
+                    extension_value: None,
+                    epub_divina_compatible: false,
+                    epub_is_kepub: false,
+                    created_date: time_codec::now_utc(),
+                    last_modified_date: time_codec::now_utc(),
+                },
+            )?;
+            metadata_dao.insert_on(
+                &tx,
+                &BookMetadata {
+                    book_id: book.id.clone(),
+                    title: book.name.trim().to_string(),
+                    summary: String::new(),
+                    number: book.number.to_string(),
+                    number_sort: book.number as f32,
+                    release_date: None,
+                    authors: vec![],
+                    notable_entities: vec![],
+                    tags: vec![],
+                    isbn: String::new(),
+                    links: vec![],
+                    title_lock: false,
+                    summary_lock: false,
+                    number_lock: false,
+                    number_sort_lock: false,
+                    release_date_lock: false,
+                    authors_lock: false,
+                    notable_entities_lock: false,
+                    tags_lock: false,
+                    isbn_lock: false,
+                    links_lock: false,
+                    created_date: time_codec::now_utc(),
+                    last_modified_date: time_codec::now_utc(),
+                },
+            )?;
+        }
+        commit_batch(tx)?;
     }
-    for book in &inserted {
-        media_dao.insert(&Media {
-            book_id: book.id.clone(),
-            status: MediaStatus::Unknown,
-            media_type: None,
-            comment: None,
-            page_count: 0,
-            pages: vec![],
-            files: vec![],
-            extension_class: None,
-            extension_value: None,
-            epub_divina_compatible: false,
-            epub_is_kepub: false,
-            created_date: time_codec::now_utc(),
-            last_modified_date: time_codec::now_utc(),
-        })?;
-        metadata_dao.insert(&BookMetadata {
-            book_id: book.id.clone(),
-            title: book.name.trim().to_string(),
-            summary: String::new(),
-            number: book.number.to_string(),
-            number_sort: book.number as f32,
-            release_date: None,
-            authors: vec![],
-            notable_entities: vec![],
-            tags: vec![],
-            isbn: String::new(),
-            links: vec![],
-            title_lock: false,
-            summary_lock: false,
-            number_lock: false,
-            number_sort_lock: false,
-            release_date_lock: false,
-            authors_lock: false,
-            notable_entities_lock: false,
-            tags_lock: false,
-            isbn_lock: false,
-            links_lock: false,
-            created_date: time_codec::now_utc(),
-            last_modified_date: time_codec::now_utc(),
-        })?;
-    }
+    drop(conn);
 
     for book in &inserted {
         let _ = state.events.send(DomainEvent::BookAdded(book.clone()));
@@ -186,56 +207,66 @@ pub fn add_books(state: &AppState, series: &Series, books_to_add: &[Book]) -> Re
 
 pub fn create_series(state: &AppState, series: &Series) -> Result<Series> {
     let series_dao = SeriesDao::new(state.db.clone());
-    let id = series_dao.insert(series)?;
+    let mut conn = state.db.rw()?;
+    let tx = write_transaction(&mut conn)?;
+    let id = series_dao.insert_on(&tx, series)?;
     let created_series = Series {
         id,
         ..series.clone()
     };
 
-    SeriesMetadataDao::new(state.db.clone()).insert(&SeriesMetadata {
-        series_id: created_series.id.clone(),
-        status: SeriesStatus::Ongoing,
-        title: series.name.trim().to_string(),
-        title_sort: series.name.trim().to_string(),
-        summary: String::new(),
-        reading_direction: None,
-        publisher: String::new(),
-        age_rating: None,
-        language: String::new(),
-        genres: BTreeSet::new(),
-        tags: BTreeSet::new(),
-        total_book_count: None,
-        sharing_labels: BTreeSet::new(),
-        links: vec![],
-        alternate_titles: vec![],
-        status_lock: false,
-        title_lock: false,
-        title_sort_lock: false,
-        summary_lock: false,
-        reading_direction_lock: false,
-        publisher_lock: false,
-        age_rating_lock: false,
-        language_lock: false,
-        genres_lock: false,
-        tags_lock: false,
-        total_book_count_lock: false,
-        sharing_labels_lock: false,
-        links_lock: false,
-        alternate_titles_lock: false,
-        created_date: time_codec::now_utc(),
-        last_modified_date: time_codec::now_utc(),
-    })?;
-    BookMetadataAggregationDao::new(state.db.clone()).insert(&BookMetadataAggregation {
-        series_id: created_series.id.clone(),
-        authors: vec![],
-        notable_entities: vec![],
-        tags: BTreeSet::new(),
-        release_date: None,
-        summary: String::new(),
-        summary_number: String::new(),
-        created_date: time_codec::now_utc(),
-        last_modified_date: time_codec::now_utc(),
-    })?;
+    SeriesMetadataDao::new(state.db.clone()).insert_on(
+        &tx,
+        &SeriesMetadata {
+            series_id: created_series.id.clone(),
+            status: SeriesStatus::Ongoing,
+            title: series.name.trim().to_string(),
+            title_sort: series.name.trim().to_string(),
+            summary: String::new(),
+            reading_direction: None,
+            publisher: String::new(),
+            age_rating: None,
+            language: String::new(),
+            genres: BTreeSet::new(),
+            tags: BTreeSet::new(),
+            total_book_count: None,
+            sharing_labels: BTreeSet::new(),
+            links: vec![],
+            alternate_titles: vec![],
+            status_lock: false,
+            title_lock: false,
+            title_sort_lock: false,
+            summary_lock: false,
+            reading_direction_lock: false,
+            publisher_lock: false,
+            age_rating_lock: false,
+            language_lock: false,
+            genres_lock: false,
+            tags_lock: false,
+            total_book_count_lock: false,
+            sharing_labels_lock: false,
+            links_lock: false,
+            alternate_titles_lock: false,
+            created_date: time_codec::now_utc(),
+            last_modified_date: time_codec::now_utc(),
+        },
+    )?;
+    BookMetadataAggregationDao::new(state.db.clone()).insert_on(
+        &tx,
+        &BookMetadataAggregation {
+            series_id: created_series.id.clone(),
+            authors: vec![],
+            notable_entities: vec![],
+            tags: BTreeSet::new(),
+            release_date: None,
+            summary: String::new(),
+            summary_number: String::new(),
+            created_date: time_codec::now_utc(),
+            last_modified_date: time_codec::now_utc(),
+        },
+    )?;
+    commit_batch(tx)?;
+    drop(conn);
 
     let _ = state
         .events
@@ -256,15 +287,22 @@ pub fn soft_delete_many(state: &AppState, series: &[Series]) -> Result<()> {
     crate::service::book::soft_delete_many(state, &books)?;
 
     let series_dao = SeriesDao::new(state.db.clone());
-    for s in series {
-        series_dao.update(
-            &Series {
-                deleted_date: s.deleted_date.or(Some(deleted_date)),
-                ..s.clone()
-            },
-            true,
-        )?;
+    let mut conn = state.db.rw()?;
+    for chunk in series.chunks(WRITE_BATCH_SIZE) {
+        let tx = write_transaction(&mut conn)?;
+        for s in chunk {
+            series_dao.update_on(
+                &tx,
+                &Series {
+                    deleted_date: s.deleted_date.or(Some(deleted_date)),
+                    ..s.clone()
+                },
+                true,
+            )?;
+        }
+        commit_batch(tx)?;
     }
+    drop(conn);
 
     for s in series {
         let _ = state.events.send(DomainEvent::SeriesUpdated(s.clone()));
@@ -826,9 +864,11 @@ pub(crate) mod tests {
         let state = test_state();
         seed_library(&state.db, "lib1");
         let mut rx = state.events.subscribe();
+        let commits = crate::state::commit_counter(&state.db);
 
         let created = create_series(&state, &sample_series("lib1", "Berserk")).unwrap();
         assert_eq!(created.id.len(), 13);
+        assert_eq!(commits.load(std::sync::atomic::Ordering::Relaxed), 1);
 
         let metadata = SeriesMetadataDao::new(state.db.clone())
             .find_by_id(&created.id)
@@ -875,6 +915,22 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn add_books_commits_once_per_batch() {
+        let state = test_state();
+        seed_library(&state.db, "lib1");
+        let series = create_series(&state, &sample_series("lib1", "S")).unwrap();
+        let commits = crate::state::commit_counter(&state.db);
+
+        let books: Vec<Book> = (1..=101)
+            .map(|number| sample_book(&series.id, "lib1", &format!("v{number:03}")))
+            .collect();
+        let inserted = add_books(&state, &series, &books).unwrap();
+
+        assert_eq!(inserted.len(), 101);
+        assert_eq!(commits.load(std::sync::atomic::Ordering::Relaxed), 2);
+    }
+
+    #[test]
     fn sort_books_natural_order_and_locks() {
         let state = test_state();
         seed_library(&state.db, "lib1");
@@ -895,8 +951,11 @@ pub(crate) mod tests {
         BookMetadataDao::new(state.db.clone())
             .update(&locked)
             .unwrap();
+        let commits = crate::state::commit_counter(&state.db);
 
         sort_books(&state, &series).unwrap();
+        // one batch for book + metadata updates, then the series book count
+        assert_eq!(commits.load(std::sync::atomic::Ordering::Relaxed), 2);
 
         let books = BookDao::new(state.db.clone())
             .find_by_series_id(&series.id)

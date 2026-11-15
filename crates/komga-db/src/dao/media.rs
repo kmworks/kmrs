@@ -107,13 +107,18 @@ impl MediaDao {
     pub fn insert(&self, media: &Media) -> Result<()> {
         let mut conn = self.db.rw()?;
         let tx = conn.transaction()?;
-        tx.execute(
+        self.insert_on(&tx, media)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn insert_on(&self, conn: &rusqlite::Connection, media: &Media) -> Result<()> {
+        conn.execute(
             &format!("INSERT INTO MEDIA ({MEDIA_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)"),
             rusqlite::params_from_iter(media_params(media)),
         )?;
-        insert_pages(&tx, &media.book_id, &media.pages)?;
-        insert_files(&tx, &media.book_id, &media.files)?;
-        tx.commit()?;
+        insert_pages(conn, &media.book_id, &media.pages)?;
+        insert_files(conn, &media.book_id, &media.files)?;
         Ok(())
     }
 
@@ -122,6 +127,13 @@ impl MediaDao {
     /// re-inserted.
     pub fn update(&self, media: &Media) -> Result<()> {
         let mut conn = self.db.rw()?;
+        let tx = conn.transaction()?;
+        self.update_on(&tx, media)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn update_on(&self, conn: &rusqlite::Connection, media: &Media) -> Result<()> {
         let mut values = media_params(media);
         values.truncate(values.len() - 2); // drop CREATED_DATE/LAST_MODIFIED_DATE
         values.remove(0); // drop BOOK_ID
@@ -134,16 +146,14 @@ impl MediaDao {
             .map(|c| format!("{c} = ?"))
             .collect::<Vec<_>>()
             .join(", ");
-        let tx = conn.transaction()?;
-        tx.execute(
+        conn.execute(
             &format!("UPDATE MEDIA SET {sets}, LAST_MODIFIED_DATE = ? WHERE BOOK_ID = ?"),
             rusqlite::params_from_iter(values),
         )?;
-        tx.execute("DELETE FROM MEDIA_PAGE WHERE BOOK_ID = ?", [&media.book_id])?;
-        tx.execute("DELETE FROM MEDIA_FILE WHERE BOOK_ID = ?", [&media.book_id])?;
-        insert_pages(&tx, &media.book_id, &media.pages)?;
-        insert_files(&tx, &media.book_id, &media.files)?;
-        tx.commit()?;
+        conn.execute("DELETE FROM MEDIA_PAGE WHERE BOOK_ID = ?", [&media.book_id])?;
+        conn.execute("DELETE FROM MEDIA_FILE WHERE BOOK_ID = ?", [&media.book_id])?;
+        insert_pages(conn, &media.book_id, &media.pages)?;
+        insert_files(conn, &media.book_id, &media.files)?;
         Ok(())
     }
 
@@ -161,10 +171,22 @@ impl MediaDao {
     pub fn delete(&self, book_id: &str) -> Result<()> {
         let mut conn = self.db.rw()?;
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM MEDIA_PAGE WHERE BOOK_ID = ?", [book_id])?;
-        tx.execute("DELETE FROM MEDIA_FILE WHERE BOOK_ID = ?", [book_id])?;
-        tx.execute("DELETE FROM MEDIA WHERE BOOK_ID = ?", [book_id])?;
+        self.delete_on(&tx, book_id)?;
         tx.commit()?;
+        Ok(())
+    }
+
+    fn delete_on(&self, conn: &rusqlite::Connection, book_id: &str) -> Result<()> {
+        conn.execute("DELETE FROM MEDIA_PAGE WHERE BOOK_ID = ?", [book_id])?;
+        conn.execute("DELETE FROM MEDIA_FILE WHERE BOOK_ID = ?", [book_id])?;
+        conn.execute("DELETE FROM MEDIA WHERE BOOK_ID = ?", [book_id])?;
+        Ok(())
+    }
+
+    pub fn delete_many_on(&self, conn: &rusqlite::Connection, book_ids: &[String]) -> Result<()> {
+        for book_id in book_ids {
+            self.delete_on(conn, book_id)?;
+        }
         Ok(())
     }
 }

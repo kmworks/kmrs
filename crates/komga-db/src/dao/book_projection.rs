@@ -32,7 +32,12 @@ impl BookProjectionDao {
     /// and LAST_MODIFIED_DATE. komga 1.28.1 keeps the first stored size here (its upsert sets
     /// the column to itself), which serves a stale kepub size to Kobo after a file change.
     pub fn save(&self, projection: &BookProjection) -> Result<()> {
-        self.db.rw()?.execute(
+        let conn = self.db.rw()?;
+        self.save_on(&conn, projection)
+    }
+
+    pub fn save_on(&self, conn: &rusqlite::Connection, projection: &BookProjection) -> Result<()> {
+        conn.execute(
             "INSERT INTO BOOK_PROJECTION (BOOK_ID, PROFILE, FILE_SIZE) VALUES (?,?,?) \
              ON CONFLICT(BOOK_ID, PROFILE) DO UPDATE SET FILE_SIZE = excluded.FILE_SIZE, LAST_MODIFIED_DATE = ?",
             params![
@@ -76,14 +81,23 @@ impl BookProjectionDao {
     pub fn delete_by_book_ids(&self, book_ids: &[String]) -> Result<()> {
         let mut conn = self.db.rw()?;
         let tx = conn.transaction()?;
+        self.delete_by_book_ids_on(&tx, book_ids)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn delete_by_book_ids_on(
+        &self,
+        conn: &rusqlite::Connection,
+        book_ids: &[String],
+    ) -> Result<()> {
         for chunk in book_ids.chunks(500) {
             let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
-            tx.execute(
+            conn.execute(
                 &format!("DELETE FROM BOOK_PROJECTION WHERE BOOK_ID IN ({placeholders})"),
                 rusqlite::params_from_iter(chunk.iter()),
             )?;
         }
-        tx.commit()?;
         Ok(())
     }
 }

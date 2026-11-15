@@ -2,7 +2,7 @@
 
 use super::{get_date, get_datetime, get_datetime_opt};
 use crate::error::Result;
-use crate::pool::Database;
+use crate::pool::{commit_batch, write_transaction, Database, WRITE_BATCH_SIZE};
 use komga_core::model::book::{Author, Book, BookMetadata, NotableEntity, WebLink};
 use komga_core::time_codec;
 use komga_core::tsid::TsidFactory;
@@ -309,6 +309,10 @@ impl BookDao {
     /// Returns (id, created_date); generates a TSID when id is empty.
     pub fn insert(&self, book: &Book) -> Result<String> {
         let conn = self.db.rw()?;
+        self.insert_on(&conn, book)
+    }
+
+    pub fn insert_on(&self, conn: &rusqlite::Connection, book: &Book) -> Result<String> {
         let id = if book.id.is_empty() {
             self.tsid.create_string()
         } else {
@@ -325,6 +329,10 @@ impl BookDao {
     /// ID/CREATED_DATE, setting LAST_MODIFIED_DATE to the current time (UTC).
     pub fn update(&self, book: &Book) -> Result<()> {
         let conn = self.db.rw()?;
+        self.update_on(&conn, book)
+    }
+
+    pub fn update_on(&self, conn: &rusqlite::Connection, book: &Book) -> Result<()> {
         let mut values = book_params(&book.id, book);
         values.truncate(values.len() - 2); // drop CREATED_DATE/LAST_MODIFIED_DATE
         values.remove(0); // drop ID (not in SET; bound separately in WHERE)
@@ -344,11 +352,31 @@ impl BookDao {
         Ok(())
     }
 
+    pub fn update_many(&self, books: &[Book]) -> Result<()> {
+        let mut conn = self.db.rw()?;
+        for chunk in books.chunks(WRITE_BATCH_SIZE) {
+            let tx = write_transaction(&mut conn)?;
+            for book in chunk {
+                self.update_on(&tx, book)?;
+            }
+            commit_batch(tx)?;
+        }
+        Ok(())
+    }
+
     /// Deletes only the BOOK row; cascading of metadata/media/thumbnail is the
     /// responsibility of the upper-layer lifecycle (same as komga).
     pub fn delete(&self, id: &str) -> Result<()> {
         let conn = self.db.rw()?;
         conn.execute("DELETE FROM BOOK WHERE ID = ?", [id])?;
+        Ok(())
+    }
+
+    pub fn delete_many_on(&self, conn: &rusqlite::Connection, ids: &[String]) -> Result<()> {
+        let mut stmt = conn.prepare("DELETE FROM BOOK WHERE ID = ?")?;
+        for id in ids {
+            stmt.execute([id])?;
+        }
         Ok(())
     }
 }
@@ -496,12 +524,17 @@ impl BookMetadataDao {
     pub fn insert(&self, metadata: &BookMetadata) -> Result<()> {
         let mut conn = self.db.rw()?;
         let tx = conn.transaction()?;
-        tx.execute(
+        self.insert_on(&tx, metadata)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn insert_on(&self, conn: &rusqlite::Connection, metadata: &BookMetadata) -> Result<()> {
+        conn.execute(
       &format!("INSERT INTO BOOK_METADATA ({METADATA_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"),
       rusqlite::params_from_iter(metadata_params(metadata)),
     )?;
-        self.insert_children(&tx, metadata)?;
-        tx.commit()?;
+        self.insert_children(conn, metadata)?;
         Ok(())
     }
 
@@ -520,17 +553,17 @@ impl BookMetadataDao {
     /// write lock (and stall WAL checkpointing) for the whole batch.
     pub fn update_many(&self, metadatas: &[BookMetadata]) -> Result<()> {
         let mut conn = self.db.rw()?;
-        for chunk in metadatas.chunks(100) {
-            let tx = conn.transaction()?;
+        for chunk in metadatas.chunks(WRITE_BATCH_SIZE) {
+            let tx = write_transaction(&mut conn)?;
             for metadata in chunk {
                 self.update_on(&tx, metadata)?;
             }
-            tx.commit()?;
+            commit_batch(tx)?;
         }
         Ok(())
     }
 
-    fn update_on(&self, conn: &rusqlite::Connection, metadata: &BookMetadata) -> Result<()> {
+    pub fn update_on(&self, conn: &rusqlite::Connection, metadata: &BookMetadata) -> Result<()> {
         let mut values = metadata_params(metadata);
         values.truncate(values.len() - 2); // drop CREATED_DATE/LAST_MODIFIED_DATE
         values.remove(0); // drop BOOK_ID (not in SET; bound separately in WHERE)
@@ -555,9 +588,21 @@ impl BookMetadataDao {
     pub fn delete(&self, book_id: &str) -> Result<()> {
         let mut conn = self.db.rw()?;
         let tx = conn.transaction()?;
-        self.delete_children(&tx, book_id)?;
-        tx.execute("DELETE FROM BOOK_METADATA WHERE BOOK_ID = ?", [book_id])?;
+        self.delete_on(&tx, book_id)?;
         tx.commit()?;
+        Ok(())
+    }
+
+    fn delete_on(&self, conn: &rusqlite::Connection, book_id: &str) -> Result<()> {
+        self.delete_children(conn, book_id)?;
+        conn.execute("DELETE FROM BOOK_METADATA WHERE BOOK_ID = ?", [book_id])?;
+        Ok(())
+    }
+
+    pub fn delete_many_on(&self, conn: &rusqlite::Connection, book_ids: &[String]) -> Result<()> {
+        for book_id in book_ids {
+            self.delete_on(conn, book_id)?;
+        }
         Ok(())
     }
 
