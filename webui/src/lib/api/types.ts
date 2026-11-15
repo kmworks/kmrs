@@ -1458,6 +1458,15 @@ export interface TaskFailure {
   error: string
 }
 
+export interface FailedTaskDto {
+  id: string
+  type: string
+  payload: Record<string, unknown>
+  retryCount: number
+  error: string
+  failedAt: string
+}
+
 export interface TaskTypeStatsDto {
   type: string
   queued: number

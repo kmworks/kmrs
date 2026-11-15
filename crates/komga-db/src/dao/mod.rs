@@ -29,6 +29,7 @@ pub mod sidecar;
 pub mod smart_list;
 pub mod smart_list_thumbnail;
 pub mod sync_point;
+pub mod task_failure;
 pub mod tasks;
 pub mod thumbnail;
 pub mod thumbnail_migration;

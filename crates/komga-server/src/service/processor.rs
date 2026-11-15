@@ -16,6 +16,7 @@ use komga_db::dao::book::BookDao;
 use komga_db::dao::library::LibraryDao;
 use komga_db::dao::media::MediaDao;
 use komga_db::dao::series::SeriesDao;
+use komga_db::dao::task_failure::TaskFailureDao;
 use komga_db::dao::tasks::TasksDao;
 use komga_db::dao::thumbnail_reuse::ThumbnailReuseDao;
 use komga_media::CapturedMetadataSources;
@@ -68,6 +69,12 @@ fn disown_at_startup(state: &AppState) {
 
 static WORKER_ID: AtomicU32 = AtomicU32::new(0);
 
+const TASK_RETRY_BACKOFF: [std::time::Duration; 3] = [
+    std::time::Duration::from_secs(10),
+    std::time::Duration::from_secs(60),
+    std::time::Duration::from_secs(300),
+];
+
 /// Processes tasks until none are runnable, with at most `task_pool_size` concurrent workers.
 /// The pool size is re-read on every worker completion so a settings change applies to the
 /// in-flight drain, not just the next one.
@@ -98,8 +105,13 @@ async fn has_available(state: &AppState) -> bool {
         .unwrap_or(false)
 }
 
-/// Claims and runs a single task, then removes it from the queue (success or failure alike).
+/// Claims a task and keeps it claimed while retrying with backoff. Only a terminal failure is
+/// persisted; a restart disowns the task and starts the retry sequence again.
 async fn process_one(state: &AppState, worker: u32) {
+    process_one_with_backoff(state, worker, &TASK_RETRY_BACKOFF).await;
+}
+
+async fn process_one_with_backoff(state: &AppState, worker: u32, backoff: &[std::time::Duration]) {
     let owner = format!("taskProcessor-{worker}");
     let claim = {
         let db = state.tasks_db.clone();
@@ -117,11 +129,62 @@ async fn process_one(state: &AppState, worker: u32) {
             return;
         }
     };
+    let unique_id = task.unique_id();
+    let mut retry_count = 0;
+    let outcome = loop {
+        let outcome = execute_task(state, &task).await;
+        let Some(error) = outcome.error.as_deref() else {
+            break outcome;
+        };
+        if retry_count == backoff.len() as u32 {
+            break outcome;
+        }
+        let delay = backoff[retry_count as usize];
+        retry_count += 1;
+        tracing::info!(
+            "Retrying task {unique_id} ({retry_count}/{}) in {}s: {error}",
+            backoff.len(),
+            delay.as_secs()
+        );
+        tokio::time::sleep(delay).await;
+    };
+
+    let persisted = {
+        let tasks_db = state.tasks_db.clone();
+        let kmrs_db = state.kmrs_db.clone();
+        let task = task.clone();
+        let error = outcome.error.clone();
+        tokio::task::spawn_blocking(move || -> komga_db::Result<()> {
+            let failures = TaskFailureDao::new(kmrs_db);
+            if let Some(error) = error {
+                failures.record(&task, retry_count, &error)?;
+            } else {
+                failures.delete(&task.unique_id())?;
+            }
+            TasksDao::new(tasks_db).delete(&task.unique_id())
+        })
+        .await
+    };
+    match persisted {
+        Ok(Ok(())) => {
+            if let Some(error) = outcome.error.as_deref() {
+                tracing::error!(
+                    "Task {unique_id} permanently failed after {retry_count} retries: {error}"
+                );
+            }
+        }
+        Ok(Err(e)) => tracing::error!("Failed to finish task {unique_id}: {e}"),
+        Err(e) => tracing::error!("Task completion panicked for {unique_id}: {e}"),
+    }
+    publish_task_outcome(state, &task, outcome);
+}
+
+async fn execute_task(state: &AppState, task: &Task) -> crate::service::tasks::TaskOutcome {
     let st = state.clone();
     let task_for_blocking = task.clone();
     // lifecycle work is synchronous and can run for minutes; keep it off the async threads,
     // and run it against the dedicated task pools so it never contends with API connections
-    let outcome = match tokio::task::spawn_blocking(move || {
+    match tokio::task::spawn_blocking(move || {
         let st = st.task_context();
         handle_task(&st, &task_for_blocking)
     })
@@ -135,21 +198,9 @@ async fn process_one(state: &AppState, worker: u32) {
                 std::time::Duration::ZERO,
                 false,
             );
-            task_outcome(&task, Some(e.to_string()))
+            task_outcome(task, Some(e.to_string()))
         }
-    };
-    let unique_id = task.unique_id();
-    let deleted = {
-        let db = state.tasks_db.clone();
-        let id = unique_id.clone();
-        tokio::task::spawn_blocking(move || TasksDao::new(db).delete(&id)).await
-    };
-    match deleted {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => tracing::error!("Failed to delete task {unique_id}: {e}"),
-        Err(e) => tracing::error!("Task delete panicked for {unique_id}: {e}"),
     }
-    publish_task_outcome(state, &task, outcome);
 }
 
 fn handle_task(state: &AppState, task: &Task) -> crate::service::tasks::TaskOutcome {
@@ -1018,6 +1069,93 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn failed_task_is_retained_after_bounded_retries() {
+        let state = crate::state::test_state_without_file_deletion(series_tests::test_state());
+        let dao = TasksDao::new(state.tasks_db.clone());
+        let task = Task::book(BookTaskKind::DeleteBook, "b1", DEFAULT_PRIORITY, None);
+        dao.save(&task).unwrap();
+
+        process_one_with_backoff(&state, 1, &[std::time::Duration::ZERO; 3]).await;
+
+        assert!(queue_empty(&state));
+        let failed = TaskFailureDao::new(state.kmrs_db.clone())
+            .find_all()
+            .unwrap();
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0].retry_count, 3);
+        assert!(failed[0].error.contains("allow-file-deletion = false"));
+        assert_eq!(failed[0].task.to_payload(), task.to_payload());
+    }
+
+    #[tokio::test]
+    async fn retry_can_succeed_after_transient_io_failure() {
+        let state = series_tests::test_state();
+        let root = visible_tempdir("retry-success");
+        seed_library(
+            &state.db,
+            &test_library("lib-retry", &format!("file:{}/", root.display())),
+        );
+        seed_series(&state.db, "lib-retry", "s1");
+        let book_path = root.join("v01.cbz");
+        let book = seed_book(
+            &state.db,
+            "lib-retry",
+            "s1",
+            &format!("file:{}", book_path.display()),
+        );
+        let task = Task::book(BookTaskKind::HashBook, &book.id, DEFAULT_PRIORITY, None);
+        TasksDao::new(state.tasks_db.clone()).save(&task).unwrap();
+        TaskFailureDao::new(state.kmrs_db.clone())
+            .record(&task, 3, "previous failure")
+            .unwrap();
+        HANDLE_LOG.lock().unwrap().clear();
+        let task_id = task.unique_id();
+
+        let process_state = state.clone();
+        let process = tokio::spawn(async move {
+            process_one_with_backoff(
+                &process_state,
+                1,
+                &[
+                    std::time::Duration::from_millis(500),
+                    std::time::Duration::ZERO,
+                    std::time::Duration::ZERO,
+                ],
+            )
+            .await;
+        });
+        let first_attempt_finished = wait_until(|| {
+            HANDLE_LOG
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|entry| entry.0 == task_id && entry.2.is_some())
+        })
+        .await;
+        assert!(first_attempt_finished);
+        fixture_zip(&book_path);
+        tokio::time::timeout(std::time::Duration::from_secs(5), process)
+            .await
+            .expect("retry did not finish")
+            .unwrap();
+
+        assert!(queue_empty(&state));
+        assert!(TaskFailureDao::new(state.kmrs_db.clone())
+            .find_all()
+            .unwrap()
+            .is_empty());
+        let hash: String = state
+            .db
+            .ro()
+            .unwrap()
+            .query_row("SELECT FILE_HASH FROM BOOK WHERE ID = ?", [&book.id], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert!(!hash.is_empty());
+    }
+
+    #[tokio::test]
     async fn failing_task_does_not_block_queue() {
         let state = series_tests::test_state();
         let root = visible_tempdir("fail");
@@ -1777,7 +1915,9 @@ mod tests {
         let mut events = state.events.subscribe();
 
         let worker_state = state.clone();
-        let worker = tokio::spawn(async move { process_one(&worker_state, 99).await });
+        let worker = tokio::spawn(async move {
+            process_one_with_backoff(&worker_state, 99, &[]).await;
+        });
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 if let Ok(DomainEvent::FileDeletionCompleted(_)) = events.recv().await {

@@ -213,12 +213,13 @@ fn kmrs_db_migrations() {
     let applied = Migrator::new(&migrations, Placeholders::default())
         .migrate(&conn)
         .unwrap();
-    assert_eq!(applied, 9);
+    assert_eq!(applied, 10);
     for name in [
         "SERIES_METADATA_CONTRIBUTION",
         "KOMF_INTEGRATION",
         "THUMBNAIL_STORAGE_MIGRATION",
         "THUMBNAIL_REUSE",
+        "TASK_FAILURE",
         "READING_EVENT",
         "SMART_LIST",
         "SMART_LIST_SHARE",

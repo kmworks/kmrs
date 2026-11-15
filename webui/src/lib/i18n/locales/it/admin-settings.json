@@ -105,6 +105,11 @@
     "cleared_many": "Rimosse {{count}} attività dalla coda.",
     "cleared_other": "Rimosse {{count}} attività dalla coda.",
     "clearFailed": "Impossibile svuotare la coda.",
+    "failedTitle": "Attività con errore permanente",
+    "failedEmpty": "Nessuna attività con errore permanente.",
+    "failedLoad": "Impossibile caricare le attività con errore permanente.",
+    "retryCount": "Numero di tentativi: {{count}}",
+    "clearFailuresBody": "Anche i record delle attività con errore permanente verranno rimossi.",
     "clearTitle": "Svuota coda attività",
     "clearBody": "Le attività in coda non ancora prese in carico da un worker verranno rimosse. Le attività già in esecuzione non sono interessate."
   },
