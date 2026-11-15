@@ -2,7 +2,7 @@
 
 use super::{get_datetime, invalid_column};
 use crate::error::Result;
-use crate::pool::Database;
+use crate::pool::{commit_batch, write_transaction, Database, WRITE_BATCH_SIZE};
 use komga_core::model::history::{HistoricalEvent, HistoricalEventType};
 use komga_core::time_codec;
 use komga_core::tsid::TsidFactory;
@@ -24,13 +24,19 @@ impl HistoricalEventDao {
 
     pub fn insert(&self, event: &HistoricalEvent) -> Result<String> {
         let mut conn = self.db.rw()?;
+        let tx = conn.transaction()?;
+        let id = self.insert_on(&tx, event)?;
+        tx.commit()?;
+        Ok(id)
+    }
+
+    fn insert_on(&self, conn: &rusqlite::Connection, event: &HistoricalEvent) -> Result<String> {
         let id = if event.id.is_empty() {
             self.tsid.create_string()
         } else {
             event.id.clone()
         };
-        let tx = conn.transaction()?;
-        tx.execute(
+        conn.execute(
       "INSERT INTO HISTORICAL_EVENT (ID, TYPE, BOOK_ID, SERIES_ID, TIMESTAMP) VALUES (?,?,?,?,?)",
       params![
         id,
@@ -41,13 +47,24 @@ impl HistoricalEventDao {
       ],
     )?;
         for (key, value) in &event.properties {
-            tx.execute(
+            conn.execute(
                 "INSERT INTO HISTORICAL_EVENT_PROPERTIES (ID, KEY, VALUE) VALUES (?,?,?)",
                 params![id, key, value],
             )?;
         }
-        tx.commit()?;
         Ok(id)
+    }
+
+    pub fn insert_many(&self, events: &[HistoricalEvent]) -> Result<()> {
+        let mut conn = self.db.rw()?;
+        for chunk in events.chunks(WRITE_BATCH_SIZE) {
+            let tx = write_transaction(&mut conn)?;
+            for event in chunk {
+                self.insert_on(&tx, event)?;
+            }
+            commit_batch(tx)?;
+        }
+        Ok(())
     }
 
     pub fn find_by_id(&self, id: &str) -> Result<Option<HistoricalEvent>> {

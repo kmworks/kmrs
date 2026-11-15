@@ -24,6 +24,7 @@ use komga_db::dao::library::LibraryDao;
 use komga_db::dao::media::MediaDao;
 use komga_db::dao::read_progress::ReadProgressDao;
 use komga_db::dao::thumbnail::ThumbnailBookDao;
+use komga_db::pool::{commit_batch, write_transaction, WRITE_BATCH_SIZE};
 use komga_media::analyzer::{
     encode_epub_extension_gz, Analyzer, CapturedMetadataSources, EPUB_EXTENSION_CLASS,
 };
@@ -93,15 +94,13 @@ pub fn analyze_and_persist(
     let analysis = analyzer_for(state).analyze(&book_path(book), library.analyze_dimensions);
 
     // `KepubConverter`: the size of the on-the-fly kepub conversion is stored for Kobo Sync
-    if let Some(size) = analysis.kepub_file_size {
-        BookProjectionDao::new(state.db.clone()).save(&BookProjection {
-            book_id: book.id.clone(),
-            profile: KEPUB_DEFAULT.to_string(),
-            file_size: size as i64,
-            created_date: now_utc(),
-            last_modified_date: now_utc(),
-        })?;
-    }
+    let projection = analysis.kepub_file_size.map(|size| BookProjection {
+        book_id: book.id.clone(),
+        profile: KEPUB_DEFAULT.to_string(),
+        file_size: size as i64,
+        created_date: now_utc(),
+        last_modified_date: now_utc(),
+    });
 
     let media_dao = MediaDao::new(state.db.clone());
     let previous = media_dao
@@ -124,23 +123,34 @@ pub fn analyze_and_persist(
     }
 
     // if the number of pages has changed, adjust all read progress for that book
-    if previous.status == MediaStatus::Outdated && previous.page_count != media.page_count {
-        let progress_dao = ReadProgressDao::new(state.db.clone());
-        let adjusted: Vec<ReadProgress> = progress_dao
-            .find_by_book(&book.id)?
-            .into_iter()
-            .map(|p| ReadProgress {
-                page: if p.completed { media.page_count } else { 1 },
-                ..p
-            })
-            .collect();
-        if !adjusted.is_empty() {
-            tracing::info!("Number of pages differ, adjust read progress for book");
-            progress_dao.save_many(&adjusted)?;
-        }
+    let adjusted =
+        if previous.status == MediaStatus::Outdated && previous.page_count != media.page_count {
+            ReadProgressDao::new(state.db.clone())
+                .find_by_book(&book.id)?
+                .into_iter()
+                .map(|p| ReadProgress {
+                    page: if p.completed { media.page_count } else { 1 },
+                    ..p
+                })
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+    if !adjusted.is_empty() {
+        tracing::info!("Number of pages differ, adjust read progress for book");
     }
 
-    media_dao.update(&media)?;
+    let mut conn = state.db.rw()?;
+    let tx = write_transaction(&mut conn)?;
+    if let Some(projection) = &projection {
+        BookProjectionDao::new(state.db.clone()).save_on(&tx, projection)?;
+    }
+    if !adjusted.is_empty() {
+        ReadProgressDao::new(state.db.clone()).save_many_on(&tx, &adjusted)?;
+    }
+    media_dao.update_on(&tx, &media)?;
+    commit_batch(tx)?;
+    drop(conn);
 
     let _ = state.events.send(DomainEvent::BookUpdated(book.clone()));
 
@@ -354,37 +364,42 @@ pub fn add_thumbnail_for_book(
         selected: false,
         ..thumbnail.clone()
     };
+    let mut replaced_urls = vec![];
+    let mut conn = state.db.rw()?;
+    let tx = write_transaction(&mut conn)?;
     match thumbnail.type_ {
         // only one generated thumbnail is allowed
         ThumbnailType::Generated => {
-            let replaced =
-                dao.find_all_by_book_id_and_type(&thumbnail.book_id, ThumbnailType::Generated)?;
-            dao.delete_by_book_id_and_type(&thumbnail.book_id, ThumbnailType::Generated)?;
-            crate::thumbnails::remove_managed_files(
-                state,
-                replaced.iter().filter_map(|t| t.url.as_deref()),
-            );
-            dao.insert(&to_insert)?;
+            let replaced = dao.find_all_by_book_id_and_type_on(
+                &tx,
+                &thumbnail.book_id,
+                ThumbnailType::Generated,
+            )?;
+            dao.delete_by_book_id_and_type_on(&tx, &thumbnail.book_id, ThumbnailType::Generated)?;
+            replaced_urls = replaced.into_iter().filter_map(|t| t.url).collect();
+            dao.insert_on(&tx, &to_insert)?;
         }
         ThumbnailType::Sidecar => {
-            for existing in
-                dao.find_all_by_book_id_and_type(&thumbnail.book_id, ThumbnailType::Sidecar)?
-            {
+            for existing in dao.find_all_by_book_id_and_type_on(
+                &tx,
+                &thumbnail.book_id,
+                ThumbnailType::Sidecar,
+            )? {
                 if existing.url == thumbnail.url {
-                    dao.delete(&existing.id)?;
+                    dao.delete_on(&tx, &existing.id)?;
                 }
             }
-            dao.insert(&to_insert)?;
+            dao.insert_on(&tx, &to_insert)?;
         }
         ThumbnailType::UserUploaded => {
-            dao.insert(&to_insert)?;
+            dao.insert_on(&tx, &to_insert)?;
         }
     }
 
     let selected = match mark_selected {
         MarkSelectedPreference::Yes => true,
         MarkSelectedPreference::IfNoneOrGenerated => {
-            match dao.find_selected_by_book_id(&thumbnail.book_id)? {
+            match dao.find_selected_by_book_id_on(&tx, &thumbnail.book_id)? {
                 None => true,
                 Some(selected) => selected.type_ == ThumbnailType::Generated,
             }
@@ -393,8 +408,15 @@ pub fn add_thumbnail_for_book(
     };
 
     if selected {
-        dao.mark_selected(&thumbnail)?;
-    } else {
+        dao.mark_selected_on(&tx, &thumbnail)?;
+    }
+    commit_batch(tx)?;
+    drop(conn);
+
+    // Keep filesystem work outside the writer transaction: slow mounts must not
+    // extend the lock, and a rollback must not restore rows whose files are gone.
+    crate::thumbnails::remove_managed_files(state, replaced_urls.iter().map(String::as_str));
+    if !selected {
         thumbnails_house_keeping(state, &thumbnail.book_id)?;
     }
 
@@ -562,38 +584,23 @@ pub fn find_book_thumbnails_to_regenerate(
 
 /// `ReadListRepository.removeBooksFromAll`; the readlist DAO belongs to a parallel
 /// change, so the join rows are deleted here directly.
-fn remove_books_from_all_readlists(state: &AppState, book_ids: &[String]) -> komga_db::Result<()> {
-    if book_ids.is_empty() {
-        return Ok(());
-    }
-    let mut conn = state.db.rw()?;
-    let tx = conn.transaction()?;
+fn remove_books_from_all_readlists_on(
+    conn: &rusqlite::Connection,
+    book_ids: &[String],
+) -> komga_db::Result<()> {
     for chunk in book_ids.chunks(500) {
         let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        tx.execute(
+        conn.execute(
             &format!("DELETE FROM READLIST_BOOK WHERE BOOK_ID IN ({placeholders})"),
             rusqlite::params_from_iter(chunk.iter()),
         )?;
     }
-    tx.commit()?;
     Ok(())
 }
 
 pub fn delete_one(state: &AppState, book: &Book) -> komga_db::Result<()> {
     tracing::info!("Delete book id: {}", book.id);
-
-    ReadProgressDao::new(state.db.clone()).delete_by_book(&book.id)?;
-    remove_books_from_all_readlists(state, std::slice::from_ref(&book.id))?;
-    komga_db::dao::series_metadata_contribution::SeriesMetadataContributionDao::new(
-        state.kmrs_db.clone(),
-    )
-    .delete_by_book_ids(std::slice::from_ref(&book.id))?;
-    MediaDao::new(state.db.clone()).delete(&book.id)?;
-    ThumbnailBookDao::new(state.db.clone()).delete_by_book_id(&book.id)?;
-    BookMetadataDao::new(state.db.clone()).delete(&book.id)?;
-    BookProjectionDao::new(state.db.clone()).delete(&book.id)?;
-    BookDao::new(state.db.clone()).delete(&book.id)?;
-
+    delete_books(state, std::slice::from_ref(book))?;
     let _ = state.events.send(DomainEvent::BookDeleted(book.clone()));
     Ok(())
 }
@@ -601,13 +608,29 @@ pub fn delete_one(state: &AppState, book: &Book) -> komga_db::Result<()> {
 pub fn soft_delete_many(state: &AppState, books: &[Book]) -> komga_db::Result<()> {
     tracing::info!("Soft delete books: {books:?}");
     let deleted_date = now_utc();
-    let dao = BookDao::new(state.db.clone());
-    for book in books {
-        dao.update(&Book {
+    let updated: Vec<Book> = books
+        .iter()
+        .map(|book| Book {
             deleted_date: book.deleted_date.or(Some(deleted_date)),
             ..book.clone()
-        })?;
-        let _ = state.events.send(DomainEvent::BookUpdated(book.clone()));
+        })
+        .collect();
+    let dao = BookDao::new(state.db.clone());
+    let mut conn = state.db.rw()?;
+    for (chunk, event_chunk) in updated
+        .chunks(WRITE_BATCH_SIZE)
+        .zip(books.chunks(WRITE_BATCH_SIZE))
+    {
+        let tx = write_transaction(&mut conn)?;
+        for book in chunk {
+            dao.update_on(&tx, book)?;
+        }
+        commit_batch(tx)?;
+        // A later batch may still fail: consumers must see every batch that has
+        // already committed, just as they did when each row committed separately.
+        for book in event_chunk {
+            let _ = state.events.send(DomainEvent::BookUpdated(book.clone()));
+        }
     }
     Ok(())
 }
@@ -615,30 +638,37 @@ pub fn soft_delete_many(state: &AppState, books: &[Book]) -> komga_db::Result<()
 pub fn delete_many(state: &AppState, books: &[Book]) -> komga_db::Result<()> {
     let book_ids: Vec<String> = books.iter().map(|b| b.id.clone()).collect();
     tracing::info!("Delete book ids: {book_ids:?}");
+    delete_books(state, books)?;
+    for book in books {
+        let _ = state.events.send(DomainEvent::BookDeleted(book.clone()));
+    }
+    Ok(())
+}
 
-    ReadProgressDao::new(state.db.clone()).delete_by_books(&book_ids)?;
-    remove_books_from_all_readlists(state, &book_ids)?;
+fn delete_books(state: &AppState, books: &[Book]) -> komga_db::Result<()> {
+    let book_ids: Vec<String> = books.iter().map(|b| b.id.clone()).collect();
     komga_db::dao::series_metadata_contribution::SeriesMetadataContributionDao::new(
         state.kmrs_db.clone(),
     )
     .delete_by_book_ids(&book_ids)?;
-    let media_dao = MediaDao::new(state.db.clone());
-    let metadata_dao = BookMetadataDao::new(state.db.clone());
-    let book_dao = BookDao::new(state.db.clone());
-    for id in &book_ids {
-        media_dao.delete(id)?;
-    }
-    ThumbnailBookDao::new(state.db.clone()).delete_by_book_ids(&book_ids)?;
-    for id in &book_ids {
-        metadata_dao.delete(id)?;
-    }
-    BookProjectionDao::new(state.db.clone()).delete_by_book_ids(&book_ids)?;
-    for id in &book_ids {
-        book_dao.delete(id)?;
-    }
 
-    for book in books {
-        let _ = state.events.send(DomainEvent::BookDeleted(book.clone()));
+    let progress_dao = ReadProgressDao::new(state.db.clone());
+    let media_dao = MediaDao::new(state.db.clone());
+    let thumbnail_dao = ThumbnailBookDao::new(state.db.clone());
+    let metadata_dao = BookMetadataDao::new(state.db.clone());
+    let projection_dao = BookProjectionDao::new(state.db.clone());
+    let book_dao = BookDao::new(state.db.clone());
+    let mut conn = state.db.rw()?;
+    for chunk in book_ids.chunks(WRITE_BATCH_SIZE) {
+        let tx = write_transaction(&mut conn)?;
+        progress_dao.delete_by_books_on(&tx, chunk)?;
+        remove_books_from_all_readlists_on(&tx, chunk)?;
+        media_dao.delete_many_on(&tx, chunk)?;
+        thumbnail_dao.delete_by_book_ids_on(&tx, chunk)?;
+        metadata_dao.delete_many_on(&tx, chunk)?;
+        projection_dao.delete_by_book_ids_on(&tx, chunk)?;
+        book_dao.delete_many_on(&tx, chunk)?;
+        commit_batch(tx)?;
     }
     Ok(())
 }
@@ -1111,8 +1141,10 @@ mod tests {
                 last_modified_date: now_utc(),
             })
             .unwrap();
+        let commits = crate::state::commit_counter(&state.db);
 
         let (_actions, _sources) = analyze_and_persist(&state, &book).unwrap();
+        assert_eq!(commits.load(std::sync::atomic::Ordering::Relaxed), 1);
 
         let progress = progress_dao
             .find_by_book_and_user(&book.id, &user_id)
@@ -1350,8 +1382,10 @@ mod tests {
             3260,
         );
         let (_actions, _sources) = analyze_and_persist(&state, &book).unwrap();
+        let commits = crate::state::commit_counter(&state.db);
 
         generate_thumbnail_and_persist(&state, &book, false).unwrap();
+        assert_eq!(commits.load(std::sync::atomic::Ordering::Relaxed), 1);
 
         let dao = ThumbnailBookDao::new(state.db.clone());
         let thumbnails = dao.find_all_by_book_id(&book.id).unwrap();
@@ -1725,6 +1759,34 @@ mod tests {
         sidecar.url = Some(format!("file:{}", cover.display()));
         add_thumbnail_for_book(&state, sidecar, MarkSelectedPreference::No).unwrap();
 
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute(
+                "CREATE TRIGGER reject_generated_thumbnail BEFORE INSERT ON THUMBNAIL_BOOK \
+                 WHEN NEW.TYPE = 'GENERATED' BEGIN SELECT RAISE(ABORT, 'forced'); END",
+                [],
+            )
+            .unwrap();
+        add_thumbnail_for_book(
+            &state,
+            make_generated(&state),
+            MarkSelectedPreference::IfNoneOrGenerated,
+        )
+        .unwrap_err();
+        assert!(first_file.exists());
+        assert!(ThumbnailBookDao::new(state.db.clone())
+            .find_by_id(&first.id)
+            .unwrap()
+            .is_some());
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute("DROP TRIGGER reject_generated_thumbnail", [])
+            .unwrap();
+
         let second = add_thumbnail_for_book(
             &state,
             make_generated(&state),
@@ -2089,7 +2151,9 @@ mod tests {
             .unwrap();
         }
 
+        let commits = crate::state::commit_counter(&state.db);
         delete_many(&state, &[book1, book2]).unwrap();
+        assert_eq!(commits.load(std::sync::atomic::Ordering::Relaxed), 1);
         let count: i64 = state
             .db
             .ro()
@@ -2122,16 +2186,60 @@ mod tests {
         let state = test_state();
         seed_library(&state, "lib1", true);
         seed_series(&state, "lib1", "s1");
-        let book = seed_book(&state, "lib1", "s1", "file:/l/s/v01.cbz", 1);
+        let book1 = seed_book(&state, "lib1", "s1", "file:/l/s/v01.cbz", 1);
+        let book2 = seed_book(&state, "lib1", "s1", "file:/l/s/v02.cbz", 1);
 
         let mut rx = state.events.subscribe();
-        soft_delete_many(&state, std::slice::from_ref(&book)).unwrap();
-        let deleted = BookDao::new(state.db.clone())
-            .find_by_id(&book.id)
-            .unwrap()
-            .unwrap();
-        assert!(deleted.deleted_date.is_some());
+        let commits = crate::state::commit_counter(&state.db);
+        soft_delete_many(&state, &[book1, book2]).unwrap();
+        assert_eq!(commits.load(std::sync::atomic::Ordering::Relaxed), 1);
+        let books = BookDao::new(state.db.clone()).find_all().unwrap();
+        assert_eq!(books.len(), 2);
+        assert!(books.iter().all(|book| book.deleted_date.is_some()));
         assert!(matches!(rx.try_recv(), Ok(DomainEvent::BookUpdated(_))));
+        assert!(matches!(rx.try_recv(), Ok(DomainEvent::BookUpdated(_))));
+    }
+
+    #[test]
+    fn soft_delete_many_emits_events_for_committed_batches_before_a_failure() {
+        let state = test_state();
+        seed_library(&state, "lib1", true);
+        seed_series(&state, "lib1", "s1");
+        let books: Vec<Book> = (1..=101)
+            .map(|number| {
+                seed_book(
+                    &state,
+                    "lib1",
+                    "s1",
+                    &format!("file:/l/s/v{number:03}.cbz"),
+                    1,
+                )
+            })
+            .collect();
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute(
+                "CREATE TRIGGER fail_second_soft_delete BEFORE UPDATE ON BOOK \
+                 WHEN OLD.URL = 'file:/l/s/v101.cbz' BEGIN SELECT RAISE(ABORT, 'forced'); END",
+                [],
+            )
+            .unwrap();
+        let mut rx = state.events.subscribe();
+
+        soft_delete_many(&state, &books).unwrap_err();
+
+        let books = BookDao::new(state.db.clone()).find_all().unwrap();
+        assert_eq!(
+            books
+                .iter()
+                .filter(|book| book.deleted_date.is_some())
+                .count(),
+            100
+        );
+        let emitted = std::iter::from_fn(|| rx.try_recv().ok()).count();
+        assert_eq!(emitted, 100);
     }
 
     #[test]

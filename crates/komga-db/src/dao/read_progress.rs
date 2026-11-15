@@ -150,6 +150,18 @@ impl ReadProgressDao {
         if progresses.is_empty() {
             return Ok(());
         }
+        let mut conn = self.db.rw()?;
+        let tx = conn.transaction()?;
+        self.save_many_on(&tx, progresses)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn save_many_on(
+        &self,
+        conn: &rusqlite::Connection,
+        progresses: &[ReadProgress],
+    ) -> Result<()> {
         let mut by_user: std::collections::BTreeMap<&str, Vec<String>> =
             std::collections::BTreeMap::new();
         for p in progresses {
@@ -158,15 +170,12 @@ impl ReadProgressDao {
                 .or_default()
                 .push(p.book_id.clone());
         }
-        let mut conn = self.db.rw()?;
-        let tx = conn.transaction()?;
         for progress in progresses {
-            upsert_one(&tx, progress)?;
+            upsert_one(conn, progress)?;
         }
         for (user_id, book_ids) in by_user {
-            self.aggregate_series_progress_on(&tx, &book_ids, Some(user_id))?;
+            self.aggregate_series_progress_on(conn, &book_ids, Some(user_id))?;
         }
-        tx.commit()?;
         Ok(())
     }
 
@@ -223,15 +232,24 @@ impl ReadProgressDao {
         }
         let mut conn = self.db.rw()?;
         let tx = conn.transaction()?;
+        self.delete_by_books_on(&tx, book_ids)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn delete_by_books_on(
+        &self,
+        conn: &rusqlite::Connection,
+        book_ids: &[String],
+    ) -> Result<()> {
         for chunk in book_ids.chunks(500) {
             let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-            tx.execute(
+            conn.execute(
                 &format!("DELETE FROM READ_PROGRESS WHERE BOOK_ID IN ({placeholders})"),
                 rusqlite::params_from_iter(chunk.iter()),
             )?;
         }
-        self.aggregate_series_progress_on(&tx, book_ids, None)?;
-        tx.commit()?;
+        self.aggregate_series_progress_on(conn, book_ids, None)?;
         Ok(())
     }
 
