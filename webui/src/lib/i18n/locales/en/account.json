@@ -96,6 +96,7 @@
     "subtitle": "Defaults for the comic reader",
     "defaultsTitle": "Reader defaults",
     "direction": "Reading direction",
+    "forceGlobalDirection": "Force global reading direction",
     "scale": "Scale",
     "scaleScreen": "Fit screen",
     "scaleWidth": "Fit width",

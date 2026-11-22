@@ -141,7 +141,7 @@ export interface SeriesMetadataDto {
   ageRatingLock: boolean
   language: string
   languageLock: boolean
-  readingDirection: ReadingDirection
+  readingDirection: ReadingDirection | ''
   readingDirectionLock: boolean
   genres: string[]
   genresLock: boolean

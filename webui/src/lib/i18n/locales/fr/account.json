@@ -97,6 +97,7 @@
     "subtitle": "Réglages par défaut du lecteur de comics",
     "defaultsTitle": "Réglages par défaut du lecteur",
     "direction": "Sens de lecture",
+    "forceGlobalDirection": "Forcer le sens de lecture global",
     "scale": "Échelle",
     "scaleScreen": "Ajuster à l'écran",
     "scaleWidth": "Ajuster à la largeur",

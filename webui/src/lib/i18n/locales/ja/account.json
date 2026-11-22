@@ -95,6 +95,7 @@
     "subtitle": "コミックリーダーのデフォルト",
     "defaultsTitle": "リーダーのデフォルト",
     "direction": "読む方向",
+    "forceGlobalDirection": "グローバルの読む方向を強制",
     "scale": "スケール",
     "scaleScreen": "画面に合わせる",
     "scaleWidth": "幅に合わせる",

@@ -105,6 +105,7 @@ function Reader({ bookId }: { bookId: string }) {
   const initialPageParam = Number(searchParams.get('page'))
 
   const globalDirection = useReaderSettings((s) => s.readingDirection)
+  const forceGlobalDirection = useReaderSettings((s) => s.forceGlobalDirection)
   const background = useReaderBackground()
   const user = useAuthStore((s) => s.user)
   const admin = isAdmin(user)
@@ -120,9 +121,9 @@ function Reader({ bookId }: { bookId: string }) {
     enabled: !!book,
   })
 
-  // per-series overrides beat the global defaults; the direction alone defers to
-  // series metadata when the series has no override of its own
-  const metaDirection = seriesQuery.data?.metadata.readingDirection ?? null
+  // the API uses an empty string for an unset direction; it must fall through
+  // to the global default just like missing metadata
+  const metaDirection = seriesQuery.data?.metadata.readingDirection || null
   const effective = useEffectiveReaderSettings(book?.seriesId ?? '', metaDirection)
   const direction = effective.settings.readingDirection
   const pageLayout = effective.settings.pageLayout
@@ -242,9 +243,14 @@ function Reader({ bookId }: { bookId: string }) {
     if (!series || metaNotified.current) return
     metaNotified.current = true
     // only announce the metadata direction when it actually applies: a per-series override shadows it
-    if (metaDirection && metaDirection !== globalDirection && !effective.overriddenKeys.includes('readingDirection'))
+    if (
+      !forceGlobalDirection &&
+      metaDirection &&
+      metaDirection !== globalDirection &&
+      !effective.overriddenKeys.includes('readingDirection')
+    )
       showToast(t('toast.directionFromMetadata'))
-  }, [series, metaDirection, globalDirection, effective.overriddenKeys, t])
+  }, [series, metaDirection, globalDirection, forceGlobalDirection, effective.overriddenKeys, t])
 
   useDocumentTitle(book ? book.metadata.title || book.name : undefined)
 
@@ -261,12 +267,15 @@ function Reader({ bookId }: { bookId: string }) {
 
   const changeDirection = useCallback(
     (d: ReadingDirection) => {
-      // the baseline is what the series resolves to without an override (metadata,
-      // else global): writing that value back deletes the key instead of storing it
-      updateOverrides({ readingDirection: d === (metaDirection ?? globalDirection) ? undefined : d })
+      if (forceGlobalDirection) useReaderSettings.getState().update({ readingDirection: d })
+      else {
+        // writing the resolved baseline back deletes the override, so the series
+        // follows its metadata or the global default again
+        updateOverrides({ readingDirection: d === (metaDirection ?? globalDirection) ? undefined : d })
+      }
       showToast(t('toast.direction', { direction: readingDirectionLabel(d) }))
     },
-    [t, updateOverrides, metaDirection, globalDirection],
+    [t, updateOverrides, metaDirection, globalDirection, forceGlobalDirection],
   )
 
   const cycleScale = useCallback(() => {

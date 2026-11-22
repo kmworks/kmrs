@@ -95,6 +95,7 @@
     "subtitle": "漫畫閱讀器的預設值",
     "defaultsTitle": "閱讀器預設值",
     "direction": "閱讀方向",
+    "forceGlobalDirection": "強制使用全域閱讀方向",
     "scale": "縮放",
     "scaleScreen": "符合螢幕",
     "scaleWidth": "符合寬度",

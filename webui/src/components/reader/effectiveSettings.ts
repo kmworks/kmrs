@@ -22,7 +22,8 @@ export const EffectiveReaderSettingsContext = createContext<EffectiveReaderSetti
 /**
  * Merges the global defaults with the current series' overrides. The reading
  * direction is the only three-level key: per-series override, then the series
- * metadata direction, then the global default. Filters have no global default;
+ * metadata direction, then the global default. Forcing the global direction
+ * bypasses both series-specific sources. Filters have no global default;
  * without an override the series gets DEFAULT_FILTERS via normalizeFilters.
  */
 export function useEffectiveReaderSettings(
@@ -41,13 +42,17 @@ export function useEffectiveReaderSettings(
   return useMemo<EffectiveReaderSettingsValue>(
     () => ({
       settings: {
-        readingDirection: override?.readingDirection ?? metaDirection ?? globals.readingDirection,
+        readingDirection: globals.forceGlobalDirection
+          ? globals.readingDirection
+          : (override?.readingDirection ?? metaDirection ?? globals.readingDirection),
         pageLayout: override?.pageLayout ?? globals.pageLayout,
         scale: override?.scale ?? globals.scale,
         splitWide: override?.splitWide ?? globals.splitWide,
         filters: normalizeFilters(override?.filters),
       },
-      overriddenKeys: (Object.keys(override ?? {}) as OverridableKey[]).filter((k) => override?.[k] !== undefined),
+      overriddenKeys: (Object.keys(override ?? {}) as OverridableKey[]).filter(
+        (k) => override?.[k] !== undefined && !(k === 'readingDirection' && globals.forceGlobalDirection),
+      ),
       update: (patch: ReaderOverride) => updateStore(seriesId, patch),
       resetOverrides: () => resetStore(seriesId),
     }),
