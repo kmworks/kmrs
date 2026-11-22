@@ -95,6 +95,7 @@
     "subtitle": "만화 리더 기본값",
     "defaultsTitle": "리더 기본값",
     "direction": "읽기 방향",
+    "forceGlobalDirection": "전역 읽기 방향 강제 사용",
     "scale": "배율",
     "scaleScreen": "화면에 맞춤",
     "scaleWidth": "너비에 맞춤",

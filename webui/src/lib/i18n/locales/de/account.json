@@ -96,6 +96,7 @@
     "subtitle": "Standards für den Comic-Reader",
     "defaultsTitle": "Reader-Standards",
     "direction": "Leserichtung",
+    "forceGlobalDirection": "Globale Leserichtung erzwingen",
     "scale": "Skalierung",
     "scaleScreen": "An Bildschirm anpassen",
     "scaleWidth": "An Breite anpassen",

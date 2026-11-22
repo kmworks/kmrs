@@ -97,6 +97,7 @@
     "subtitle": "Impostazioni predefinite del lettore di fumetti",
     "defaultsTitle": "Impostazioni predefinite del lettore",
     "direction": "Direzione di lettura",
+    "forceGlobalDirection": "Forza la direzione di lettura globale",
     "scale": "Scala",
     "scaleScreen": "Adatta allo schermo",
     "scaleWidth": "Adatta alla larghezza",

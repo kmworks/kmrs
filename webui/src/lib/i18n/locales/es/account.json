@@ -97,6 +97,7 @@
     "subtitle": "Valores predeterminados del lector de cómics",
     "defaultsTitle": "Ajustes predeterminados del lector",
     "direction": "Dirección de lectura",
+    "forceGlobalDirection": "Forzar la dirección de lectura global",
     "scale": "Escala",
     "scaleScreen": "Ajustar a pantalla",
     "scaleWidth": "Ajustar al ancho",

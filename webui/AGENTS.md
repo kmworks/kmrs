@@ -38,7 +38,9 @@ pnpm lint     # eslint
   merges the tiers — override first, and for the reading direction the series metadata sits
   between override and global — and serves the result through the effective-settings context.
   Reader components read and write the effective settings for overridable keys and the global
-  store for the rest; the account settings page is the only editor of the global defaults.
+  store for the rest; the account settings page is the only editor of the global defaults,
+  except that forcing the global reading direction makes the reader direction control edit
+  that global value too. Forced direction bypasses both series metadata and direction overrides.
   Writing a value equal to the fallback deletes the override key, so the series follows the
   fallback again; emptied entries disappear, and the store is pruned to a bounded number of
   most recently used entries, kept warm by opening the series.

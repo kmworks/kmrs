@@ -20,6 +20,7 @@ const backgrounds: ReaderBackground[] = ['AUTO', 'BLACK', 'GRAY', 'WHITE']
 export function ReaderSection() {
   const { t } = useTranslation('account')
   const readingDirection = useReaderSettings((s) => s.readingDirection)
+  const forceGlobalDirection = useReaderSettings((s) => s.forceGlobalDirection)
   const scale = useReaderSettings((s) => s.scale)
   const pageLayout = useReaderSettings((s) => s.pageLayout)
   const splitWide = useReaderSettings((s) => s.splitWide)
@@ -34,6 +35,13 @@ export function ReaderSection() {
             options={directions.map((d) => ({ value: d, label: readingDirectionLabel(d) }))}
             value={readingDirection}
             onChange={(readingDirection) => update({ readingDirection })}
+          />
+        </SettingRow>
+        <SettingRow label={t('reader.forceGlobalDirection')}>
+          <Switch
+            checked={forceGlobalDirection}
+            onCheckedChange={(forceGlobalDirection) => update({ forceGlobalDirection })}
+            label={t('reader.forceGlobalDirection')}
           />
         </SettingRow>
         <SettingRow label={t('reader.scale')}>

@@ -27,6 +27,7 @@ export interface ReaderSettings {
   /** gap between pages in px */
   continuousMargin: number
   readingDirection: ReadingDirection
+  forceGlobalDirection: boolean
   swipe: boolean
   tapZones: TapZoneLayout
   animations: boolean
@@ -64,6 +65,7 @@ export const useReaderSettings = create<ReaderSettingsState>()(
       continuousPadding: 0,
       continuousMargin: 0,
       readingDirection: 'LEFT_TO_RIGHT',
+      forceGlobalDirection: false,
       swipe: true,
       tapZones: 'STANDARD',
       animations: true,

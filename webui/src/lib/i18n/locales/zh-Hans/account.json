@@ -95,6 +95,7 @@
     "subtitle": "漫画阅读器的默认设置",
     "defaultsTitle": "阅读器默认设置",
     "direction": "阅读方向",
+    "forceGlobalDirection": "强制使用全局阅读方向",
     "scale": "缩放",
     "scaleScreen": "适应屏幕",
     "scaleWidth": "适应宽度",
