@@ -652,7 +652,6 @@ fn delete_books(state: &AppState, books: &[Book]) -> komga_db::Result<()> {
     )
     .delete_by_book_ids(&book_ids)?;
 
-    komga_db::dao::bookmark::BookmarkDao::new(state.kmrs_db.clone()).delete_by_books(&book_ids)?;
     let progress_dao = ReadProgressDao::new(state.db.clone());
     let media_dao = MediaDao::new(state.db.clone());
     let thumbnail_dao = ThumbnailBookDao::new(state.db.clone());
@@ -670,6 +669,7 @@ fn delete_books(state: &AppState, books: &[Book]) -> komga_db::Result<()> {
         projection_dao.delete_by_book_ids_on(&tx, chunk)?;
         book_dao.delete_many_on(&tx, chunk)?;
         commit_batch(tx)?;
+        komga_db::dao::bookmark::BookmarkDao::new(state.kmrs_db.clone()).delete_by_books(chunk)?;
     }
     Ok(())
 }
@@ -2106,6 +2106,43 @@ mod tests {
             .unwrap();
         assert_eq!(contributions, 0);
         assert!(matches!(rx.try_recv(), Ok(DomainEvent::BookDeleted(_))));
+    }
+
+    #[test]
+    fn failed_book_deletion_preserves_bookmarks() {
+        let state = test_state();
+        seed_library(&state, "lib1", true);
+        seed_series(&state, "lib1", "s1");
+        let book = seed_book(&state, "lib1", "s1", "file:/l/s/v01.epub", 1);
+        let bookmarks = komga_db::dao::bookmark::BookmarkDao::new(state.kmrs_db.clone());
+        let bookmark = komga_core::dto::bookmark::EpubBookmark {
+            id: "550e8400-e29b-41d4-a716-446655440000".into(),
+            book_id: book.id.clone(),
+            location: komga_core::dto::bookmark::EpubBookmarkLocation {
+                chapter_index: 0,
+                chapter_href: "chapter.xhtml".into(),
+                chapter_fraction: 0.5,
+                total_progression: 0.5,
+                chapter_title: None,
+                created_at: komga_core::time_codec::now_utc(),
+            },
+        };
+        bookmarks.save("u1", &bookmark).unwrap();
+        state.db.rw().unwrap().execute_batch("CREATE TRIGGER reject_book_delete BEFORE DELETE ON BOOK BEGIN SELECT RAISE(ABORT, 'test deletion failure'); END;").unwrap();
+        assert!(delete_one(&state, &book).is_err());
+        assert!(BookDao::new(state.db.clone())
+            .find_by_id(&book.id)
+            .unwrap()
+            .is_some());
+        assert_eq!(bookmarks.list("u1", &book.id).unwrap().len(), 1);
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute_batch("DROP TRIGGER reject_book_delete")
+            .unwrap();
+        delete_one(&state, &book).unwrap();
+        assert!(bookmarks.list("u1", &book.id).unwrap().is_empty());
     }
 
     #[test]

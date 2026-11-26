@@ -362,6 +362,8 @@ fn import_book_internal(
             })
             .collect();
         progress_dao.save_many(&progresses)?;
+        komga_db::dao::bookmark::BookmarkDao::new(state.kmrs_db.clone())
+            .copy_to_book(&upgraded.id, &imported_book.id)?;
 
         // replace upgraded book by imported book in read lists
         let readlist_dao = ReadListDao::new(state.db.clone());
@@ -918,6 +920,20 @@ mod tests {
     fn upgrade_replaces_book_and_carries_over() {
         let env = setup("upgrade");
         let old = seed_upgrade_target(&env);
+        let bookmarks = komga_db::dao::bookmark::BookmarkDao::new(env.state.kmrs_db.clone());
+        let bookmark = komga_core::dto::bookmark::EpubBookmark {
+            id: "550e8400-e29b-41d4-a716-446655440000".into(),
+            book_id: old.id.clone(),
+            location: komga_core::dto::bookmark::EpubBookmarkLocation {
+                chapter_index: 0,
+                chapter_href: "chapter.xhtml".into(),
+                chapter_fraction: 0.5,
+                total_progression: 0.5,
+                chapter_title: None,
+                created_at: time_codec::now_utc(),
+            },
+        };
+        bookmarks.save("u1", &bookmark).unwrap();
         let src = env.outside.join("old.cbz");
         std::fs::copy(fixtures().join("archives/zip.zip"), &src).unwrap();
         let mut rx = events(&env.state);
@@ -933,6 +949,15 @@ mod tests {
         .unwrap();
 
         // old book deleted, new book present with the same name
+        let saved = bookmarks.list("u1", &book.id).unwrap();
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].id, bookmark.id);
+        assert_eq!(
+            serde_json::to_value(&saved[0].location).unwrap(),
+            serde_json::to_value(&bookmark.location).unwrap()
+        );
+        assert!(bookmarks.list("u1", &old.id).unwrap().is_empty());
+
         assert!(BookDao::new(env.state.db.clone())
             .find_by_id(&old.id)
             .unwrap()
