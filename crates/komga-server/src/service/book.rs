@@ -652,6 +652,7 @@ fn delete_books(state: &AppState, books: &[Book]) -> komga_db::Result<()> {
     )
     .delete_by_book_ids(&book_ids)?;
 
+    komga_db::dao::bookmark::BookmarkDao::new(state.kmrs_db.clone()).delete_by_books(&book_ids)?;
     let progress_dao = ReadProgressDao::new(state.db.clone());
     let media_dao = MediaDao::new(state.db.clone());
     let thumbnail_dao = ThumbnailBookDao::new(state.db.clone());
