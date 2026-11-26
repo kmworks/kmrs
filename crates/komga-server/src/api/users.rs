@@ -274,6 +274,7 @@ async fn delete_user(
         return Err(ApiError::forbidden(""));
     }
     let user = state.user_auth.delete_user(&id)?;
+    komga_db::dao::bookmark::BookmarkDao::new(state.kmrs_db.clone()).delete_by_user(&id)?;
     // Java publishes UserUpdated (not UserDeleted) on delete, with sessions expired
     let _ = state.events.send(DomainEvent::UserUpdated {
         user,

@@ -4,6 +4,8 @@
 //! use `yyyy-MM-dd`. None of these DTOs carry Jackson `@JsonInclude(NON_NULL)`: null fields are
 //! serialized as JSON null. The only exception is `R2Locator`, which is `NON_EMPTY`.
 
+pub mod bookmark;
+
 pub mod book;
 pub mod collection;
 pub mod common;

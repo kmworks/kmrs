@@ -924,6 +924,8 @@ fn try_restore_books(state: &AppState, new_books: &[Book]) -> ScanRootResult<()>
             })
             .collect();
         progress_dao.save_many(&progresses)?;
+        komga_db::dao::bookmark::BookmarkDao::new(state.kmrs_db.clone())
+            .copy_to_book(&matched.id, &book_to_add.id)?;
 
         // replace the deleted book in read lists
         let readlist_dao = ReadListDao::new(state.db.clone());
@@ -1692,6 +1694,20 @@ mod tests {
             })
             .unwrap();
 
+        let bookmarks = komga_db::dao::bookmark::BookmarkDao::new(state.kmrs_db.clone());
+        let bookmark = komga_core::dto::bookmark::EpubBookmark {
+            id: "550e8400-e29b-41d4-a716-446655440000".into(),
+            book_id: book.id.clone(),
+            location: komga_core::dto::bookmark::EpubBookmarkLocation {
+                chapter_index: 0,
+                chapter_href: "chapter.xhtml".into(),
+                chapter_fraction: 0.5,
+                total_progression: 0.5,
+                chapter_title: None,
+                created_at: time_codec::now_utc(),
+            },
+        };
+        bookmarks.save(&user.id, &bookmark).unwrap();
         // the book "moves": old dir removed, same content elsewhere
         std::fs::remove_dir_all(root.join("s1")).unwrap();
         scan(&state, &lib);
@@ -1713,6 +1729,15 @@ mod tests {
         assert_eq!(alive.len(), 2);
         let restored = alive.iter().find(|b| b.name == "v01-renamed").unwrap();
         assert_eq!(restored.name, "v01-renamed");
+        let saved = bookmarks.list(&user.id, &restored.id).unwrap();
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].id, bookmark.id);
+        assert_eq!(
+            serde_json::to_value(&saved[0].location).unwrap(),
+            serde_json::to_value(&bookmark.location).unwrap()
+        );
+        assert!(bookmarks.list(&user.id, &book.id).unwrap().is_empty());
+
         // a customized title is restored from the deleted book
         let restored_metadata = BookMetadataDao::new(state.db.clone())
             .find_by_id(&restored.id)

@@ -58,6 +58,7 @@ const PAGE_CSP_HEADER: &str = "default-src 'none'; style-src 'unsafe-inline'; sa
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .merge(super::bookmarks::router())
         .route("/api/v1/books", routing::get(get_all_books_deprecated))
         .route("/api/v1/books/list", routing::post(get_books))
         .route("/api/v1/books/latest", routing::get(get_books_latest))
@@ -2231,6 +2232,131 @@ mod tests {
         0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1,
         13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
     ];
+
+    #[tokio::test]
+    async fn epub_bookmarks_are_private_idempotent_and_validated() {
+        let state = test_state_with_settings();
+        seed_library(&state.db, "lib");
+        seed_series(&state.db, "s", "lib");
+        seed_book(&state.db, "b", "s", "lib", "file:/book.epub");
+        seed_book(&state.db, "other", "s", "lib", "file:/other.epub");
+        seed_user(&state.db, "a@example.org", "pw", false);
+        let second = seed_user(&state.db, "b@example.org", "pw", false);
+        let app = test_router(state.clone());
+        let a = basic("a@example.org", "pw");
+        let b = basic("b@example.org", "pw");
+        let path = "/api/v1/books/b/bookmarks";
+        let item = format!("{path}/550e8400-e29b-41d4-a716-446655440000");
+        let body = serde_json::json!({
+            "chapterIndex": 2, "chapterHref": "Text/chapter3.xhtml",
+            "chapterFraction": 0.5, "totalProgression": 0.2,
+            "chapterTitle": "Chapter 3", "createdAt": "2026-11-26T10:00:00Z"
+        });
+        for method in ["GET", "PUT", "DELETE"] {
+            let uri = if method == "GET" { path } else { &item };
+            assert_eq!(
+                call(&app, method, uri, None, Some(body.to_string()))
+                    .await
+                    .0,
+                StatusCode::UNAUTHORIZED
+            );
+        }
+        for _ in 0..2 {
+            assert_eq!(
+                call(&app, "PUT", &item, Some(&a), Some(body.to_string()))
+                    .await
+                    .0,
+                StatusCode::OK
+            );
+        }
+        let (_, _, bytes) = call(&app, "GET", path, Some(&a), None).await;
+        let saved = json(&bytes);
+        assert_eq!(saved.as_array().unwrap().len(), 1);
+        assert_eq!(saved[0]["bookId"], "b");
+        for (key, value) in body.as_object().unwrap() {
+            assert_eq!(&saved[0][key], value);
+        }
+        let (_, _, bytes) = call(&app, "GET", path, Some(&b), None).await;
+        assert_eq!(json(&bytes), serde_json::json!([]));
+        call(&app, "DELETE", &item, Some(&b), None).await;
+        let (_, _, bytes) = call(&app, "GET", path, Some(&a), None).await;
+        assert_eq!(json(&bytes).as_array().unwrap().len(), 1);
+        let (_, _, bytes) =
+            call(&app, "GET", "/api/v1/books/other/bookmarks", Some(&a), None).await;
+        assert_eq!(json(&bytes), serde_json::json!([]));
+        for (key, value) in [
+            ("chapterIndex", serde_json::json!(-1)),
+            ("chapterFraction", serde_json::json!(1.1)),
+            ("totalProgression", serde_json::json!(-0.1)),
+            ("chapterHref", serde_json::json!(" ")),
+        ] {
+            let mut invalid = body.clone();
+            invalid[key] = value;
+            assert_eq!(
+                call(&app, "PUT", &item, Some(&a), Some(invalid.to_string()))
+                    .await
+                    .0,
+                StatusCode::BAD_REQUEST
+            );
+        }
+        assert_eq!(
+            call(
+                &app,
+                "PUT",
+                &format!("{path}/invalid"),
+                Some(&a),
+                Some(body.to_string())
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST
+        );
+        for method in ["GET", "PUT", "DELETE"] {
+            let uri = if method == "GET" {
+                path.to_string()
+            } else {
+                item.clone()
+            };
+            assert_eq!(
+                call(
+                    &app,
+                    method,
+                    &uri.replace("/b/", "/missing/"),
+                    Some(&a),
+                    Some(body.to_string())
+                )
+                .await
+                .0,
+                StatusCode::NOT_FOUND
+            );
+        }
+        state
+            .db
+            .rw()
+            .unwrap()
+            .execute(
+                "UPDATE USER SET SHARED_ALL_LIBRARIES = 0 WHERE ID = ?",
+                [&second],
+            )
+            .unwrap();
+        for method in ["GET", "PUT", "DELETE"] {
+            let uri = if method == "GET" { path } else { &item };
+            assert_eq!(
+                call(&app, method, uri, Some(&b), Some(body.to_string()))
+                    .await
+                    .0,
+                StatusCode::FORBIDDEN
+            );
+        }
+        for _ in 0..2 {
+            assert_eq!(
+                call(&app, "DELETE", &item, Some(&a), None).await.0,
+                StatusCode::NO_CONTENT
+            );
+        }
+        let (_, _, bytes) = call(&app, "GET", path, Some(&a), None).await;
+        assert_eq!(json(&bytes), serde_json::json!([]));
+    }
 
     fn test_router(state: AppState) -> Router {
         Router::new()

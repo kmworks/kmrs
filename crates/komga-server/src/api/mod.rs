@@ -1,3 +1,4 @@
+pub mod bookmarks;
 // routers for the M8 misc endpoints are registered in main.rs by the coordinating agent
 // actuator is registered in main.rs by the coordinating agent
 #[allow(dead_code)]
