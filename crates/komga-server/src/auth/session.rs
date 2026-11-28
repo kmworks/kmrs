@@ -1,6 +1,7 @@
 //! Session store: aligned with Spring Session (caffeine when
 //! `jdbc-session-enabled=false`, JDBC over `sessions.sqlite` when true).
-//! - Cookie name `KOMGA-SESSION`; the `X-Auth-Token` header is also accepted for passing the session id both ways.
+//! - Cookie name `KOMGA-SESSION` by default (`server.servlet.session.cookie.name`); the
+//!   `X-Auth-Token` header is also accepted for passing the session id both ways.
 //! - Sliding expiration (default 7 days, idle-based): every access refreshes
 //!   `LAST_ACCESS_TIME`/`EXPIRY_TIME`, like the `SessionRepositoryFilter` saving
 //!   the session at the end of each request.
@@ -22,6 +23,7 @@ use komga_db::Result;
 use moka::sync::Cache;
 use std::time::Duration;
 
+/// Default session cookie name; the effective one is `config.session_cookie.name`.
 pub const SESSION_COOKIE_NAME: &str = "KOMGA-SESSION";
 pub const SESSION_HEADER_NAME: &str = "X-Auth-Token";
 

@@ -100,6 +100,14 @@ pub struct FileServer {
     /// how long a request body may stall before the request is given up on;
     /// None = 60 seconds, zero = never
     pub body_idle_timeout: Option<ConfigDuration>,
+    /// server.servlet.session.cookie.*
+    pub session_cookie_name: Option<String>,
+    pub session_cookie_domain: Option<String>,
+    pub session_cookie_path: Option<String>,
+    pub session_cookie_http_only: Option<bool>,
+    pub session_cookie_secure: Option<bool>,
+    pub session_cookie_max_age: Option<ConfigSignedDuration>,
+    pub session_cookie_same_site: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -205,6 +213,41 @@ pub struct FileOAuth2Registration {
 #[derive(Debug, Clone, Copy)]
 pub struct ConfigDuration(pub Duration);
 
+/// Signed duration in seconds, for the rare key where Spring assigns a meaning to
+/// negative values (`server.servlet.session.cookie.max-age: -1` leaves the cookie to
+/// the browser session, with no Max-Age). Strings take a leading `-`; a bare integer
+/// means seconds.
+#[derive(Debug, Clone, Copy)]
+pub struct ConfigSignedDuration(pub i64);
+
+impl<'de> Deserialize<'de> for ConfigSignedDuration {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = ConfigSignedDuration;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str(
+                    "a duration string like \"7d\"/\"1h\"/\"-1s\", or seconds as an integer",
+                )
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                parse_signed_duration(v)
+                    .map(ConfigSignedDuration)
+                    .map_err(E::custom)
+            }
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                i64::try_from(v)
+                    .map(ConfigSignedDuration)
+                    .map_err(|_| E::custom(format!("duration too large: {v}")))
+            }
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                Ok(ConfigSignedDuration(v))
+            }
+        }
+        deserializer.deserialize_any(Visitor)
+    }
+}
+
 impl<'de> Deserialize<'de> for ConfigDuration {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct Visitor;
@@ -253,6 +296,35 @@ pub fn parse_duration(s: &str) -> Result<Duration, String> {
     Err(format!(
         "invalid duration {s:?}: expected a number followed by ms/s/m/h/d"
     ))
+}
+
+pub fn parse_signed_duration(s: &str) -> Result<i64, String> {
+    let s = s.trim();
+    let (sign, rest) = match s.strip_prefix('-') {
+        Some(rest) => (-1i64, rest),
+        None => (1, s),
+    };
+    // a bare integer is seconds, with or without the sign
+    if let Ok(secs) = rest.trim().parse::<i64>() {
+        return Ok(sign * secs);
+    }
+    let d = parse_duration(rest)?;
+    let secs = d.as_secs().min(i64::MAX as u64) as i64;
+    // java.time.Duration.getSeconds() floors sub-second negatives to -1
+    if sign < 0 && secs == 0 && !d.is_zero() {
+        Ok(-1)
+    } else {
+        Ok(sign * secs)
+    }
+}
+
+pub fn format_signed_duration(secs: i64) -> String {
+    if secs < 0 {
+        // any negative value means a browser-session cookie; keep the bare integer form
+        secs.to_string()
+    } else {
+        format_duration(Duration::from_secs(secs as u64))
+    }
 }
 
 pub fn format_duration(d: Duration) -> String {
@@ -357,6 +429,66 @@ pub fn render(file: &FileConfig, config: &ServerConfig, source: Option<&Path>) -
             q(&format_duration(
                 config.body_idle_timeout.unwrap_or(Duration::ZERO)
             ))
+        ),
+    );
+    push_line(
+        &mut out,
+        fserver
+            .and_then(|s| s.session_cookie_name.as_ref())
+            .is_some(),
+        format!(
+            "session-cookie-name = {} # env: SERVER_SERVLET_SESSION_COOKIE_NAME",
+            q(&config.session_cookie.name)
+        ),
+    );
+    push_line(
+        &mut out,
+        fserver.and_then(|s| s.session_cookie_max_age).is_some(),
+        format!(
+            "session-cookie-max-age = {} # env: SERVER_SERVLET_SESSION_COOKIE_MAXAGE; defaults to session-timeout, -1 = browser-session cookie",
+            q(&format_signed_duration(config.session_cookie.max_age))
+        ),
+    );
+    push_line(
+        &mut out,
+        fserver.and_then(|s| s.session_cookie_domain.as_ref()).is_some(),
+        format!(
+            "session-cookie-domain = {} # env: SERVER_SERVLET_SESSION_COOKIE_DOMAIN; empty = no Domain attribute",
+            q(config.session_cookie.domain.as_deref().unwrap_or(""))
+        ),
+    );
+    push_line(
+        &mut out,
+        fserver
+            .and_then(|s| s.session_cookie_path.as_ref())
+            .is_some(),
+        format!(
+            "session-cookie-path = {} # env: SERVER_SERVLET_SESSION_COOKIE_PATH",
+            q(&config.session_cookie.path)
+        ),
+    );
+    push_line(
+        &mut out,
+        fserver.and_then(|s| s.session_cookie_http_only).is_some(),
+        format!(
+            "session-cookie-http-only = {} # env: SERVER_SERVLET_SESSION_COOKIE_HTTPONLY",
+            config.session_cookie.http_only
+        ),
+    );
+    push_line(
+        &mut out,
+        fserver.and_then(|s| s.session_cookie_secure).is_some(),
+        format!(
+            "session-cookie-secure = {} # env: SERVER_SERVLET_SESSION_COOKIE_SECURE; commented out = Secure only on https requests",
+            config.session_cookie.secure.unwrap_or(false)
+        ),
+    );
+    push_line(
+        &mut out,
+        fserver.and_then(|s| s.session_cookie_same_site.as_ref()).is_some(),
+        format!(
+            "session-cookie-same-site = {} # env: SERVER_SERVLET_SESSION_COOKIE_SAMESITE; Lax/Strict/None",
+            q(config.session_cookie.same_site.as_str())
         ),
     );
     out.push('\n');

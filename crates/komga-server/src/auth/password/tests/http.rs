@@ -321,6 +321,43 @@ async fn only_password_checks_wait_for_a_permit() {
 }
 
 #[tokio::test]
+async fn password_login_cookie_carries_the_session_cookie_defaults() {
+    let state = test_state();
+    seed_user(&state, "admin@example.com", &[UserRole::Admin]);
+    let app = test_router(state);
+    let response = app
+        .oneshot(basic_request("admin@example.com:pass", None))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers()["set-cookie"].to_str().unwrap();
+    // the upstream application.yml pins server.servlet.session.cookie.max-age to
+    // the session timeout (7 days by default)
+    assert!(cookie.starts_with("KOMGA-SESSION="), "{cookie}");
+    assert!(cookie.contains("; Max-Age=604800"), "{cookie}");
+    assert!(cookie.contains("; Expires="), "{cookie}");
+    assert!(cookie.contains("; Path=/"), "{cookie}");
+    assert!(cookie.contains("; HttpOnly"), "{cookie}");
+    assert!(cookie.contains("; SameSite=Lax"), "{cookie}");
+    assert!(!cookie.contains("; Secure"), "{cookie}");
+}
+
+#[tokio::test]
+async fn session_cookie_is_marked_secure_over_https() {
+    let state = test_state();
+    seed_user(&state, "admin@example.com", &[UserRole::Admin]);
+    let app = test_router(state);
+    let mut request = basic_request("admin@example.com:pass", None);
+    request
+        .headers_mut()
+        .insert("X-Forwarded-Proto", "https".parse().unwrap());
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers()["set-cookie"].to_str().unwrap();
+    assert!(cookie.contains("; Secure"), "{cookie}");
+}
+
+#[tokio::test]
 async fn cached_password_login_still_issues_a_session() {
     let state = test_state();
     seed_user(&state, "admin@example.com", &[UserRole::Admin]);

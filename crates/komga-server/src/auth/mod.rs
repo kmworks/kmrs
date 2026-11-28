@@ -388,8 +388,9 @@ pub async fn auth_middleware(
         .get(SESSION_HEADER_NAME)
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
-    let session_cookie = cookie_value(&parts, SESSION_COOKIE_NAME);
+    let session_cookie = cookie_value(&parts, &state.config.session_cookie.name);
     let session_via_header = session_header.is_some();
+    let request_secure = crate::http::base_url::request_is_secure(&parts.headers);
 
     let session_id = session_header.or(session_cookie);
 
@@ -457,7 +458,10 @@ pub async fn auth_middleware(
         } else {
             append_set_cookie(
                 &mut response,
-                &format!("{SESSION_COOKIE_NAME}={session_id}; Path=/; HttpOnly; SameSite=Lax"),
+                &state
+                    .config
+                    .session_cookie
+                    .set_cookie(&session_id, request_secure),
             );
         }
     }

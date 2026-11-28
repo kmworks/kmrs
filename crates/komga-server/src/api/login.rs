@@ -4,7 +4,8 @@
 //!   session (204).
 
 use crate::auth::remember_me::REMEMBER_ME_COOKIE;
-use crate::auth::{MaybeAuth, RequireAuth, SESSION_COOKIE_NAME, SESSION_HEADER_NAME};
+use crate::auth::{MaybeAuth, RequireAuth, SESSION_HEADER_NAME};
+use crate::http::base_url::request_is_secure;
 use crate::state::AppState;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
@@ -17,7 +18,11 @@ pub fn router() -> Router<AppState> {
         .route("/api/logout", routing::get(logout).post(logout))
 }
 
-async fn set_cookie(_auth: RequireAuth, headers: HeaderMap) -> Response {
+async fn set_cookie(
+    State(state): State<AppState>,
+    _auth: RequireAuth,
+    headers: HeaderMap,
+) -> Response {
     match headers
         .get(SESSION_HEADER_NAME)
         .and_then(|v| v.to_str().ok())
@@ -26,7 +31,10 @@ async fn set_cookie(_auth: RequireAuth, headers: HeaderMap) -> Response {
             StatusCode::NO_CONTENT,
             [(
                 axum::http::header::SET_COOKIE,
-                format!("{SESSION_COOKIE_NAME}={session_id}; Path=/; HttpOnly; SameSite=Lax"),
+                state
+                    .config
+                    .session_cookie
+                    .set_cookie(session_id, request_is_secure(&headers)),
             )],
         )
             .into_response(),
@@ -35,6 +43,7 @@ async fn set_cookie(_auth: RequireAuth, headers: HeaderMap) -> Response {
 }
 
 async fn logout(State(state): State<AppState>, auth: MaybeAuth, headers: HeaderMap) -> Response {
+    let session_cookie = &state.config.session_cookie;
     let session_id = headers
         .get(SESSION_HEADER_NAME)
         .and_then(|v| v.to_str().ok())
@@ -49,7 +58,7 @@ async fn logout(State(state): State<AppState>, auth: MaybeAuth, headers: HeaderM
                         .filter_map(|pair| {
                             let pair = pair.trim();
                             pair.split_once('=')
-                                .filter(|(k, _)| *k == SESSION_COOKIE_NAME)
+                                .filter(|(k, _)| *k == session_cookie.name)
                                 .map(|(_, v)| v.to_string())
                         })
                         .next()
@@ -70,7 +79,7 @@ async fn logout(State(state): State<AppState>, auth: MaybeAuth, headers: HeaderM
         AppendHeaders([
             (
                 axum::http::header::SET_COOKIE,
-                format!("{SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"),
+                session_cookie.clear_cookie(request_is_secure(&headers)),
             ),
             (
                 axum::http::header::SET_COOKIE,
@@ -85,6 +94,7 @@ async fn logout(State(state): State<AppState>, auth: MaybeAuth, headers: HeaderM
 mod tests {
     use super::*;
     use crate::api::collections::tests::{call, insert_user, test_state};
+    use crate::auth::SESSION_COOKIE_NAME;
     use axum::body::Body;
     use axum::http::Request;
 
@@ -119,6 +129,58 @@ mod tests {
             cookie.contains(&format!("{SESSION_COOKIE_NAME}=session-1")),
             "{cookie}"
         );
+        // same cookie the session filter would write: max-age + expires like the serializer
+        assert!(cookie.contains("; Max-Age="), "{cookie}");
+        assert!(cookie.contains("; Expires="), "{cookie}");
+    }
+
+    #[tokio::test]
+    async fn session_cookie_name_is_configurable() {
+        let state = test_state();
+        let config = std::sync::Arc::new(crate::config::ServerConfig {
+            session_cookie: crate::config::SessionCookieConfig {
+                name: "MY-SESSION".to_string(),
+                ..Default::default()
+            },
+            ..(*state.config).clone()
+        });
+        let state = AppState { config, ..state };
+        insert_user(&state.db, "u@b.c", &[], &[], Default::default(), "k");
+
+        // set-cookie writes the configured name
+        let (status, headers, _) = call(
+            &state,
+            router(),
+            Request::get("/api/v1/login/set-cookie")
+                .header("X-API-Key", "k")
+                .header(SESSION_HEADER_NAME, "session-1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let cookie = headers[axum::http::header::SET_COOKIE].to_str().unwrap();
+        assert!(cookie.starts_with("MY-SESSION=session-1;"), "{cookie}");
+
+        // logout reads and clears the configured name
+        let (status, headers, _) = call(
+            &state,
+            router(),
+            Request::post("/api/logout")
+                .header(axum::http::header::COOKIE, "MY-SESSION=session-1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let cleared = headers
+            .get_all(axum::http::header::SET_COOKIE)
+            .iter()
+            .any(|v| {
+                let c = v.to_str().unwrap();
+                c.starts_with("MY-SESSION=;") && c.contains("Max-Age=0")
+            });
+        assert!(cleared, "{headers:?}");
     }
 
     #[tokio::test]
