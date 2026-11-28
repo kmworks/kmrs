@@ -7,8 +7,7 @@
     "library": "書庫",
     "ariaLabel": "搜尋範圍：{{label}}"
   },
-  "tabs": {
-    "all": "全部",
+  "categories": {
     "series": "系列",
     "books": "書籍",
     "collections": "收藏",

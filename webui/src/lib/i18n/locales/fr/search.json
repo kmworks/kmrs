@@ -7,8 +7,7 @@
     "library": "Bibliothèque",
     "ariaLabel": "Périmètre de recherche : {{label}}"
   },
-  "tabs": {
-    "all": "Tout",
+  "categories": {
     "series": "Séries",
     "books": "Livres",
     "collections": "Collections",

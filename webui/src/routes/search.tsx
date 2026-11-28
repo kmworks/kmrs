@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useRef, type ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Fragment, useCallback, useEffect, useMemo, type ReactNode } from 'react'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CaretRight, CircleNotch, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react'
@@ -10,10 +10,10 @@ import { seriesApi } from '@/lib/api/series'
 import type { Page } from '@/lib/api/types'
 import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { useDensityCardWidth } from '@/lib/store/ui'
+import { BackButton, HistoryBackButton } from '@/components/ui/BackButton'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { HistoryBackButton } from '@/components/ui/BackButton'
-import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { CardSkeleton, GridSkeleton, Skeleton } from '@/components/ui/Skeleton'
 import { BookCard } from '@/components/media/BookCard'
 import { HorizontalRow } from '@/components/media/HorizontalRow'
@@ -24,14 +24,15 @@ import { SelectionModeButton } from '@/components/selection/SelectionModeButton'
 import { SeriesSelectionBar } from '@/components/browse/SeriesSelectionBar'
 import { BooksSelectionBar } from '@/components/browse/BooksSelectionBar'
 import { libraryScopeCondition } from '@/components/filters/builders'
-import { scopeKey, scopeLibraryIds, useSearchScope, type SearchScope } from '@/components/search/scope'
+import { Sentinel } from '@/components/filters/Sentinel'
+import { scopeKey, scopeLibraryIds, scopeValue, useSearchScope, type SearchScope } from '@/components/search/scope'
 
-const TABS = ['all', 'series', 'books', 'collections', 'readlists'] as const
+const CATEGORIES = ['series', 'books', 'collections', 'readlists'] as const
 
-type SearchTab = (typeof TABS)[number]
+type SearchCategory = (typeof CATEGORIES)[number]
 
-function parseTab(raw: string | null): SearchTab {
-  return TABS.some((tab) => tab === raw) ? (raw as SearchTab) : 'all'
+function parseCategory(raw: string | null | undefined): SearchCategory | undefined {
+  return CATEGORIES.some((category) => category === raw) ? (raw as SearchCategory) : undefined
 }
 
 function scopedSearch(q: string, libraryIds: string[] | undefined) {
@@ -39,67 +40,81 @@ function scopedSearch(q: string, libraryIds: string[] | undefined) {
   return { fullTextSearch: q, ...(condition && { condition }) }
 }
 
+function categorySearchUrl(category: SearchCategory, q: string, scope: SearchScope) {
+  const params = new URLSearchParams({ q })
+  const scopeParam = scopeValue(scope)
+  if (scopeParam !== 'all') params.set('scope', scopeParam)
+  return `/search/${category}?${params}`
+}
+
 export function SearchPage() {
   const { t } = useTranslation('search')
-  const [searchParams, setSearchParams] = useSearchParams()
-  const qRaw = searchParams.get('q') ?? ''
-  const q = qRaw.trim()
-  const tab = parseTab(searchParams.get('tab'))
+  const [searchParams] = useSearchParams()
+  const q = (searchParams.get('q') ?? '').trim()
   const { scope } = useSearchScope()
-  const libraryIds = scopeLibraryIds(scope)
-  const sk = scopeKey(scope)
 
   useDocumentTitle(q ? t('titleWithQuery', { q }) : t('title'))
 
-  const seriesSel = useSelection()
-  const booksSel = useSelection()
-  const clearSeriesSel = seriesSel.clear
-  const clearBooksSel = booksSel.clear
-  // results are replaced wholesale when the query, tab or scope changes; stale selections would point at hidden items
-  useEffect(() => {
-    clearSeriesSel()
-    clearBooksSel()
-  }, [q, tab, sk, clearSeriesSel, clearBooksSel])
-
-  const onTabChange = (value: SearchTab) => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev)
-        next.set('tab', value)
-        return next
-      },
-      { replace: true },
-    )
-  }
-
   return (
     <div>
-      <HistoryBackButton to="/dashboard" className="mb-2 -ml-2" />
-      <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 overflow-x-auto pb-1">
-          <SegmentedControl<SearchTab>
-            options={TABS.map((value) => ({ value, label: t(`tabs.${value}`) }))}
-            value={tab}
-            onChange={onTabChange}
-          />
-        </div>
-        {(tab === 'series' || tab === 'books') && (
-          <SelectionModeButton
-            active={tab === 'series' ? seriesSel.active : booksSel.active}
-            onToggle={tab === 'series' ? seriesSel.toggleActive : booksSel.toggleActive}
-          />
-        )}
-      </div>
-
+      <HistoryBackButton to="/dashboard" className="mb-4 -ml-2" />
       {!q ? (
         <EmptyState
           icon={<MagnifyingGlass />}
           title={t('emptyTitle')}
           body={t('emptyBody')}
         />
-      ) : tab === 'all' ? (
+      ) : (
         <AllResults q={q} scope={scope} />
-      ) : tab === 'series' ? (
+      )}
+    </div>
+  )
+}
+
+export function SearchCategoryPage() {
+  const { t } = useTranslation('search')
+  const [searchParams] = useSearchParams()
+  const category = parseCategory(useParams().category)
+  const q = (searchParams.get('q') ?? '').trim()
+  const { scope } = useSearchScope()
+  const libraryIds = scopeLibraryIds(scope)
+  const sk = scopeKey(scope)
+
+  useDocumentTitle(category ? (q ? t('titleWithQuery', { q }) : t(`categories.${category}`)) : undefined)
+
+  const seriesSel = useSelection()
+  const booksSel = useSelection()
+  const activeSel = category === 'books' ? booksSel : seriesSel
+  const clearSeriesSel = seriesSel.clear
+  const clearBooksSel = booksSel.clear
+  // results are replaced wholesale when the query, category or scope changes; stale selections would point at hidden items
+  useEffect(() => {
+    clearSeriesSel()
+    clearBooksSel()
+  }, [q, category, sk, clearSeriesSel, clearBooksSel])
+
+  const qs = searchParams.toString()
+  const backTo = qs ? `/search?${qs}` : '/search'
+  if (!category) return <Navigate to={backTo} replace />
+
+  return (
+    <div>
+      <BackButton to={backTo} className="mb-2 -ml-2" />
+      <PageHeader
+        title={t(`categories.${category}`)}
+        actions={
+          category === 'series' || category === 'books' ? (
+            <SelectionModeButton active={activeSel.active} onToggle={activeSel.toggleActive} />
+          ) : undefined
+        }
+      />
+      {!q ? (
+        <EmptyState
+          icon={<MagnifyingGlass />}
+          title={t('emptyTitle')}
+          body={t('emptyBody')}
+        />
+      ) : category === 'series' ? (
         <CategoryGrid
           q={q}
           queryKey={['series', 'search', q, sk]}
@@ -107,7 +122,7 @@ export function SearchPage() {
           renderCard={(s, ids) => <SeriesCard series={s} selection={cardSelection(seriesSel, s.id, ids)} />}
           selectionBar={(items) => <SeriesSelectionBar selection={seriesSel} items={items} />}
         />
-      ) : tab === 'books' ? (
+      ) : category === 'books' ? (
         <CategoryGrid
           q={q}
           queryKey={['books', 'search', q, sk]}
@@ -115,7 +130,7 @@ export function SearchPage() {
           renderCard={(b, ids) => <BookCard book={b} showSeries selection={cardSelection(booksSel, b.id, ids)} />}
           selectionBar={(items) => <BooksSelectionBar selection={booksSel} loadedIds={items.map((b) => b.id)} />}
         />
-      ) : tab === 'collections' ? (
+      ) : category === 'collections' ? (
         <CategoryGrid
           q={q}
           queryKey={['collections', 'search', q, sk]}
@@ -138,7 +153,6 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
   const { t } = useTranslation('search')
   const libraryIds = scopeLibraryIds(scope)
   const sk = scopeKey(scope)
-  const scopeParam = scope.kind === 'all' ? '' : `&scope=${scope.kind === 'pinned' ? 'pinned' : scope.id}`
   const series = useQuery({
     queryKey: ['series', 'search', q, sk, 'preview'],
     queryFn: () => seriesApi.list({ search: scopedSearch(q, libraryIds), size: 8 }),
@@ -176,34 +190,26 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
       transition={{ duration: 0.3, ease: 'easeOut' }}
     >
       <PreviewRow
-        title={t('tabs.series')}
-        tab="series"
-        q={q}
-        scopeParam={scopeParam}
+        title={t('categories.series')}
+        to={categorySearchUrl('series', q, scope)}
         page={series.data}
         renderCard={(s) => <SeriesCard series={s} />}
       />
       <PreviewRow
-        title={t('tabs.books')}
-        tab="books"
-        q={q}
-        scopeParam={scopeParam}
+        title={t('categories.books')}
+        to={categorySearchUrl('books', q, scope)}
         page={books.data}
         renderCard={(b) => <BookCard book={b} showSeries />}
       />
       <PreviewRow
-        title={t('tabs.collections')}
-        tab="collections"
-        q={q}
-        scopeParam={scopeParam}
+        title={t('categories.collections')}
+        to={categorySearchUrl('collections', q, scope)}
         page={collections.data}
         renderCard={(c) => <CollectionCard id={c.id} name={c.name} count={c.seriesIds.length} />}
       />
       <PreviewRow
-        title={t('tabs.readlists')}
-        tab="readlists"
-        q={q}
-        scopeParam={scopeParam}
+        title={t('categories.readlists')}
+        to={categorySearchUrl('readlists', q, scope)}
         page={readlists.data}
         renderCard={(r) => <ReadListCard id={r.id} name={r.name} count={r.bookIds.length} />}
       />
@@ -213,16 +219,12 @@ function AllResults({ q, scope }: { q: string; scope: SearchScope }) {
 
 function PreviewRow<T extends { id: string }>({
   title,
-  tab,
-  q,
-  scopeParam,
+  to,
   page,
   renderCard,
 }: {
   title: string
-  tab: SearchTab
-  q: string
-  scopeParam: string
+  to: string
   page?: Page<T>
   renderCard: (item: T) => ReactNode
 }) {
@@ -230,7 +232,7 @@ function PreviewRow<T extends { id: string }>({
   const width = useDensityCardWidth()
   if (!page || page.totalElements === 0) return null
   return (
-    <HorizontalRow title={`${title} · ${page.totalElements}`}>
+    <HorizontalRow title={`${title} · ${page.totalElements}`} to={to}>
       {page.content.map((item) => (
         <div key={item.id} className="shrink-0 snap-start" style={{ width }}>
           {renderCard(item)}
@@ -238,7 +240,7 @@ function PreviewRow<T extends { id: string }>({
       ))}
       {page.totalElements > page.content.length && (
         <Link
-          to={`/search?q=${encodeURIComponent(q)}&tab=${tab}${scopeParam}`}
+          to={to}
           style={{ width }}
           className="cover-aspect flex shrink-0 snap-start flex-col items-center justify-center gap-1.5 self-start rounded-lg border border-line text-[13px] font-medium text-ink-3 transition-colors hover:border-accent/50 hover:text-accent-strong"
         >
@@ -273,18 +275,8 @@ function CategoryGrid<T extends { id: string }>({
       getNextPageParam: (last) => (last.last ? undefined : last.number + 1),
     })
 
-  const sentinelRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting) && hasNextPage && !isFetchingNextPage) void fetchNextPage()
-      },
-      { rootMargin: '800px' },
-    )
-    io.observe(el)
-    return () => io.disconnect()
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const items = useMemo(() => data?.pages.flatMap((p) => p.content) ?? [], [data?.pages])
@@ -307,7 +299,7 @@ function CategoryGrid<T extends { id: string }>({
           <CircleNotch className="size-5 animate-spin" />
         </div>
       )}
-      <div ref={sentinelRef} className="h-1" />
+      <Sentinel active={!!hasNextPage} onIntersect={loadMore} />
     </>
   )
 }
