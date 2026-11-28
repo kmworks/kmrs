@@ -20,6 +20,7 @@ use crate::error::{MediaError, Result};
 use crate::image;
 use crate::lru::{file_key, key_error, FileKey, Lru};
 use pdfium_render::prelude::*;
+use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
@@ -54,13 +55,19 @@ fn bind_uncached() -> Result<Pdfium> {
     for path in library_paths() {
         if path.exists() {
             match Pdfium::bind_to_library(&path) {
-                Ok(bindings) => return Ok(Pdfium::new(bindings)),
+                Ok(bindings) => {
+                    tracing::info!(path = %path.display(), "Loaded Pdfium library");
+                    return Ok(Pdfium::new(bindings));
+                }
                 Err(e) => last_err = Some(e),
             }
         }
     }
     match Pdfium::bind_to_system_library() {
-        Ok(bindings) => Ok(Pdfium::new(bindings)),
+        Ok(bindings) => {
+            tracing::info!(source = "system library search", "Loaded Pdfium library");
+            Ok(Pdfium::new(bindings))
+        }
         Err(e) => {
             let detail = last_err
                 .map(|e| e.to_string())
@@ -91,15 +98,87 @@ pub fn pdf_available() -> bool {
 fn load(pdfium: &'static Pdfium, path: &Path) -> Result<PdfDocument<'static>> {
     // opened here rather than `load_pdf_from_file` so a missing file maps to NoSuchFile
     let file = std::fs::File::open(path).map_err(|e| {
+        tracing::warn!(path = %path.display(), error = ?e, "Could not open PDF file");
         if e.kind() == std::io::ErrorKind::NotFound {
             MediaError::NoSuchFile(path.display().to_string())
         } else {
             MediaError::unsupported(format!("could not open pdf document: {e}"))
         }
     })?;
-    pdfium
-        .load_pdf_from_reader(file, None)
-        .map_err(|e| MediaError::unsupported(format!("could not open pdf document: {e}")))
+    let metadata = file.metadata();
+    let file_size = metadata.as_ref().ok().map(std::fs::Metadata::len);
+    let is_file = metadata.as_ref().ok().map(std::fs::Metadata::is_file);
+    let reader = DiagnosticReader {
+        file,
+        path: path.to_owned(),
+        position: 0,
+    };
+    pdfium.load_pdf_from_reader(reader, None).map_err(|e| {
+        tracing::warn!(
+            path = %path.display(),
+            ?file_size,
+            ?is_file,
+            metadata_error = ?metadata.err(),
+            os = std::env::consts::OS,
+            arch = std::env::consts::ARCH,
+            kmrs_version = env!("CARGO_PKG_VERSION"),
+            error = ?e,
+            "Pdfium could not load PDF document"
+        );
+        MediaError::unsupported(format!("could not open pdf document: {e}"))
+    })
+}
+
+// pdfium-render's file callback discards I/O errors and accepts short reads. Log at
+// the reader boundary so a Pdfium parsing error does not hide the underlying failure.
+struct DiagnosticReader {
+    file: std::fs::File,
+    path: PathBuf,
+    position: u64,
+}
+
+impl Read for DiagnosticReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let result = self.file.read(buf);
+        match &result {
+            Ok(read) => {
+                if *read < buf.len() {
+                    tracing::warn!(
+                        path = %self.path.display(),
+                        offset = self.position,
+                        requested = buf.len(),
+                        actual = *read,
+                        "Short read in Pdfium file callback"
+                    );
+                }
+                self.position += *read as u64;
+            }
+            Err(error) => tracing::warn!(
+                path = %self.path.display(),
+                offset = self.position,
+                requested = buf.len(),
+                ?error,
+                "Read failed in Pdfium file callback"
+            ),
+        }
+        result
+    }
+}
+
+impl Seek for DiagnosticReader {
+    fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
+        let result = self.file.seek(position);
+        match &result {
+            Ok(offset) => self.position = *offset,
+            Err(error) => tracing::warn!(
+                path = %self.path.display(),
+                ?position,
+                ?error,
+                "Seek failed in Pdfium file callback"
+            ),
+        }
+        result
+    }
 }
 
 /// Opens a document without entering the render cache; for one-shot consumers.
