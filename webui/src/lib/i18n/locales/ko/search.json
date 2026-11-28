@@ -7,8 +7,7 @@
     "library": "라이브러리",
     "ariaLabel": "검색 범위: {{label}}"
   },
-  "tabs": {
-    "all": "전체",
+  "categories": {
     "series": "시리즈",
     "books": "책",
     "collections": "컬렉션",

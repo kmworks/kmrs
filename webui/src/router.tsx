@@ -22,7 +22,7 @@ import { CollectionDetailPage } from '@/routes/detail/collection'
 import { ReadListDetailPage } from '@/routes/detail/readlist'
 import { SmartListDetailPage } from '@/routes/detail/smartlist'
 import { OneshotDetailPage } from '@/routes/detail/oneshot'
-import { SearchPage } from '@/routes/search'
+import { SearchCategoryPage, SearchPage } from '@/routes/search'
 import { AccountProfilePage } from '@/routes/account/profile'
 import { AccountSecurityPage } from '@/routes/account/security'
 import { AccountApiKeysPage } from '@/routes/account/api-keys'
@@ -82,6 +82,7 @@ export const router = createBrowserRouter([
           { path: '/oneshot/:seriesId', element: <OneshotDetailPage /> },
           { path: '/book/:bookId', element: <BookDetailPage /> },
           { path: '/search', element: <SearchPage /> },
+          { path: '/search/:category', element: <SearchCategoryPage /> },
           { path: '/account', element: <Navigate to="/account/profile" replace /> },
           { path: '/account/profile', element: <AccountProfilePage /> },
           { path: '/account/security', element: <AccountSecurityPage /> },

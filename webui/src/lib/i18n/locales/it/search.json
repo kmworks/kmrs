@@ -7,8 +7,7 @@
     "library": "Libreria",
     "ariaLabel": "Ambito di ricerca: {{label}}"
   },
-  "tabs": {
-    "all": "Tutto",
+  "categories": {
     "series": "Serie",
     "books": "Libri",
     "collections": "Raccolte",
