@@ -295,10 +295,9 @@ async fn callback(
         None,
         &parts,
     );
-    let cookie = format!(
-        "{}={}; Path=/; HttpOnly; SameSite=Lax",
-        crate::auth::SESSION_COOKIE_NAME,
-        session_id
+    let cookie = state.config.session_cookie.set_cookie(
+        &session_id,
+        crate::http::base_url::request_is_secure(&parts.headers),
     );
     Ok((
         [(
@@ -517,6 +516,7 @@ mod tests {
             sessions_db: db_config(false),
             jdbc_session_enabled: false,
             session_timeout: std::time::Duration::from_secs(3600),
+            session_cookie: Default::default(),
             cors_allowed_origins: vec![],
             page_hashing: 3,
             epub_divina_letter_count_threshold: 15,
@@ -828,6 +828,8 @@ mod tests {
             .to_str()
             .unwrap();
         assert!(cookie.contains("KOMGA-SESSION="));
+        assert!(cookie.contains("; Max-Age="), "{cookie}");
+        assert!(cookie.contains("; Expires="), "{cookie}");
         let session_id = cookie
             .split("KOMGA-SESSION=")
             .nth(1)

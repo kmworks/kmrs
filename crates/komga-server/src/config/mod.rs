@@ -58,6 +58,8 @@ pub struct ServerConfig {
     pub jdbc_session_enabled: bool,
     /// defaults to 7 days
     pub session_timeout: Duration,
+    /// attributes of the session cookie (`server.servlet.session.cookie.*`)
+    pub session_cookie: SessionCookieConfig,
     pub cors_allowed_origins: Vec<String>,
     pub page_hashing: u32,
     pub epub_divina_letter_count_threshold: usize,
@@ -103,6 +105,162 @@ pub struct ServerConfig {
     pub body_idle_timeout: Option<Duration>,
     /// substituted into the SQL migrations
     pub migration_placeholders: Placeholders,
+}
+
+/// Attributes of the session cookie, from `server.servlet.session.cookie.*`. The
+/// defaults reproduce the shipped `application.yml` (`name: KOMGA-SESSION`,
+/// `max-age: ${spring.session.timeout}`) over `DefaultCookieSerializer`'s own
+/// defaults (path "/", httpOnly, SameSite=Lax).
+#[derive(Debug, Clone)]
+pub struct SessionCookieConfig {
+    pub name: String,
+    /// `Domain` attribute; None = the browser scopes the cookie to the request host
+    pub domain: Option<String>,
+    pub path: String,
+    pub http_only: bool,
+    /// None tracks `DefaultCookieSerializer`'s unset `useSecureCookie`: the cookie is
+    /// marked `Secure` exactly when the request itself is secure (https, honoring
+    /// X-Forwarded-Proto like the framework forward-headers strategy)
+    pub secure: Option<bool>,
+    /// seconds; negative omits Max-Age/Expires (a browser-session cookie), 0 writes
+    /// the epoch Expires. Defaults to `session_timeout`, like upstream's
+    /// `max-age: ${spring.session.timeout}`
+    pub max_age: i64,
+    pub same_site: SameSite,
+}
+
+impl SessionCookieConfig {
+    /// `Set-Cookie` value in `DefaultCookieSerializer`'s attribute order: Max-Age and
+    /// Expires (RFC 1123), Domain, Path, Secure, HttpOnly, SameSite.
+    pub fn set_cookie(&self, value: &str, request_secure: bool) -> String {
+        let mut out = format!("{}={value}", self.name);
+        if self.max_age >= 0 {
+            // the Java serializer's maxAge is an int
+            let max_age = self.max_age.min(i32::MAX as i64);
+            out.push_str(&format!("; Max-Age={max_age}"));
+            let expires = if max_age == 0 {
+                0
+            } else {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                (now + max_age as u64) as i64
+            };
+            out.push_str(&format!(
+                "; Expires={}",
+                crate::http::headers::format_http_date(expires)
+            ));
+        }
+        self.write_attributes(&mut out, request_secure);
+        out
+    }
+
+    /// Empty value with Max-Age=0 and the epoch Expires, deleting the cookie like
+    /// the security filter chain's `CookieClearingLogoutHandler`.
+    pub fn clear_cookie(&self, request_secure: bool) -> String {
+        let mut out = format!(
+            "{}=; Max-Age=0; Expires={}",
+            self.name,
+            crate::http::headers::format_http_date(0)
+        );
+        self.write_attributes(&mut out, request_secure);
+        out
+    }
+
+    fn write_attributes(&self, out: &mut String, request_secure: bool) {
+        if let Some(domain) = &self.domain {
+            out.push_str(&format!("; Domain={domain}"));
+        }
+        out.push_str(&format!("; Path={}", self.path));
+        if self.secure.unwrap_or(request_secure) {
+            out.push_str("; Secure");
+        }
+        if self.http_only {
+            out.push_str("; HttpOnly");
+        }
+        out.push_str(&format!("; SameSite={}", self.same_site.as_str()));
+    }
+}
+
+impl Default for SessionCookieConfig {
+    fn default() -> Self {
+        Self {
+            name: crate::auth::SESSION_COOKIE_NAME.to_string(),
+            domain: None,
+            path: "/".to_string(),
+            http_only: true,
+            secure: None,
+            max_age: 7 * 24 * 3600,
+            same_site: SameSite::Lax,
+        }
+    }
+}
+
+/// `Cookie.SameSite` (`Lax`/`Strict`/`None`), written verbatim by the serializer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SameSite {
+    #[default]
+    Lax,
+    Strict,
+    None,
+}
+
+impl SameSite {
+    fn parse(value: &str) -> anyhow::Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "lax" => Ok(Self::Lax),
+            "strict" => Ok(Self::Strict),
+            "none" => Ok(Self::None),
+            other => anyhow::bail!("invalid session-cookie-same-site {other:?}: Lax/Strict/None"),
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Lax => "Lax",
+            Self::Strict => "Strict",
+            Self::None => "None",
+        }
+    }
+}
+
+/// RFC 2616 token, the charset of a cookie name; anything else would break the
+/// Set-Cookie header at runtime.
+fn is_cookie_name(value: &str) -> bool {
+    const SEPARATORS: &[u8] = b"()<>@,;:\\\"/[]?={} \t";
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|b| (0x21..0x7f).contains(&b) && !SEPARATORS.contains(&b))
+}
+
+/// `DefaultCookieSerializer.validateDomain`: alphanumerics, dots and hyphens; a dot
+/// or hyphen never follows a dot or the start, a dot never follows a hyphen, and the
+/// value never ends in a dot or hyphen.
+fn is_cookie_domain(value: &str) -> bool {
+    let mut prev = None;
+    for &b in value.as_bytes() {
+        if !(b.is_ascii_alphanumeric() || b == b'.' || b == b'-') {
+            return false;
+        }
+        if matches!(prev, Some(b'.') | None) && matches!(b, b'.' | b'-') {
+            return false;
+        }
+        if prev == Some(b'-') && b == b'.' {
+            return false;
+        }
+        prev = Some(b);
+    }
+    !matches!(prev, None | Some(b'.') | Some(b'-'))
+}
+
+/// `DefaultCookieSerializer.validatePath`: printable ASCII without ';'.
+fn is_cookie_path(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|b| (0x20..=0x7e).contains(&b) && b != b';')
 }
 
 /// Outbound generic JSON webhooks. Empty `endpoints` disables delivery entirely.
@@ -308,6 +466,53 @@ impl ServerConfig {
             .or_else(|| server.and_then(|s| s.session_timeout).map(|d| d.0))
             .unwrap_or(Duration::from_secs(7 * 24 * 3600));
 
+        let session_cookie = {
+            let name = env_string(env, "SERVER_SERVLET_SESSION_COOKIE_NAME")
+                .or_else(|| server.and_then(|s| s.session_cookie_name.clone()))
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| crate::auth::SESSION_COOKIE_NAME.to_string());
+            if !is_cookie_name(&name) {
+                anyhow::bail!("invalid session-cookie-name {name:?}: not an HTTP token");
+            }
+            let domain = env_string(env, "SERVER_SERVLET_SESSION_COOKIE_DOMAIN")
+                .or_else(|| server.and_then(|s| s.session_cookie_domain.clone()))
+                .filter(|v| !v.is_empty());
+            if let Some(domain) = &domain {
+                if !is_cookie_domain(domain) {
+                    anyhow::bail!("invalid session-cookie-domain {domain:?}");
+                }
+            }
+            let path = env_string(env, "SERVER_SERVLET_SESSION_COOKIE_PATH")
+                .or_else(|| server.and_then(|s| s.session_cookie_path.clone()))
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| "/".to_string());
+            if !is_cookie_path(&path) {
+                anyhow::bail!("invalid session-cookie-path {path:?}");
+            }
+            SessionCookieConfig {
+                name,
+                domain,
+                path,
+                http_only: env_bool(env, "SERVER_SERVLET_SESSION_COOKIE_HTTPONLY")
+                    .or_else(|| env_bool(env, "SERVER_SERVLET_SESSION_COOKIE_HTTP_ONLY"))
+                    .or_else(|| server.and_then(|s| s.session_cookie_http_only))
+                    .unwrap_or(true),
+                secure: env_bool(env, "SERVER_SERVLET_SESSION_COOKIE_SECURE")
+                    .or_else(|| server.and_then(|s| s.session_cookie_secure)),
+                max_age: env_signed_duration(env, "SERVER_SERVLET_SESSION_COOKIE_MAXAGE")
+                    .or_else(|| env_signed_duration(env, "SERVER_SERVLET_SESSION_COOKIE_MAX_AGE"))
+                    .transpose()?
+                    .or_else(|| server.and_then(|s| s.session_cookie_max_age).map(|d| d.0))
+                    .unwrap_or(session_timeout.as_secs().min(i32::MAX as u64) as i64),
+                same_site: env_string(env, "SERVER_SERVLET_SESSION_COOKIE_SAMESITE")
+                    .or_else(|| env_string(env, "SERVER_SERVLET_SESSION_COOKIE_SAME_SITE"))
+                    .or_else(|| server.and_then(|s| s.session_cookie_same_site.clone()))
+                    .map(|v| SameSite::parse(&v))
+                    .transpose()?
+                    .unwrap_or_default(),
+            }
+        };
+
         let server_context_path = env_string(env, "SERVER_SERVLET_CONTEXT_PATH")
             .or_else(|| server.and_then(|s| s.context_path.clone()))
             .filter(|v| !v.is_empty());
@@ -375,6 +580,7 @@ impl ServerConfig {
                 .or_else(|| server.and_then(|s| s.jdbc_session_enabled))
                 .unwrap_or(true),
             session_timeout,
+            session_cookie,
             sort_locale,
             trusted_proxies,
             body_idle_timeout,
@@ -756,6 +962,10 @@ fn env_u32(env: &Env, key: &str) -> Option<u32> {
 
 fn env_duration(env: &Env, key: &str) -> Option<anyhow::Result<Duration>> {
     env_get(env, key).map(|v| file::parse_duration(v).map_err(anyhow::Error::msg))
+}
+
+fn env_signed_duration(env: &Env, key: &str) -> Option<anyhow::Result<i64>> {
+    env_get(env, key).map(|v| file::parse_signed_duration(v).map_err(anyhow::Error::msg))
 }
 
 fn default_config_dir() -> PathBuf {
@@ -1264,6 +1474,249 @@ issuer-uri = "https://github.com"
             &env(&[("SERVER_SERVLET_SESSION_TIMEOUT", "1d")]),
         );
         assert_eq!(config.session_timeout, Duration::from_secs(86400));
+    }
+
+    #[test]
+    fn session_cookie_defaults_follow_the_upstream_application_yml() {
+        let config = resolve("", Cli::default(), &[]);
+        let cookie = &config.session_cookie;
+        assert_eq!(cookie.name, "KOMGA-SESSION");
+        assert_eq!(cookie.domain, None);
+        assert_eq!(cookie.path, "/");
+        assert!(cookie.http_only);
+        // unset: Secure tracks the request, like the serializer's unset useSecureCookie
+        assert_eq!(cookie.secure, None);
+        // max-age pinned to the session timeout, like `${spring.session.timeout}`
+        assert_eq!(cookie.max_age, config.session_timeout.as_secs() as i64);
+        assert_eq!(cookie.same_site, SameSite::Lax);
+
+        // a custom session timeout flows into the cookie max-age
+        let config = resolve("[server]\nsession-timeout = \"12h\"\n", Cli::default(), &[]);
+        assert_eq!(config.session_cookie.max_age, 12 * 3600);
+    }
+
+    #[test]
+    fn session_cookie_from_file_and_env() {
+        let toml = "[server]\nsession-cookie-name = \"MY-SESSION\"\nsession-cookie-domain = \"example.com\"\nsession-cookie-path = \"/komga\"\nsession-cookie-http-only = false\nsession-cookie-secure = true\nsession-cookie-max-age = \"1h\"\nsession-cookie-same-site = \"strict\"\n";
+        let config = resolve(toml, Cli::default(), &[]);
+        let cookie = &config.session_cookie;
+        assert_eq!(cookie.name, "MY-SESSION");
+        assert_eq!(cookie.domain.as_deref(), Some("example.com"));
+        assert_eq!(cookie.path, "/komga");
+        assert!(!cookie.http_only);
+        assert_eq!(cookie.secure, Some(true));
+        assert_eq!(cookie.max_age, 3600);
+        assert_eq!(cookie.same_site, SameSite::Strict);
+
+        // env vars win over the file, in either Spring spelling
+        let config = resolve(
+            toml,
+            Cli::default(),
+            &env(&[
+                ("SERVER_SERVLET_SESSION_COOKIE_NAME", "ENV-SESSION"),
+                ("SERVER_SERVLET_SESSION_COOKIE_HTTP_ONLY", "true"),
+                ("SERVER_SERVLET_SESSION_COOKIE_SECURE", "false"),
+                ("SERVER_SERVLET_SESSION_COOKIE_MAX_AGE", "30m"),
+                ("SERVER_SERVLET_SESSION_COOKIE_SAME_SITE", "None"),
+            ]),
+        );
+        let cookie = &config.session_cookie;
+        assert_eq!(cookie.name, "ENV-SESSION");
+        assert_eq!(cookie.domain.as_deref(), Some("example.com"));
+        assert!(cookie.http_only);
+        assert_eq!(cookie.secure, Some(false));
+        assert_eq!(cookie.max_age, 1800);
+        assert_eq!(cookie.same_site, SameSite::None);
+
+        // a negative max-age is a browser-session cookie, as upstream documents
+        let config = resolve(
+            "[server]\nsession-cookie-max-age = -1\n",
+            Cli::default(),
+            &[],
+        );
+        assert_eq!(config.session_cookie.max_age, -1);
+        let config = resolve(
+            "",
+            Cli::default(),
+            &env(&[("SERVER_SERVLET_SESSION_COOKIE_MAXAGE", "-1s")]),
+        );
+        assert_eq!(config.session_cookie.max_age, -1);
+        // java.time.Duration.getSeconds() floors sub-second negatives to -1, still < 0
+        let config = resolve(
+            "[server]\nsession-cookie-max-age = \"-500ms\"\n",
+            Cli::default(),
+            &[],
+        );
+        assert_eq!(config.session_cookie.max_age, -1);
+    }
+
+    #[test]
+    fn invalid_session_cookie_values_are_startup_errors() {
+        for name in ["has space", "semi;colon"] {
+            let toml = format!("[server]\nsession-cookie-name = {name:?}\n");
+            assert!(
+                ServerConfig::resolve(
+                    Some(&toml::from_str::<FileConfig>(&toml).unwrap()),
+                    &Cli::default(),
+                    &[]
+                )
+                .is_err(),
+                "{name:?}"
+            );
+        }
+        // DefaultCookieSerializer's validateDomain/validatePath rules
+        for domain in [
+            "-bad-",
+            ".dot.",
+            "a..b",
+            "a.-b",
+            "a-.b",
+            "ex ample.com",
+            "中文.dev",
+        ] {
+            let toml = format!("[server]\nsession-cookie-domain = {domain:?}\n");
+            assert!(
+                ServerConfig::resolve(
+                    Some(&toml::from_str::<FileConfig>(&toml).unwrap()),
+                    &Cli::default(),
+                    &[]
+                )
+                .is_err(),
+                "{domain:?}"
+            );
+        }
+        for path in ["/漫画", "/a;b"] {
+            let toml = format!("[server]\nsession-cookie-path = {path:?}\n");
+            assert!(
+                ServerConfig::resolve(
+                    Some(&toml::from_str::<FileConfig>(&toml).unwrap()),
+                    &Cli::default(),
+                    &[]
+                )
+                .is_err(),
+                "{path:?}"
+            );
+        }
+        // accepted domain shapes, per the same rules
+        for domain in ["example.com", "a-b.example.com", "a--b.dev"] {
+            let toml = format!("[server]\nsession-cookie-domain = {domain:?}\n");
+            ServerConfig::resolve(
+                Some(&toml::from_str::<FileConfig>(&toml).unwrap()),
+                &Cli::default(),
+                &[],
+            )
+            .unwrap_or_else(|e| panic!("{domain:?} should be valid: {e:#}"));
+        }
+        let error = ServerConfig::resolve(
+            None,
+            &Cli::default(),
+            &env(&[("SERVER_SERVLET_SESSION_COOKIE_SAMESITE", "lax-ish")]),
+        )
+        .unwrap_err();
+        assert!(format!("{error:#}").contains("session-cookie-same-site"));
+    }
+
+    #[test]
+    fn rendered_config_keeps_the_session_cookie_keys() {
+        let round_trip = |toml: &str| {
+            let file: FileConfig = toml::from_str(toml).unwrap();
+            let config = ServerConfig::resolve(Some(&file), &Cli::default(), &[]).unwrap();
+            let rendered = file::render(&file, &config, None);
+            let reparsed: FileConfig = toml::from_str(&rendered).unwrap();
+            let config = ServerConfig::resolve(Some(&reparsed), &Cli::default(), &[]).unwrap();
+            (rendered, config)
+        };
+        // unset: defaults shown commented out, max-age follows session-timeout
+        let (rendered, config) = round_trip("");
+        assert!(rendered.contains("\n# session-cookie-name = \"KOMGA-SESSION\" #"));
+        assert!(rendered.contains("\n# session-cookie-max-age = \"7d\" #"));
+        assert!(rendered.contains("\n# session-cookie-secure = false #"));
+        assert!(rendered.contains("\n# session-cookie-same-site = \"Lax\" #"));
+        assert_eq!(config.session_cookie.name, "KOMGA-SESSION");
+        assert_eq!(config.session_cookie.secure, None);
+        // set: kept live
+        let (rendered, config) =
+            round_trip("[server]\nsession-cookie-name = \"MY-SESSION\"\nsession-cookie-secure = true\nsession-cookie-max-age = \"1h\"\n");
+        assert!(rendered.contains("\nsession-cookie-name = \"MY-SESSION\" #"));
+        assert!(rendered.contains("\nsession-cookie-secure = true #"));
+        assert!(rendered.contains("\nsession-cookie-max-age = \"1h\" #"));
+        assert_eq!(config.session_cookie.name, "MY-SESSION");
+        assert_eq!(config.session_cookie.secure, Some(true));
+        assert_eq!(config.session_cookie.max_age, 3600);
+    }
+
+    #[test]
+    fn session_cookie_serialization_matches_the_serializer_contract() {
+        let base = SessionCookieConfig::default();
+
+        // default attributes, in DefaultCookieSerializer's order
+        let cookie = base.set_cookie("id", false);
+        let attrs: Vec<&str> = cookie.split("; ").collect();
+        assert_eq!(attrs[0], "KOMGA-SESSION=id");
+        assert_eq!(attrs[1], "Max-Age=604800");
+        assert!(attrs[2].starts_with("Expires="), "{cookie}");
+        assert_eq!(attrs[3..], ["Path=/", "HttpOnly", "SameSite=Lax"]);
+
+        // every attribute honored; an explicit secure wins over the request scheme
+        let custom = SessionCookieConfig {
+            name: "MY-SESSION".to_string(),
+            domain: Some("example.com".to_string()),
+            path: "/komga".to_string(),
+            http_only: false,
+            secure: Some(true),
+            max_age: 3600,
+            same_site: SameSite::Strict,
+        };
+        let cookie = custom.set_cookie("id", false);
+        let attrs: Vec<&str> = cookie.split("; ").collect();
+        assert_eq!(attrs[0], "MY-SESSION=id");
+        assert_eq!(attrs[1], "Max-Age=3600");
+        assert!(attrs[2].starts_with("Expires="), "{cookie}");
+        assert_eq!(
+            attrs[3..],
+            [
+                "Domain=example.com",
+                "Path=/komga",
+                "Secure",
+                "SameSite=Strict"
+            ]
+        );
+
+        // explicit secure=false suppresses the flag even over https
+        let insecure = SessionCookieConfig {
+            secure: Some(false),
+            ..base.clone()
+        };
+        assert!(!insecure.set_cookie("id", true).contains("Secure"));
+        // unset secure tracks the request scheme
+        assert!(base.set_cookie("id", true).contains("; Secure"));
+
+        // negative max-age: browser-session cookie, no Max-Age/Expires
+        let session_only = SessionCookieConfig {
+            max_age: -1,
+            ..base.clone()
+        };
+        let cookie = session_only.set_cookie("id", false);
+        assert!(!cookie.contains("Max-Age"), "{cookie}");
+        assert!(!cookie.contains("Expires"), "{cookie}");
+
+        // zero max-age expires at the epoch, like the serializer's Instant.EPOCH branch
+        let zero = SessionCookieConfig {
+            max_age: 0,
+            ..base.clone()
+        };
+        let cookie = zero.set_cookie("id", false);
+        assert!(
+            cookie.contains("; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT"),
+            "{cookie}"
+        );
+
+        // the clear cookie deletes with Max-Age=0 and the epoch Expires
+        let cookie = base.clear_cookie(false);
+        assert_eq!(
+            cookie,
+            "KOMGA-SESSION=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; HttpOnly; SameSite=Lax"
+        );
     }
 
     #[test]

@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::file::{
-    ConfigDuration, FileBooks, FileConfig, FileCors, FileDatabase, FileFonts, FileKobo,
-    FileLibraries, FileOAuth2, FileOAuth2Registration, FileSearch, FileServer,
+    ConfigDuration, ConfigSignedDuration, FileBooks, FileConfig, FileCors, FileDatabase, FileFonts,
+    FileKobo, FileLibraries, FileOAuth2, FileOAuth2Registration, FileSearch, FileServer,
 };
 
 /// Returns the migrated configuration and the file it came from, if any source exists.
@@ -61,6 +61,24 @@ struct JavaServlet {
 #[derive(Debug, Default, Deserialize)]
 struct JavaSession {
     timeout: Option<ConfigDuration>,
+    cookie: Option<JavaSessionCookie>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct JavaSessionCookie {
+    name: Option<String>,
+    domain: Option<String>,
+    path: Option<String>,
+    #[serde(alias = "httpOnly")]
+    http_only: Option<bool>,
+    secure: Option<bool>,
+    /// not a plain ConfigDuration: komga's own default is the
+    /// `${spring.session.timeout}` placeholder, which must not fail the migration
+    #[serde(alias = "maxAge")]
+    max_age: Option<serde_yaml::Value>,
+    #[serde(alias = "sameSite")]
+    same_site: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -128,6 +146,12 @@ struct JavaKobo {
 #[derive(Debug, Default, Deserialize)]
 struct JavaSpring {
     security: Option<JavaSpringSecurity>,
+    session: Option<JavaSpringSession>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct JavaSpringSession {
+    timeout: Option<ConfigDuration>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -170,6 +194,11 @@ struct JavaOauth2Provider {
 impl JavaConfig {
     fn into_file_config(self, config_dir: &Path) -> FileConfig {
         let mut file = FileConfig::default();
+        let spring_session_timeout = self
+            .spring
+            .as_ref()
+            .and_then(|s| s.session.as_ref())
+            .and_then(|s| s.timeout);
 
         if let Some(server) = self.server {
             if server.error.is_some() {
@@ -191,14 +220,49 @@ impl JavaConfig {
                 }
             }
             let servlet = server.servlet.unwrap_or_default();
+            let session = servlet.session.unwrap_or_default();
+            let cookie = session.cookie.unwrap_or_default();
+            let cookie_max_age = cookie.max_age.and_then(|value| match value {
+                serde_yaml::Value::Number(n) => n.as_i64().map(ConfigSignedDuration),
+                serde_yaml::Value::String(s) => {
+                    // a `${spring.session.timeout}` placeholder resolves through the
+                    // session-timeout default, which the migration carries over too
+                    if s.contains("${") {
+                        None
+                    } else {
+                        match super::file::parse_signed_duration(&s) {
+                            Ok(d) => Some(ConfigSignedDuration(d)),
+                            Err(e) => {
+                                tracing::warn!("server.servlet.session.cookie.max-age: {e}, ignored during migration");
+                                None
+                            }
+                        }
+                    }
+                }
+                _ => None,
+            });
             file.server = Some(FileServer {
                 port: server.port,
                 context_path: servlet.context_path,
-                session_timeout: servlet.session.and_then(|s| s.timeout),
+                // Spring Session's SessionProperties.determineTimeout prefers
+                // spring.session.timeout over server.servlet.session.timeout
+                session_timeout: spring_session_timeout.or(session.timeout),
                 jdbc_session_enabled: None,
                 sort_locale: None,
                 trusted_proxies: None,
                 body_idle_timeout: None,
+                session_cookie_name: cookie.name,
+                session_cookie_domain: cookie.domain,
+                session_cookie_path: cookie.path,
+                session_cookie_http_only: cookie.http_only,
+                session_cookie_secure: cookie.secure,
+                session_cookie_max_age: cookie_max_age,
+                session_cookie_same_site: cookie.same_site,
+            });
+        } else if let Some(timeout) = spring_session_timeout {
+            file.server = Some(FileServer {
+                session_timeout: Some(timeout),
+                ..FileServer::default()
             });
         }
 
@@ -403,6 +467,14 @@ server:
     context-path: /komga
     session:
       timeout: 12h
+      cookie:
+        name: MY-SESSION
+        domain: example.com
+        path: /komga
+        http-only: false
+        secure: true
+        max-age: 1h
+        same-site: Strict
 komga:
   config-dir: /data/komga
   page-hashing: 5
@@ -466,6 +538,13 @@ logging:
             server.session_timeout.unwrap().0,
             std::time::Duration::from_secs(12 * 3600)
         );
+        assert_eq!(server.session_cookie_name.as_deref(), Some("MY-SESSION"));
+        assert_eq!(server.session_cookie_domain.as_deref(), Some("example.com"));
+        assert_eq!(server.session_cookie_path.as_deref(), Some("/komga"));
+        assert_eq!(server.session_cookie_http_only, Some(false));
+        assert_eq!(server.session_cookie_secure, Some(true));
+        assert_eq!(server.session_cookie_max_age.unwrap().0, 3600);
+        assert_eq!(server.session_cookie_same_site.as_deref(), Some("Strict"));
         let books = file.books.unwrap();
         assert_eq!(books.page_hashing, Some(5));
         assert_eq!(books.epub_divina_letter_count_threshold, Some(20));
@@ -533,6 +612,138 @@ logging:
             github.token_uri.as_deref(),
             Some("https://github.com/token")
         );
+    }
+
+    #[test]
+    fn session_cookie_max_age_placeholder_and_integer() {
+        // komga's own default `max-age: ${spring.session.timeout}` reads as unset
+        let file = migrate_yaml(
+            r#"
+server:
+  servlet:
+    session:
+      cookie:
+        name: KOMGA-SESSION
+        max-age: ${spring.session.timeout}
+"#,
+            Path::new("/data/komga"),
+        );
+        let server = file.server.unwrap();
+        assert_eq!(server.session_cookie_name.as_deref(), Some("KOMGA-SESSION"));
+        assert!(server.session_cookie_max_age.is_none());
+
+        // a bare integer is seconds, like everywhere else
+        let file = migrate_yaml(
+            r#"
+server:
+  servlet:
+    session:
+      cookie:
+        max-age: 3600
+"#,
+            Path::new("/data/komga"),
+        );
+        assert_eq!(file.server.unwrap().session_cookie_max_age.unwrap().0, 3600);
+
+        // -1 (upstream's browser-session cookie) survives the migration
+        let file = migrate_yaml(
+            r#"
+server:
+  servlet:
+    session:
+      cookie:
+        max-age: -1
+"#,
+            Path::new("/data/komga"),
+        );
+        assert_eq!(file.server.unwrap().session_cookie_max_age.unwrap().0, -1);
+    }
+
+    #[test]
+    fn spring_session_timeout_wins_over_the_servlet_one() {
+        let file = migrate_yaml(
+            r#"
+server:
+  servlet:
+    session:
+      cookie:
+        name: KOMGA-SESSION
+        max-age: ${spring.session.timeout}
+spring:
+  session:
+    timeout: 30m
+"#,
+            Path::new("/data/komga"),
+        );
+        let server = file.server.unwrap();
+        assert_eq!(
+            server.session_timeout.unwrap().0,
+            std::time::Duration::from_secs(1800)
+        );
+        // the placeholder resolves through the session-timeout default at resolve time
+        assert!(server.session_cookie_max_age.is_none());
+
+        // SessionProperties.determineTimeout prefers spring.session.timeout over
+        // server.servlet.session.timeout when both are set
+        let file = migrate_yaml(
+            r#"
+server:
+  servlet:
+    session:
+      timeout: 1h
+      cookie:
+        max-age: ${spring.session.timeout}
+spring:
+  session:
+    timeout: 30m
+"#,
+            Path::new("/data/komga"),
+        );
+        assert_eq!(
+            file.server.as_ref().unwrap().session_timeout.unwrap().0,
+            std::time::Duration::from_secs(1800)
+        );
+        let resolved =
+            crate::config::ServerConfig::resolve(Some(&file), &Default::default(), &[]).unwrap();
+        assert_eq!(
+            resolved.session_timeout,
+            std::time::Duration::from_secs(1800)
+        );
+        assert_eq!(resolved.session_cookie.max_age, 1800);
+
+        // spring.session.timeout is honored even without a server section
+        let file = migrate_yaml(
+            r#"
+spring:
+  session:
+    timeout: 30m
+"#,
+            Path::new("/data/komga"),
+        );
+        assert_eq!(
+            file.server.unwrap().session_timeout.unwrap().0,
+            std::time::Duration::from_secs(1800)
+        );
+    }
+
+    #[test]
+    fn session_cookie_accepts_camel_case_keys() {
+        let file = migrate_yaml(
+            r#"
+server:
+  servlet:
+    session:
+      cookie:
+        httpOnly: false
+        maxAge: 3600
+        sameSite: Strict
+"#,
+            Path::new("/data/komga"),
+        );
+        let server = file.server.unwrap();
+        assert_eq!(server.session_cookie_http_only, Some(false));
+        assert_eq!(server.session_cookie_max_age.unwrap().0, 3600);
+        assert_eq!(server.session_cookie_same_site.as_deref(), Some("Strict"));
     }
 
     #[test]

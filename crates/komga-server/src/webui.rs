@@ -101,6 +101,7 @@ mod tests {
             sessions_db: db_config(false),
             jdbc_session_enabled: false,
             session_timeout: std::time::Duration::from_secs(3600),
+            session_cookie: Default::default(),
             cors_allowed_origins: vec![],
             page_hashing: 3,
             epub_divina_letter_count_threshold: 15,

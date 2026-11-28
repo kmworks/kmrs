@@ -29,6 +29,19 @@ pub fn base_url_from_headers(headers: &axum::http::HeaderMap, config: &ServerCon
     }
 }
 
+/// Whether the request came in over TLS. kmrs only listens on plain HTTP, so this
+/// is X-Forwarded-Proto from the TLS-terminating reverse proxy (the same header the
+/// framework forward-headers strategy maps onto `request.isSecure()`).
+pub fn request_is_secure(headers: &axum::http::HeaderMap) -> bool {
+    first_header(headers, "x-forwarded-proto").is_some_and(|v| {
+        v.split(',')
+            .next()
+            .unwrap()
+            .trim()
+            .eq_ignore_ascii_case("https")
+    })
+}
+
 fn first_header(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
